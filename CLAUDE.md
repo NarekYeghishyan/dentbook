@@ -162,7 +162,7 @@ function computeSlots(input: {
 { "error": { "code": "slot_taken", "message": "..." } }
 ```
 
-Коды: `invalid_key`, `origin_not_allowed`, `rate_limited`, `slot_taken`, `hold_expired`, `verification_required`, `verification_failed`, `outside_working_hours`, `validation_failed`.
+Коды: `invalid_key`, `origin_not_allowed`, `rate_limited`, `slot_taken`, `hold_expired`, `verification_required`, `verification_failed`, `outside_working_hours`, `validation_failed`, `unauthorized`, `forbidden`, `not_found`, `internal_error`.
 
 ---
 

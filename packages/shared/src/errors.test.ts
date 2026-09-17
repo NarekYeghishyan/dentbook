@@ -17,6 +17,10 @@ describe('ERROR_CODES', () => {
       'verification_failed',
       'outside_working_hours',
       'validation_failed',
+      'unauthorized',
+      'forbidden',
+      'not_found',
+      'internal_error',
     ]);
   });
 

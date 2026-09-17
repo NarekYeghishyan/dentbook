@@ -40,6 +40,11 @@ produced them (CLAUDE.md §9).
 - `test(shared): lock error codes contract` — тест на состав и отсутствие дублей в
   `ERROR_CODES`.
 
+#### Changed
+
+- `feat(shared): add auth and not-found error codes` — `unauthorized`, `forbidden`,
+  `not_found`, `internal_error` в `ERROR_CODES` и в CLAUDE.md §7 (решение заказчика, Q2).
+
 #### Verified
 
 - `pnpm install` — 9 workspace-проектов, постинсталл-скрипты разрешены поимённо
