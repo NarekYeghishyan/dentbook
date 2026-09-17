@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "target": "ES2020",
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "types": ["vite/client"]
+  },
+  "include": ["src/**/*.ts", "vite.config.ts"]
+}

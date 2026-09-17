@@ -1,0 +1,13 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# Постинсталл-скрипты разрешены поимённо (pnpm 11).
+# esbuild нужен Vite и tsx; остальное — опциональные нативные ускорители,
+# без них пакеты работают на JS-реализации.
+allowBuilds:
+  esbuild: true
+  cpu-features: false
+  msgpackr-extract: false
+  protobufjs: false
+  ssh2: false

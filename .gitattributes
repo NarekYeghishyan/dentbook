@@ -1,0 +1,7 @@
+# LF в репозитории и рабочей копии на любой ОС (совпадает с .editorconfig и Prettier)
+* text=auto eol=lf
+
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.woff2 binary

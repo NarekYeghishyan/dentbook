@@ -1,0 +1,17 @@
+{
+  "name": "@dentbook/shared",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./errors": "./src/errors.ts"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b --pretty"
+  },
+  "dependencies": {
+    "zod": "^4.1.11"
+  }
+}
