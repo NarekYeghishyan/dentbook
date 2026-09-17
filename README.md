@@ -7,8 +7,9 @@ read it before changing anything.
 
 ## Status
 
-Scaffolding only. Step 1 of 10 is in progress and blocked on the missing `schema.sql`
-(see [docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md)). No application code yet.
+Scaffolding only. Step 1 of 10 is in progress: the reference schema ([schema.sql](schema.sql))
+is drafted and awaits review before it is ported to Drizzle (see
+[docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md), Q9). No application code yet.
 Current state per step: [docs/PROGRESS.md](docs/PROGRESS.md).
 
 ## Layout

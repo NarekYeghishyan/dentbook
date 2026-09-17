@@ -40,6 +40,11 @@ produced them (CLAUDE.md §9).
 - `test(shared): lock error codes contract` — тест на состав и отсутствие дублей в
   `ERROR_CODES`.
 
+- `feat(db): add reference schema` — `schema.sql`: 16 таблиц из CLAUDE.md §5, ограничение
+  `appointments_no_dentist_overlap` из §2.1, составные FK `(clinic_id, x_id)` для изоляции
+  тенантов на уровне БД (§2.2), холды как строки `appointments`. Решения — ADR-0003,
+  вопросы к согласованию — Q9-Q11.
+
 #### Changed
 
 - `feat(shared): add auth and not-found error codes` — `unauthorized`, `forbidden`,
@@ -51,9 +56,11 @@ produced them (CLAUDE.md §9).
   (`allowBuilds`);
 - `pnpm typecheck`, `pnpm lint`, `pnpm test` — проходят;
 - `docker compose config` — валиден;
-- падение API при отсутствии `DATABASE_URL`/`REDIS_URL` — проверено запуском.
+- падение API при отсутствии `DATABASE_URL`/`REDIS_URL` — проверено запуском;
+- `schema.sql` — 61 проверка на встроенном Postgres (PGlite, PostgreSQL 18.3): EXCLUDE,
+  составные FK между клиниками, CHECK/UNIQUE, значения по умолчанию.
 
 #### Pending
 
-Критерий «Готово» Шага 1 не выполнен: нет `schema.sql`, схемы Drizzle, миграций, сидов и
-теста на конкурентную вставку. Блокер — `docs/OPEN-QUESTIONS.md` § Q1.
+Критерий «Готово» Шага 1 не выполнен: нет схемы Drizzle, миграций, сидов и теста на
+конкурентную вставку. Блокер — согласование `schema.sql` (`docs/OPEN-QUESTIONS.md` § Q9).
