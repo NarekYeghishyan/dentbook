@@ -11,7 +11,7 @@ produced them (CLAUDE.md §9).
 
 ## [Unreleased]
 
-### Шаг 1 — каркас и БД (в работе)
+### Шаг 1 — каркас и БД (закрыт 2026-09-17)
 
 #### Added
 
@@ -39,14 +39,31 @@ produced them (CLAUDE.md §9).
   `packages/db/src/migrations`, чтение `.env` из корня монорепо.
 - `test(shared): lock error codes contract` — тест на состав и отсутствие дублей в
   `ERROR_CODES`.
-
 - `feat(db): add reference schema` — `schema.sql`: 16 таблиц из CLAUDE.md §5, ограничение
   `appointments_no_dentist_overlap` из §2.1, составные FK `(clinic_id, x_id)` для изоляции
   тенантов на уровне БД (§2.2), холды как строки `appointments`. Решения — ADR-0003,
   вопросы к согласованию — Q9-Q11.
+- `feat(db): add drizzle schema and migrations` — схема Drizzle 1:1 со `schema.sql`
+  (`packages/db/src/schema`), миграции `0000_extensions`, `0001_init`,
+  `0002_appointments_no_overlap` (EXCLUDE из §2.1 и gist-индекс — кастомной миграцией
+  drizzle-kit), клиент `createDatabase()` с сессией в UTC, `pgErrorCode()` /
+  `isExclusionViolation()` с разворачиванием `DrizzleQueryError.cause`.
+- `feat(db): add demo seed` — идемпотентный сид демо-клиники (Europe/Berlin — пояс с
+  переходом на летнее время; есть смена через полночь).
+- `feat(shared): add domain enums` — `packages/shared/src/domain.ts`: статусы, роли, виды
+  уведомлений; из них же строятся CHECK-ограничения схемы.
+- `test(db): add schema integration tests` — Testcontainers + `postgres:16-alpine`: 50
+  конкурентных записей на один слот → ровно одна; частичное пересечение и касание границ;
+  холд освобождает слот после `expired`; запись со ссылкой на чужую клинику → `23503`;
+  идемпотентность сида; полный паритет каталога БД после миграций со `schema.sql`.
 
 #### Changed
 
+- `feat(db): add booking confirmation setting` — `clinics.booking_requires_confirmation`
+  (решение заказчика, Q9): подтверждать ли записи из виджета.
+- `chore: make compose host ports configurable` — `POSTGRES_PORT` / `REDIS_PORT` в `.env`
+  (по умолчанию 5432 / 6379), чтобы DentBook не конфликтовал с другими проектами.
+- `chore(db): remove push script` — схема меняется только миграциями (§9).
 - `feat(shared): add auth and not-found error codes` — `unauthorized`, `forbidden`,
   `not_found`, `internal_error` в `ERROR_CODES` и в CLAUDE.md §7 (решение заказчика, Q2).
 
@@ -59,8 +76,8 @@ produced them (CLAUDE.md §9).
 - падение API при отсутствии `DATABASE_URL`/`REDIS_URL` — проверено запуском;
 - `schema.sql` — 61 проверка на встроенном Postgres (PGlite, PostgreSQL 18.3): EXCLUDE,
   составные FK между клиниками, CHECK/UNIQUE, значения по умолчанию.
-
-#### Pending
-
-Критерий «Готово» Шага 1 не выполнен: нет схемы Drizzle, миграций, сидов и теста на
-конкурентную вставку. Блокер — согласование `schema.sql` (`docs/OPEN-QUESTIONS.md` § Q9).
+- на чистой БД из docker compose: `pnpm migrate` (3 миграции), `pnpm seed` дважды,
+  повторный `pnpm migrate` — без изменений, `drizzle-kit generate` — «No schema changes»;
+- `pnpm test` — 14 тестов, из них 7 интеграционных на PostgreSQL 16;
+- чувствительность тестов: без EXCLUDE-ограничения падают 2 теста конкурентности,
+  при расхождении со `schema.sql` падает тест паритета.

@@ -7,10 +7,11 @@ read it before changing anything.
 
 ## Status
 
-Scaffolding only. Step 1 of 10 is in progress: the reference schema ([schema.sql](schema.sql))
-is drafted and awaits review before it is ported to Drizzle (see
-[docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md), Q9). No application code yet.
-Current state per step: [docs/PROGRESS.md](docs/PROGRESS.md).
+Step 1 of 10 (skeleton and database) is done: the Drizzle schema, migrations and seeds are
+in place, and the double-booking constraint is covered by a concurrency test. Step 2
+(availability engine) is next. No API endpoints or UI yet.
+Current state per step: [docs/PROGRESS.md](docs/PROGRESS.md); open questions:
+[docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md).
 
 ## Layout
 
@@ -36,9 +37,16 @@ Requires Node 22 LTS (>=22), pnpm 11, Docker.
 pnpm install
 cp .env.example .env     # fill in the values
 pnpm db:up               # Postgres 16 + Redis 7 via docker compose
-pnpm migrate             # available once Step 1 lands
-pnpm seed
+pnpm migrate             # apply Drizzle migrations
+pnpm seed                # demo clinic (safe to re-run)
+pnpm test                # needs Docker running: integration tests use Testcontainers
 ```
+
+If ports 5432 / 6379 are taken by another project, set `POSTGRES_PORT` / `REDIS_PORT` in
+`.env` and use the same ports in `DATABASE_URL` / `REDIS_URL`.
+
+The reference schema is [schema.sql](schema.sql); the Drizzle schema must match it, and a test
+enforces that. See [packages/db/README.md](packages/db/README.md) for how to change it.
 
 ## Scripts
 

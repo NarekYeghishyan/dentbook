@@ -5,11 +5,11 @@
 
 Легенда: `[ ]` не начат · `[~]` в работе · `[x]` готово (критерий подтверждён)
 
-**Текущий шаг: 1 — каркас и БД.** Ждёт согласования `schema.sql` (Q9), затем перенос в Drizzle.
+**Текущий шаг: 2 — движок доступности.** Шаг 1 закрыт 2026-09-17.
 
 ---
 
-## [~] Шаг 1 — каркас и БД
+## [x] Шаг 1 — каркас и БД
 
 Монорепо, docker-compose с Postgres и Redis, схема в Drizzle, миграции, сиды.
 
@@ -23,12 +23,19 @@
 - [x] каркас `apps/worker`: подключение Redis для BullMQ, корректное завершение
 - [x] `pnpm lint && pnpm typecheck && pnpm test` проходят на пустом проекте
 - [x] `schema.sql` в корне репозитория — черновик, ADR-0003, 61 проверка на встроенном Postgres
-- [ ] согласование имён и решений в `schema.sql` — **блокер, см. Q9**
-- [ ] схема Drizzle в `packages/db/src/schema` (имена таблиц/полей как в `schema.sql`)
-- [ ] первая миграция: `btree_gist`, `pgcrypto`, `citext`
-- [ ] ограничение `appointments_no_dentist_overlap` (EXCLUDE USING gist) — §2.1
-- [ ] сиды `packages/db/src/seed`
-- [ ] интеграционный тест на конкурентную вставку (Testcontainers), ожидаем `23P01`
+- [x] согласование имён и решений в `schema.sql` (Q9), переключатель
+      `clinics.booking_requires_confirmation`
+- [x] схема Drizzle в `packages/db/src/schema`; паритет со `schema.sql` проверяется тестом
+      (колонки, типы, значения по умолчанию, ограничения, индексы, расширения)
+- [x] миграции: `0000_extensions` (кастомная) → `0001_init` → `0002_appointments_no_overlap`
+      (кастомная: EXCLUDE §2.1 и gist-индекс исключений)
+- [x] ограничение `appointments_no_dentist_overlap` (EXCLUDE USING gist) — §2.1
+- [x] сиды `packages/db/src/seed`: демо-клиника, идемпотентны
+- [x] интеграционный тест (Testcontainers, `postgres:16-alpine`): из 50 конкурентных
+      записей на один слот проходит ровно одна, остальные — `23P01`
+- [x] **критерий «Готово»:** `pnpm migrate` и `pnpm seed` прошли на чистой БД из
+      docker compose; тест на конкурентную вставку проходит; `pnpm lint && pnpm test` зелёные.
+      Тесты проверены на чувствительность: без EXCLUDE и при расхождении со `schema.sql` падают.
 
 ## [ ] Шаг 2 — движок доступности
 
