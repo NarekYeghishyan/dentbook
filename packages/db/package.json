@@ -12,18 +12,20 @@
     "typecheck": "tsc -b --pretty",
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
-    "push": "drizzle-kit push",
     "studio": "drizzle-kit studio",
     "seed": "tsx src/seed/index.ts"
   },
   "dependencies": {
     "@dentbook/shared": "workspace:*",
     "drizzle-orm": "^0.44.6",
-    "pg": "^8.16.3"
+    "pg": "^8.16.3",
+    "zod": "^4.1.11"
   },
   "devDependencies": {
+    "@testcontainers/postgresql": "^11.14.0",
     "@types/pg": "^8.15.5",
     "dotenv": "^17.2.3",
-    "drizzle-kit": "^0.31.5"
+    "drizzle-kit": "^0.31.5",
+    "testcontainers": "^11.14.0"
   }
 }

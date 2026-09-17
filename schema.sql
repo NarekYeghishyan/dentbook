@@ -43,6 +43,10 @@ CREATE TABLE clinics (
   min_lead_min      integer     NOT NULL DEFAULT 120,  -- notBefore = now + min_lead_min
   slot_step_min     integer     NOT NULL DEFAULT 15,   -- stepMin
   max_advance_days  integer     NOT NULL DEFAULT 60,   -- насколько вперёд можно записаться
+  -- Переключатель в админке (Q9): false — запись из виджета после SMS-кода сразу
+  -- confirmed; true — pending, пока её не подтвердит врач (Telegram) или регистратура.
+  -- Записи, созданные сотрудником или врачом, подтверждены сразу.
+  booking_requires_confirmation  boolean  NOT NULL DEFAULT false,
   -- Цвета и оформление виджета для GET /v1/public/config
   widget_theme      jsonb       NOT NULL DEFAULT '{}'::jsonb,
   status            text        NOT NULL DEFAULT 'active',
@@ -329,7 +333,9 @@ CREATE TABLE patients (
 -- Холд, снятый по DELETE /holds/:id или по таймауту, получает status = 'expired'.
 --
 -- Жизненный цикл:
---   hold → pending → confirmed → completed | no_show
+--   hold → confirmed                   (clinics.booking_requires_confirmation = false)
+--   hold → pending → confirmed         (clinics.booking_requires_confirmation = true)
+--   confirmed → completed | no_show
 --   hold → expired
 --   pending | confirmed → cancelled
 -- -----------------------------------------------------------------------------
