@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toE164 } from './phone';
+import { toE164 } from './phone.js';
 
 describe('toE164', () => {
   it.each([

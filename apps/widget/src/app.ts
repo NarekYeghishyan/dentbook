@@ -13,11 +13,11 @@ import type {
   VerificationResponse,
 } from '@dentbook/shared';
 import type { Locale } from '@dentbook/shared/domain';
+import { toE164 } from '@dentbook/shared/phone';
 import { createApi, WidgetApiError } from './api';
 import { renderCaptcha, type Captcha } from './captcha';
 import { addDays, formatDateOf, formatDay, formatTime, todayIn } from './dates';
 import { translator, type MessageKey } from './i18n';
-import { toE164 } from './phone';
 import { css } from './styles';
 
 export interface WidgetOptions {

@@ -8,6 +8,7 @@
     "./cache-keys": "./src/cache-keys.ts",
     "./domain": "./src/domain.ts",
     "./errors": "./src/errors.ts",
+    "./phone": "./src/phone.ts",
     "./queues": "./src/queues.ts"
   },
   "scripts": {
