@@ -21,7 +21,7 @@
     "seed": "pnpm --filter @dentbook/db seed",
     "db:up": "docker compose up -d postgres redis",
     "db:down": "docker compose down",
-    "test:e2e": "pnpm --filter @dentbook/widget size && pnpm --filter @dentbook/miniapp build && vitest run -c vitest.e2e.config.ts"
+    "test:e2e": "pnpm --filter @dentbook/widget size && pnpm --filter @dentbook/miniapp build && pnpm --filter @dentbook/admin build && vitest run -c vitest.e2e.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
