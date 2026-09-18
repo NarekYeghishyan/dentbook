@@ -140,9 +140,15 @@ DEPLOY_HOST=root@203.0.113.10 deploy/deploy.sh   # или алиас из ~/.ssh
 - `https://dentbook.mashna.am` — общий сервер с другими сайтами (nginx + ISPmanager), каталог
   `/opt/dentbook`, API на `127.0.0.1:3100`, конфиг nginx
   `/etc/nginx/conf.d/dentbook.mashna.am.conf`.
-- `https://mashna.am` (и `www.`) — тестовый «сайт клиники» (Q13): на Шаге 6 сюда
-  встраивается виджет. Сейчас — заглушка `/var/www/cweb/data/www/mashna.am/index.html`;
-  конфиг nginx от ISPmanager `/etc/nginx/vhosts/cweb/mashna.am.conf`, сертификат — certbot
-  (`mashna.am`).
+- `https://mashna.am` (и `www.`) — тестовый «сайт клиники» (Q13) с формой записи: страница
+  `/var/www/cweb/data/www/mashna.am/index.html` собрана из `apps/widget/test-page` с ключом
+  демо-клиники. Конфиг nginx от ISPmanager — `/etc/nginx/vhosts/cweb/mashna.am.conf`,
+  сертификат — certbot (`mashna.am`). Прежняя заглушка — в `/root/dentbook-backups/`.
+- Демо-клиника «DentBook Demo Clinic» (Нью-Йорк, офис, 3 услуги, 2 врача) — вход в панель и
+  ключ формы в `/root/dentbook-demo.txt` на сервере (только root).
+- SMS и капча на стенде выключены, пока нет ключей Twilio и Turnstile (Q5): форма доходит до
+  ввода телефона и сообщает, что онлайн-запись недоступна. Ключи дописываются в
+  `/opt/dentbook/.env` (`SMS_PROVIDER=twilio`, `TWILIO_*`, `SMS_SENDER`, `CAPTCHA_*`), затем
+  выкладка или `docker compose up -d api`.
 - Выкладка: `DEPLOY_HOST=dentbook-test deploy/deploy.sh` (алиас в локальном `~/.ssh/config`).
 - Лимиты памяти в `docker-compose.yml` защищают соседние сайты: стек занимает ~120 МБ.
