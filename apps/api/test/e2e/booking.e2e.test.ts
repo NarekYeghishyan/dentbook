@@ -162,6 +162,44 @@ describe('booking form on a clinic website (Step 6)', () => {
     await page.close();
   });
 
+  it('going back from the details step releases the held time', async () => {
+    const page = await openPage();
+    await page.getByRole('button', { name: /Checkup/ }).click();
+    const firstSlot = page.locator('button.slot').first();
+    await firstSlot.waitFor();
+    const time = (await firstSlot.textContent())!.trim();
+    await firstSlot.click();
+    await page.getByText(/The time is held for you/).waitFor();
+
+    await page.getByRole('button', { name: '← Back' }).click();
+    // Холд снят: то же время снова в списке, ошибок на странице нет
+    await page.locator('button.slot', { hasText: time }).first().waitFor();
+    await page.close();
+  });
+
+  it('a hold that expires while the client types sends them back to choose a time', async () => {
+    const page = await openPage();
+    await page.getByRole('button', { name: /Checkup/ }).click();
+    await page.locator('button.slot').first().click();
+    await page.getByText(/The time is held for you/).waitFor();
+
+    // Время холда вышло на сервере — ответ hold_expired на подтверждении
+    await database.db
+      .update(appointments)
+      .set({ holdExpiresAt: new Date(Date.now() - 1000) })
+      .where(and(eq(appointments.clinicId, owner.clinicId), eq(appointments.status, 'hold')));
+    await page.getByLabel('Full name').fill('Late Client');
+    await page.getByLabel('Mobile phone').fill('(202) 555-0177');
+    await page.getByRole('button', { name: 'Send code' }).click();
+    await page.getByText('We texted a 6-digit code to +12025550177.').waitFor();
+    await page.getByLabel('Code').fill(sms.lastCode('+12025550177'));
+    await page.getByRole('button', { name: 'Book' }).click();
+
+    await page.getByText('The time you held has expired. Please choose a time again.').waitFor();
+    await page.locator('button.slot').first().waitFor();
+    await page.close();
+  });
+
   it("keeps the clinic site's styles out of the form", async () => {
     const page = await openPage();
     const button = page.getByRole('button', { name: /Checkup/ });

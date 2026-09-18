@@ -203,14 +203,7 @@ export function mountWidget(host: HTMLElement, options: WidgetOptions): void {
       const min = Math.floor(left / 60_000);
       const sec = Math.floor((left % 60_000) / 1000);
       label.textContent = t('details.reserved', { time: `${min}:${String(sec).padStart(2, '0')}` });
-      if (left === 0) {
-        stopCountdown();
-        s.hold = undefined;
-        void loadDays(s.from, true).then(() => {
-          s.error = 'error.hold_expired';
-          render();
-        });
-      }
+      if (left === 0) void backToTime('error.hold_expired');
     };
     tick();
     countdown = setInterval(tick, 1000);
@@ -248,6 +241,21 @@ export function mountWidget(host: HTMLElement, options: WidgetOptions): void {
     s.hold = undefined;
   }
 
+  /**
+   * Холда больше нет (клиент вернулся, время вышло или сервер ответил hold_expired):
+   * сначала уйти с шагов, которым нужен холд, потом перечитать свободное время.
+   */
+  async function backToTime(error?: MessageKey) {
+    releaseHold();
+    s.step = 'time';
+    s.busy = false;
+    await loadDays(s.from, true);
+    if (error) {
+      s.error = error;
+      render();
+    }
+  }
+
   async function sendCode() {
     const phone = toE164(s.form.phone);
     if (!s.form.name.trim()) return show('details', { error: 'error.name' });
@@ -274,6 +282,7 @@ export function mountWidget(host: HTMLElement, options: WidgetOptions): void {
   }
 
   async function confirm() {
+    let expired = false;
     await run(async () => {
       try {
         s.appointment = await api.post<ConfirmedAppointment>('/appointments', {
@@ -293,13 +302,13 @@ export function mountWidget(host: HTMLElement, options: WidgetOptions): void {
         s.step = 'done';
       } catch (error) {
         if (error instanceof WidgetApiError && error.code === 'hold_expired') {
-          stopCountdown();
-          s.hold = undefined;
-          await loadDays(s.from, true);
+          expired = true;
+          return;
         }
         throw error;
       }
     });
+    if (expired) await backToTime('error.hold_expired');
   }
 
   async function cancel() {
@@ -499,10 +508,7 @@ export function mountWidget(host: HTMLElement, options: WidgetOptions): void {
           captcha = renderCaptcha(captchaBox, siteKey, locale);
         }
         return [
-          header('details.title', () => {
-            releaseHold();
-            void loadDays(s.from, true);
-          }),
+          header('details.title', () => void backToTime()),
           h(
             'p',
             {},
