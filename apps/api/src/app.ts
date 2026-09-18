@@ -4,6 +4,7 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastif
 import type { Database } from '@dentbook/db';
 import type { Env } from './env.js';
 import { ApiError, errorHandler, sendError, serializeError } from './lib/errors.js';
+import { adminStatic } from './plugins/admin-static.js';
 import { sessionPlugin } from './plugins/session.js';
 import { adminRoutes } from './routes/admin/index.js';
 
@@ -72,6 +73,7 @@ export function buildApp({ env, db, logger }: AppDeps): FastifyInstance {
 
   app.get('/health', async () => ({ status: 'ok' as const }));
   app.register(adminRoutes, { prefix: '/v1/admin', db, authRateLimitPerMin: env.AUTH_RATE_LIMIT });
+  if (env.ADMIN_DIST_DIR) app.register(adminStatic, { root: env.ADMIN_DIST_DIR });
 
   return app;
 }
