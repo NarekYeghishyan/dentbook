@@ -18,6 +18,7 @@ import { miniappRoutes } from './routes/miniapp/index.js';
 import { publicRoutes } from './routes/public/index.js';
 import type { CaptchaVerifier } from './services/captcha.js';
 import { createNotifier } from './services/notifier.js';
+import type { SmsOutbox } from './services/sms-outbox.js';
 import { RedisSlotCache } from './services/slot-cache.js';
 import { deriveVerificationKey } from './services/verification.js';
 import type { TelegramConfig } from './telegram/outbox.js';
@@ -33,6 +34,8 @@ export interface AppDeps {
   redis?: Redis;
   /** Отправка SMS; без провайдера POST /verifications отвечает 503. */
   sms?: SmsSender;
+  /** Очередь SMS-уведомлений клиентам (Шаг 8); без неё напоминаний нет. */
+  smsOutbox?: SmsOutbox;
   /** Капча перед SMS; без неё код отправляется без капчи. */
   captcha?: CaptchaVerifier;
   /** Бот Telegram (§8); без него нет вебхука, Mini App и алертов врачам. */
@@ -82,6 +85,7 @@ export function buildApp({
   db,
   redis,
   sms,
+  smsOutbox,
   captcha,
   telegram,
   logger,
@@ -117,7 +121,7 @@ export function buildApp({
   });
 
   const cache = redis ? new RedisSlotCache(redis, app.log) : undefined;
-  const notifier = createNotifier({ db, telegram, log: app.log });
+  const notifier = createNotifier({ db, telegram, sms: smsOutbox, log: app.log });
 
   app.get('/health', async () => ({ status: 'ok' as const }));
   app.register(adminRoutes, {
@@ -143,11 +147,12 @@ export function buildApp({
     });
   }
   if (telegram) {
-    app.register(telegramWebhook, { prefix: '/telegram', db, telegram });
+    app.register(telegramWebhook, { prefix: '/telegram', db, telegram, notifier });
     app.register(miniappRoutes, {
       prefix: '/v1/miniapp',
       db,
       botToken: telegram.botToken,
+      notifier,
       ...(cache ? { cache } : {}),
     });
   }

@@ -3,6 +3,7 @@ import { createDatabase } from '@dentbook/db';
 import { buildApp } from './app.js';
 import { loadEnv } from './env.js';
 import { providersFromEnv } from './services/providers.js';
+import { BullSmsOutbox } from './services/sms-outbox.js';
 import { BullTelegramOutbox } from './telegram/outbox.js';
 
 const env = loadEnv();
@@ -19,11 +20,14 @@ const telegram = outbox
       outbox,
     }
   : undefined;
+// SMS-уведомления клиентам (Шаг 8) — при настроенном провайдере, как и коды подтверждения
+const smsOutbox = env.SMS_PROVIDER ? new BullSmsOutbox(redis) : undefined;
 const app = buildApp({
   env,
   db,
   redis,
   ...providersFromEnv(env),
+  ...(smsOutbox ? { smsOutbox } : {}),
   ...(telegram ? { telegram } : {}),
 });
 
@@ -33,7 +37,7 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {
     void app
       .close()
-      .then(() => outbox?.close())
+      .then(() => Promise.all([outbox?.close(), smsOutbox?.close()]))
       .then(() => Promise.all([pool.end(), redis.quit()]))
       .then(() => process.exit(0));
   });

@@ -31,3 +31,30 @@ export const TELEGRAM_JOB_OPTIONS = {
   removeOnComplete: 1_000,
   removeOnFail: 5_000,
 } as const;
+
+/**
+ * SMS клиентам (Шаг 8): подтверждение записи и напоминания. Задача несёт только id строки
+ * notifications, она же — id задачи: по нему напоминание снимается при отмене. Текст
+ * worker собирает из БД в момент отправки — в Redis нет ни телефона, ни имени (§2.6).
+ */
+export const SMS_QUEUE = 'sms';
+
+export interface SmsJob {
+  notificationId: string;
+}
+
+/** 5 попыток: 30 с, 1 мин, 2 мин, 4 мин — напоминание за 2 ч успевает с запасом. */
+export const SMS_JOB_OPTIONS = {
+  attempts: 5,
+  backoff: { type: 'exponential', delay: 30_000 },
+  removeOnComplete: 1_000,
+  removeOnFail: 5_000,
+} as const;
+
+/** За сколько до начала визита напомнить клиенту (§10, Шаг 8). */
+export const REMINDER_OFFSETS_MS = {
+  reminder_24h: 24 * 60 * 60 * 1000,
+  reminder_2h: 2 * 60 * 60 * 1000,
+} as const;
+
+export type ReminderKind = keyof typeof REMINDER_OFFSETS_MS;

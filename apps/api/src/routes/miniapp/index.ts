@@ -35,6 +35,7 @@ import type { Locale } from '@dentbook/shared/domain';
 import { ApiError, forbidden, notFound, parse, unauthorized } from '../../lib/errors.js';
 import { idOf } from '../../lib/params.js';
 import { computeAvailability } from '../../services/availability.js';
+import type { Notifier } from '../../services/notifier.js';
 import { slotTaken } from '../../services/holds.js';
 import { findConflictingAppointments, timeHasAppointments } from '../../services/schedule.js';
 import type { SlotCache } from '../../services/slot-cache.js';
@@ -60,12 +61,13 @@ const dentistOf = (request: FastifyRequest): DentistContext => {
 export interface MiniappRoutesOptions {
   db: Database;
   botToken: string;
+  notifier: Notifier;
   cache?: SlotCache;
 }
 
 export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
   app,
-  { db, botToken, cache },
+  { db, botToken, notifier, cache },
 ) => {
   app.decorateRequest('dentist', null);
 
@@ -343,6 +345,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
         return row!.id;
       });
       await cache?.invalidateDentist(ctx.clinicId, ctx.dentistId);
+      await notifier.appointmentCreated(ctx.clinicId, id, { alertDentist: false });
       return reply
         .status(201)
         .send({ id, startAt: startIso, endAt: endAt.toISOString(), timeZone });
@@ -367,8 +370,8 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
         ),
       )
       .returning({ id: appointments.id, status: appointments.status });
-    // TODO(Шаг 8): SMS клиенту о подтверждении (Q12)
     if (!row) throw notFound();
+    await notifier.appointmentConfirmed(clinicId, row.id);
     return row;
   });
 

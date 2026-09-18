@@ -9,6 +9,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Update } from 'grammy/types';
 import { telegramUpdates, type Database } from '@dentbook/db';
 import { ApiError } from '../lib/errors.js';
+import type { Notifier } from '../services/notifier.js';
 import { createUpdateHandler } from './bot.js';
 import type { TelegramConfig } from './outbox.js';
 
@@ -24,8 +25,9 @@ function sameSecret(given: unknown, expected: string): boolean {
 export const telegramWebhook: FastifyPluginAsync<{
   db: Database;
   telegram: TelegramConfig;
-}> = async (app, { db, telegram }) => {
-  const handleUpdate = createUpdateHandler({ db, telegram });
+  notifier: Notifier;
+}> = async (app, { db, telegram, notifier }) => {
+  const handleUpdate = createUpdateHandler({ db, telegram, notifier });
 
   app.post('/webhook', async (request, reply) => {
     if (!sameSecret(request.headers[SECRET_HEADER], telegram.webhookSecret)) {

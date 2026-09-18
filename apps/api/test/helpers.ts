@@ -11,6 +11,7 @@ import { buildApp } from '../src/app.js';
 import type { Env } from '../src/env.js';
 import { SESSION_COOKIE } from '../src/plugins/session.js';
 import type { CaptchaVerifier } from '../src/services/captcha.js';
+import type { SmsOutbox } from '../src/services/sms-outbox.js';
 import type { TelegramConfig, TelegramOutbox } from '../src/telegram/outbox.js';
 
 export function testEnv(overrides: Partial<Env> = {}): Env {
@@ -38,11 +39,26 @@ export function testApp(
   extras: {
     redis?: Redis;
     sms?: SmsSender;
+    smsOutbox?: SmsOutbox;
     captcha?: CaptchaVerifier;
     telegram?: TelegramConfig;
   } = {},
 ): FastifyInstance {
   return buildApp({ env: testEnv(overrides), db, logger: false, ...extras });
+}
+
+/** Очередь SMS-уведомлений в тестах: задачи и снятия складываются в память. */
+export class TestSmsOutbox implements SmsOutbox {
+  readonly jobs: { notificationId: string; delayMs: number | undefined }[] = [];
+  readonly removed: string[] = [];
+
+  async enqueue(notificationId: string, options: { delayMs?: number } = {}): Promise<void> {
+    this.jobs.push({ notificationId, delayMs: options.delayMs });
+  }
+
+  async remove(notificationId: string): Promise<void> {
+    this.removed.push(notificationId);
+  }
 }
 
 /** SMS в тестах: письма складываются в память, код достаётся из текста. */

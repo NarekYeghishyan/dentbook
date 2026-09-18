@@ -138,7 +138,6 @@ export async function confirmAppointment(
     if (!appointment) throw holdExpired();
     return appointment.id;
   });
-  // TODO(Шаг 8): SMS клиенту и напоминания
   await params.notifier.appointmentCreated(clinicId, id);
   const { appointment, token } = await loadAppointment(db, clinicId, id);
   return { ...appointment, token };
@@ -175,7 +174,6 @@ export async function cancelAppointment(
   if (row) {
     await cache?.invalidateDentist(clinicId, row.dentistId);
     await params.notifier.appointmentCancelled(clinicId, id);
-    // TODO(Шаг 8): снять напоминания
   }
   const appointment = await getAppointment(db, { clinicId, id, token });
   if (!row && appointment.status !== 'cancelled') {

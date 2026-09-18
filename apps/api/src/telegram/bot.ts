@@ -17,6 +17,7 @@ import {
 } from '@dentbook/db';
 import type { Locale } from '@dentbook/shared/domain';
 import { translate } from '../i18n/index.js';
+import type { Notifier } from '../services/notifier.js';
 import type { TelegramConfig } from './outbox.js';
 import { describeAppointment } from './texts.js';
 
@@ -25,8 +26,12 @@ export const hashLinkToken = (token: string) => createHash('sha256').update(toke
 /** Данные кнопки подтверждения: confirm:<appointment id>. */
 export const confirmData = (appointmentId: string) => `confirm:${appointmentId}`;
 
-export function createUpdateHandler(deps: { db: Database; telegram: TelegramConfig }) {
-  const { db, telegram } = deps;
+export function createUpdateHandler(deps: {
+  db: Database;
+  telegram: TelegramConfig;
+  notifier: Notifier;
+}) {
+  const { db, telegram, notifier } = deps;
   const scheduleButton = (locale: Locale) => [
     [{ text: translate(locale, 'tg.openSchedule'), webAppUrl: telegram.miniAppUrl }],
   ];
@@ -135,7 +140,7 @@ export function createUpdateHandler(deps: { db: Database; telegram: TelegramConf
       .returning({ id: appointments.id });
     if (!confirmed) return answer(translate(dentist.locale, 'tg.alreadyHandled'));
 
-    // TODO(Шаг 8): SMS клиенту о подтверждении (Q12)
+    await notifier.appointmentConfirmed(dentist.clinicId, appointmentId);
     const details = await describeAppointment(db, dentist.clinicId, appointmentId);
     const text = translate(dentist.locale, 'tg.confirmed', {
       when: details?.when ?? '',
