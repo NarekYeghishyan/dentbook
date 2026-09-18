@@ -26,5 +26,13 @@ export default tseslint.config(
     files: ['**/*.test.ts', '**/*.spec.ts', '**/test/**'],
     rules: { 'no-console': 'off' },
   },
+  {
+    // Служебные скрипты сборки на Node (например, проверка размера виджета)
+    files: ['**/scripts/**/*.mjs'],
+    languageOptions: {
+      globals: { URL: 'readonly', console: 'readonly', process: 'readonly' },
+    },
+    rules: { 'no-console': 'off' },
+  },
   prettier,
 );

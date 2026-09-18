@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Book a visit — test clinic website</title>
+    <!--
+      Тестовая страница «сайта клиники» (Шаг 6): так форма записи встраивается на сайт.
+      Адрес скрипта и ключ подставляются при раздаче: в e2e-тесте и при выкладке на mashna.am.
+      Стили страницы намеренно агрессивные — форма в Shadow DOM не должна их унаследовать.
+    -->
+    <style>
+      body {
+        margin: 0;
+        font-family: Georgia, serif;
+        color: #222;
+        background: #f7f3ee;
+      }
+      header {
+        padding: 32px 16px;
+        text-align: center;
+        background: #1f3a5f;
+        color: #fff;
+      }
+      main {
+        max-width: 760px;
+        margin: 0 auto;
+        padding: 24px 16px 48px;
+      }
+      button,
+      input,
+      h2 {
+        font-family: 'Comic Sans MS', cursive !important;
+        color: red !important;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Test Dental Clinic</h1>
+      <p>This page stands in for a clinic's own website.</p>
+    </header>
+    <main>
+      <h2>Book a visit online</h2>
+      <div id="dentbook-booking"></div>
+      <script src="%WIDGET_SRC%" data-key="%KEY%" data-target="#dentbook-booking" async></script>
+    </main>
+  </body>
+</html>

@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "size": "node -e \"const z=require('node:zlib'),f=require('node:fs');const b=f.readFileSync('dist/dentbook-widget.js');console.log('gzip',(z.gzipSync(b).length/1024).toFixed(1),'KB / limit 50 KB')\"",
+    "size": "vite build && node scripts/size.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
