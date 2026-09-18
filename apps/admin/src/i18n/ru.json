@@ -6,7 +6,6 @@
   "nav.staff": "Сотрудники",
   "nav.settings": "Настройки",
   "nav.logout": "Выйти",
-
   "common.language": "Язык",
   "common.loading": "Загрузка…",
   "common.active": "Активен",
@@ -18,12 +17,10 @@
   "common.cancel": "Отмена",
   "common.remove": "Удалить",
   "common.choose": "Выберите…",
-
   "role.owner": "Владелец",
   "role.admin": "Администратор",
   "role.registrar": "Регистратура",
   "role.operator": "Оператор платформы",
-
   "error.invalid_key": "Ключ API недействителен.",
   "error.origin_not_allowed": "Этому сайту нельзя использовать ключ.",
   "error.rate_limited": "Слишком много попыток. Подождите минуту и попробуйте снова.",
@@ -40,7 +37,6 @@
   "error.network_error": "Нет связи с сервером.",
   "error.emailTaken": "Этот email уже зарегистрирован.",
   "error.timeHasAppointments": "На это время есть записи. Сначала перенесите их.",
-
   "auth.loginTitle": "Вход",
   "auth.login": "Войти",
   "auth.noAccount": "Новая клиника?",
@@ -49,7 +45,6 @@
   "auth.register": "Создать аккаунт",
   "auth.haveAccount": "Уже зарегистрированы?",
   "auth.loginLink": "Войти",
-
   "field.email": "Email",
   "field.password": "Пароль",
   "field.clinicName": "Название клиники",
@@ -74,7 +69,6 @@
   "field.minLeadMin": "Запись не позже чем за, мин",
   "field.slotStepMin": "Шаг времени, мин",
   "field.maxAdvanceDays": "Запись вперёд, дней",
-
   "hint.currency": "Трёхбуквенный код, например USD",
   "hint.password": "Не короче 10 символов",
   "hint.price": "Оставьте пустым, чтобы не показывать цену клиентам",
@@ -83,20 +77,17 @@
   "hint.minLead": "За сколько минут до приёма клиент ещё может записаться",
   "hint.slotStep": "Время начала предлагается каждые N минут",
   "hint.maxAdvance": "На сколько дней вперёд можно записаться",
-
   "setup.title": "С чего начать",
   "setup.intro": "Три шага — и календарь покажет свободное время: то же, что предложит форма записи.",
   "setup.office": "Добавьте офис",
   "setup.service": "Добавьте услугу",
   "setup.dentist": "Добавьте врача, выберите его услуги и рабочие часы",
-
   "calendar.title": "Свободное время",
   "calendar.anyDentist": "Любой врач",
   "calendar.today": "Эта неделя",
   "calendar.timezone": "Время по поясу {zone}",
   "calendar.hint": "Свободное время начала, которое предложит форма записи: учтены рабочие часы, исключения, записи и минимальный запас времени. Число — сколько врачей свободно.",
   "calendar.noSlots": "Нет свободного времени",
-
   "dentists.title": "Врачи",
   "dentists.priorityHint": "Перетаскивайте, чтобы задать приоритет. Когда клиент записывается к «любому врачу», запись получает свободный врач, который выше в списке.",
   "dentists.dragHandle": "Перетащите, чтобы изменить приоритет",
@@ -104,7 +95,6 @@
   "dentists.add": "Добавить врача",
   "dentists.noServices": "Нет услуг",
   "dentists.servicesCount": "Услуг: {count}",
-
   "dentist.profile": "Профиль",
   "dentist.acceptsBookings": "Принимает записи",
   "dentist.services": "Услуги",
@@ -116,7 +106,6 @@
   "dentist.overnight": "Заканчивается на следующий день",
   "dentist.overlap": "Смены пересекаются. Врач не может работать в две смены одновременно, даже в разных офисах.",
   "dentist.needOffice": "Сначала добавьте офис.",
-
   "exceptions.title": "Выходные и дополнительное время",
   "exceptions.hint": "Разовые изменения недельного расписания на ближайшие четыре месяца.",
   "exceptions.empty": "Исключений нет.",
@@ -127,19 +116,16 @@
   "exceptions.extraLong": "Доп. время — открыть время вне расписания",
   "exceptions.allOffices": "Все офисы",
   "exceptions.reason": "Комментарий",
-
   "services.title": "Услуги",
   "services.add": "Добавить услугу",
   "services.empty": "Услуг пока нет.",
   "services.summary": "{duration} мин · перерыв {buffer} мин",
   "services.public": "Показывать в форме записи",
   "services.hidden": "Скрыта от клиентов",
-
   "offices.title": "Офисы",
   "offices.add": "Добавить офис",
   "offices.empty": "Офисов пока нет.",
   "offices.clinicTimezone": "Пояс клиники ({zone})",
-
   "staff.title": "Сотрудники",
   "staff.add": "Добавить сотрудника",
   "staff.addHint": "Задайте первый пароль и передайте его сотруднику. Администратор управляет всеми данными клиники, регистратура — только просматривает.",
@@ -148,8 +134,22 @@
   "staff.deactivate": "Отключить",
   "staff.newPassword": "Новый пароль",
   "staff.setPassword": "Сменить пароль",
-
   "settings.title": "Настройки клиники",
   "settings.requiresConfirmation": "Онлайн-записи подтверждает клиника",
-  "settings.requiresConfirmationHint": "Выключено: запись подтверждается сразу после ввода SMS-кода. Включено: ждёт подтверждения врача или регистратуры."
+  "settings.requiresConfirmationHint": "Выключено: запись подтверждается сразу после ввода SMS-кода. Включено: ждёт подтверждения врача или регистратуры.",
+  "nav.website": "Сайт",
+  "website.title": "Форма записи на вашем сайте",
+  "website.intro": "Ключ связывает форму записи с клиникой. Он работает только на сайтах из списка рядом с ним — запросы с других сайтов отклоняются.",
+  "website.empty": "Ключей пока нет.",
+  "website.add": "Новый ключ",
+  "website.namePlaceholder": "Основной сайт",
+  "website.origins": "Сайты",
+  "website.originsHint": "Полный адрес с https://, по одному в строке, например https://example.com",
+  "website.create": "Создать ключ",
+  "website.copy": "Копировать",
+  "website.copied": "Скопировано",
+  "website.revoke": "Отозвать",
+  "website.revokeConfirm": "Отозвать ключ? Форма записи с ним сразу перестанет работать.",
+  "website.revoked": "Отозван",
+  "website.lastUsed": "использован {time}"
 }

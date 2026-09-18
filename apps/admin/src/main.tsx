@@ -13,6 +13,7 @@ import { OfficesPage } from './pages/OfficesPage';
 import { ServicesPage } from './pages/ServicesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { StaffPage } from './pages/StaffPage';
+import { WebsitePage } from './pages/WebsitePage';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -39,6 +40,7 @@ const router = createBrowserRouter(
         { path: 'dentists/:id', element: <DentistPage /> },
         { path: 'services', element: <ServicesPage /> },
         { path: 'offices', element: <OfficesPage /> },
+        { path: 'website', element: <WebsitePage /> },
         { path: 'staff', element: <StaffPage /> },
         { path: 'settings', element: <SettingsPage /> },
         { path: '*', element: <Navigate to="/calendar" replace /> },

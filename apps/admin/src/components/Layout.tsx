@@ -11,6 +11,7 @@ const NAV: { to: string; label: MessageKey; managersOnly?: boolean }[] = [
   { to: '/dentists', label: 'nav.dentists' },
   { to: '/services', label: 'nav.services' },
   { to: '/offices', label: 'nav.offices' },
+  { to: '/website', label: 'nav.website', managersOnly: true },
   { to: '/staff', label: 'nav.staff', managersOnly: true },
   { to: '/settings', label: 'nav.settings' },
 ];

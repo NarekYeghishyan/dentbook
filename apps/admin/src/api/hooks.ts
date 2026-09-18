@@ -1,9 +1,11 @@
 /** Данные админки через TanStack Query. Ключи кеша — по сущностям. */
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import type {
+  ApiKey,
   AvailabilityQuery,
   AvailabilityResponse,
   ClinicSettings,
+  CreateApiKeyInput,
   CreateDentistInput,
   CreateExceptionInput,
   CreateLocationInput,
@@ -17,6 +19,7 @@ import type {
   ScheduleExceptionItem,
   Service,
   StaffUser,
+  UpdateApiKeyInput,
   UpdateClinicInput,
   UpdateDentistInput,
   UpdateLocationInput,
@@ -37,6 +40,7 @@ export const keys = {
   hours: (dentistId: string) => ['hours', dentistId] as const,
   exceptions: (dentistId: string) => ['exceptions', dentistId] as const,
   availability: ['availability'] as const,
+  apiKeys: ['api-keys'] as const,
 };
 
 /** Мутация, после которой перечитываются затронутые данные. */
@@ -234,3 +238,21 @@ export const useAvailability = (query: AvailabilityQuery | null) =>
     },
     enabled: query !== null,
   });
+
+// --- ключи формы записи ---
+
+export const useApiKeys = () =>
+  useQuery({ queryKey: keys.apiKeys, queryFn: () => api<ApiKey[]>('GET', '/api-keys') });
+
+export const useCreateApiKey = () =>
+  useSave((input: CreateApiKeyInput) => api<ApiKey>('POST', '/api-keys', input), [keys.apiKeys]);
+
+export const useUpdateApiKey = () =>
+  useSave(
+    ({ id, ...input }: UpdateApiKeyInput & { id: string }) =>
+      api<ApiKey>('PATCH', `/api-keys/${id}`, input),
+    [keys.apiKeys],
+  );
+
+export const useRevokeApiKey = () =>
+  useSave((id: string) => api<ApiKey>('POST', `/api-keys/${id}/revoke`), [keys.apiKeys]);
