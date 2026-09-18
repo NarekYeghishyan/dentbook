@@ -26,6 +26,7 @@ import { publicOf, registerPublicAuth } from '../../plugins/public-auth.js';
 import { computeAvailability } from '../../services/availability.js';
 import { cancelAppointment, confirmAppointment, getAppointment } from '../../services/booking.js';
 import { createHold, releaseHold } from '../../services/holds.js';
+import type { CaptchaVerifier } from '../../services/captcha.js';
 import type { SlotCache } from '../../services/slot-cache.js';
 import type { SmsSender } from '../../services/sms.js';
 import { createVerification } from '../../services/verification.js';
@@ -35,6 +36,7 @@ export interface PublicRoutesOptions {
   redis: Redis;
   cache?: SlotCache;
   sms?: SmsSender;
+  captcha?: CaptchaVerifier;
   holdTtlSec: number;
   /** Запросов в минуту на ключ (Q4: 60). */
   perKeyPerMin: number;
@@ -79,6 +81,7 @@ export const publicRoutes: FastifyPluginAsync<PublicRoutesOptions> = async (app,
         ...office,
         time_zone: timezone ?? clinic!.timezone,
       })),
+      captcha: opts.captcha ? { provider: 'turnstile', site_key: opts.captcha.siteKey } : null,
     };
   });
 
@@ -158,6 +161,15 @@ export const publicRoutes: FastifyPluginAsync<PublicRoutesOptions> = async (app,
 
   app.post('/verifications', { config: perIp }, async (request, reply) => {
     const input = parse(createVerificationSchema, request.body);
+    if (opts.captcha) {
+      // Капча — до лимита по номеру и до SMS: без неё код не уходит (Шаг 6)
+      if (!input.captcha_token) {
+        throw new ApiError(400, 'verification_required', 'Complete the captcha first');
+      }
+      if (!(await opts.captcha.verify(input.captcha_token, request.ip))) {
+        throw new ApiError(400, 'verification_failed', 'Captcha check failed');
+      }
+    }
     const verification = await createVerification(db, opts.sms, {
       clinicId: publicOf(request).clinicId,
       phone: input.phone,

@@ -28,6 +28,8 @@ export const createVerificationSchema = z.object({
   phone: phoneSchema,
   /** Язык SMS; по умолчанию — язык формы записи клиники. */
   locale: z.enum(LOCALES).optional(),
+  /** Ответ капчи (Turnstile), если она включена на сервере (Шаг 6). */
+  captcha_token: z.string().min(1).max(4096).optional(),
 });
 export type CreateVerificationInput = z.input<typeof createVerificationSchema>;
 
@@ -65,6 +67,8 @@ export interface PublicConfig {
   /** Цвета и оформление формы (clinics.widget_theme). */
   theme: Record<string, unknown>;
   locations: PublicLocation[];
+  /** Капча перед отправкой SMS; null — выключена. */
+  captcha: { provider: 'turnstile'; site_key: string } | null;
 }
 
 export interface PublicService {
