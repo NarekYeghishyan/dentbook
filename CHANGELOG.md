@@ -11,6 +11,29 @@ produced them (CLAUDE.md §9).
 
 ## [Unreleased]
 
+### Шаг 2 — движок доступности (закрыт 2026-09-18)
+
+#### Added
+
+- `feat(core): add interval arithmetic and time zone helpers` — `intervals.ts` (полуоткрытые
+  интервалы: нормализация, вычитание), `tz.ts` (настенное время ↔ UTC через `Intl`, границы
+  местных суток, поведение в дни перевода часов как Temporal `compatible`).
+- `feat(core): expand weekly working hours to utc` — `working-hours.ts`: шаблон `working_hours`
+  → UTC-интервалы на дату, ночные смены (`end <= start`), `24:00`.
+- `feat(core): pick dentist by priority and load` — `pickDentist` (§6).
+- `feat(core): compute available slots` — `computeSlots` в порядке §6, `computeDaySlots`
+  (слоты на местную дату), `mergeSlots` («любой врач»).
+- `test(core): enforce coverage threshold` — порог 90% для `packages/core` в `vitest.config.ts`.
+- `docs: add ADR-0005` — сетка, сутки, часовые пояса.
+
+#### Verified
+
+- 95 unit-тестов: буферы (услуги и записи), `block`/`extra`, границы рабочих часов,
+  `notBefore`, полночь, DST в Нью-Йорке и Берлине, пояса без DST и с получасовым смещением;
+- покрытие логики `packages/core` 100% (`index.ts` и `types.ts` — без исполняемого кода);
+- тесты ловят поломки: без буфера записи, без ночной смены прошлого дня, при выборе второго
+  из двух времён осенью.
+
 ### Тестовый стенд (вне порядка шагов, 2026-09-17)
 
 #### Added
