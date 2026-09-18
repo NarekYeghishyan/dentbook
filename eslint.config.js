@@ -17,6 +17,11 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/consistent-type-imports': 'error',
       '@typescript-eslint/no-floating-promises': 'off',
+      // `_` в начале имени — намеренно не используется; rest-деструктуризация убирает поле
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true },
+      ],
       'no-console': 'warn',
       eqeqeq: ['error', 'always'],
     },
