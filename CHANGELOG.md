@@ -11,6 +11,43 @@ produced them (CLAUDE.md §9).
 
 ## [Unreleased]
 
+### Шаг 4 — админский API и панель (закрыт 2026-09-18)
+
+#### Added
+
+- `feat(core): detect overlapping weekly shifts` — `findWeeklyOverlap`: смены через полночь
+  и с воскресенья на понедельник.
+- `feat(shared): add catalog and availability schemas` — филиалы, услуги (цена строкой),
+  врачи, порядок, недельный шаблон, исключения, запрос календаря.
+- `feat(api): add offices, services, dentists and schedule endpoints` — CRUD без удаления,
+  `PUT /dentists/order`, `PUT /dentists/:id/services|working-hours`, исключения с проверкой
+  записей (§8, `409 slot_taken` + `conflicts`).
+- `feat(api): add availability calendar` — `services/availability.ts` поверх движка core,
+  `GET /v1/admin/availability`.
+- `feat(admin): add clinic panel` — React + TanStack Query + Tailwind: вход, регистрация,
+  календарь, врачи с перетаскиванием, карточка врача, услуги, офисы, сотрудники, настройки;
+  переводы en/ru/hy (JSON + `t()`), время в поясе филиала.
+- `feat(api): serve the admin panel` — `/admin/` через `@fastify/static`: SPA-fallback, кеш
+  хешированных файлов, CSP; сборка панели в `Dockerfile`.
+- `test(api): cover catalog, availability and tenant isolation of new routes`,
+  `test(admin): check translation dictionaries`.
+- `docs: add ADR-0007` — раздача панели, время, переводы, константы без zod.
+
+#### Changed
+
+- `refactor(shared): move enums to a zod-free entry` — `@dentbook/shared/domain`: `LOCALES`,
+  `STAFF_ROLES` и перечисления; фронтенды не тянут `zod`.
+- `fix(api): treat empty env values as unset` — `.env`, скопированный из `.env.example`,
+  получает значения по умолчанию, а не падает на `JWT_ACCESS_TTL=` (тест `env.test.ts`).
+- `.env.example`: `ADMIN_DIST_DIR` вместо ненужного `ADMIN_ORIGIN` (панель на том же домене).
+
+#### Verified
+
+- 242 теста, `pnpm lint`, `pnpm typecheck`, `vite build` зелёные;
+- сквозной сценарий в браузере (Playwright, локально): регистрация → офис → услуга → два
+  врача со сменами → перетаскивание приоритета → календарь 155 слотов, врачи в новом
+  порядке; переключение en/ru/hy; ширина 390 px.
+
 ### Шаг 3 — аутентификация и тенантность (закрыт 2026-09-18)
 
 #### Added
