@@ -1,12 +1,14 @@
 /** Общее для интеграционных тестов API: приложение на тестовой БД и регистрация клиник. */
 import { randomUUID } from 'node:crypto';
 import type { FastifyInstance, InjectOptions } from 'fastify';
+import type { Redis } from 'ioredis';
 import { expect } from 'vitest';
 import type { Database } from '@dentbook/db';
 import type { RegisterClinicInput } from '@dentbook/shared';
 import { buildApp } from '../src/app.js';
 import type { Env } from '../src/env.js';
 import { SESSION_COOKIE } from '../src/plugins/session.js';
+import type { SmsSender } from '../src/services/sms.js';
 
 export function testEnv(overrides: Partial<Env> = {}): Env {
   return {
@@ -18,14 +20,37 @@ export function testEnv(overrides: Partial<Env> = {}): Env {
     REDIS_URL: 'redis://unused',
     JWT_SECRET: 'test-secret-that-is-at-least-32-characters-long',
     JWT_ACCESS_TTL: 3600,
-    // Тесты регистрируют много клиник с одного адреса
+    // Тесты регистрируют много клиник и ставят много холдов с одного адреса
     AUTH_RATE_LIMIT: 10_000,
+    HOLD_TTL_SEC: 600,
+    PUBLIC_KEY_RATE_LIMIT: 10_000,
+    PUBLIC_IP_RATE_LIMIT: 10_000,
     ...overrides,
   };
 }
 
-export function testApp(db: Database, overrides: Partial<Env> = {}): FastifyInstance {
-  return buildApp({ env: testEnv(overrides), db, logger: false });
+export function testApp(
+  db: Database,
+  overrides: Partial<Env> = {},
+  extras: { redis?: Redis; sms?: SmsSender } = {},
+): FastifyInstance {
+  return buildApp({ env: testEnv(overrides), db, logger: false, ...extras });
+}
+
+/** SMS в тестах: письма складываются в память, код достаётся из текста. */
+export class TestSms implements SmsSender {
+  readonly sent: { to: string; text: string }[] = [];
+
+  async send(message: { to: string; text: string }): Promise<void> {
+    this.sent.push(message);
+  }
+
+  lastCode(phone: string): string {
+    const message = this.sent.findLast((m) => m.to === phone);
+    const code = message?.text.match(/\b\d{6}\b/)?.[0];
+    expect(code, `SMS code for ${phone}`).toBeDefined();
+    return code!;
+  }
 }
 
 export const PASSWORD = 'correct-horse-battery';

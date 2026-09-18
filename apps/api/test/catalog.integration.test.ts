@@ -267,6 +267,7 @@ describe('schedule exceptions', () => {
       serviceId: data.serviceId,
       startAt: new Date('2030-03-04T10:00:00Z'),
       endAt: new Date('2030-03-04T10:30:00Z'),
+      blockedUntil: new Date('2030-03-04T10:30:00Z'),
       status: 'hold',
       holdExpiresAt: new Date('2099-01-01T00:00:00Z'),
       source: 'admin',

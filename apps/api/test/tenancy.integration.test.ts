@@ -38,6 +38,8 @@ let aData: ClinicFixture;
 let bData: ClinicFixture;
 /** Исключение расписания врача A (extra в филиале A). */
 let aExceptionId: string;
+/** Ключ формы записи клиники A. */
+let aKey: { id: string; token: string };
 
 beforeAll(async () => {
   database = await startTestDatabase();
@@ -72,6 +74,16 @@ beforeAll(async () => {
     201,
   );
   aExceptionId = exception.id;
+  aKey = await call<{ id: string; token: string }>(
+    app,
+    a,
+    {
+      method: 'POST',
+      url: '/v1/admin/api-keys',
+      payload: { name: 'Website A', allowedOrigins: ['https://a.example'] },
+    },
+    201,
+  );
 }, 180_000);
 
 afterAll(async () => {
@@ -332,6 +344,37 @@ const attacks: Record<string, () => Promise<void>> = {
     expect(await asSeenByA(exceptionsUrl(aData.dentistId))).toEqual([
       expect.objectContaining({ id: aExceptionId }),
     ]);
+  },
+
+  // --- ключи формы записи ---
+
+  'GET /v1/admin/api-keys': async () => {
+    const res = await as(app, b, { method: 'GET', url: '/v1/admin/api-keys' });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).not.toContain(aKey.id);
+    expect(res.body).not.toContain(aKey.token);
+  },
+
+  'POST /v1/admin/api-keys': () =>
+    createLandsInOwnClinic('/v1/admin/api-keys', {
+      name: 'Intruder key',
+      allowedOrigins: ['https://b.example'],
+    }),
+
+  'PATCH /v1/admin/api-keys/:id': async () => {
+    await expectNotFound({
+      method: 'PATCH',
+      url: `/v1/admin/api-keys/${aKey.id}`,
+      payload: { allowedOrigins: ['https://evil.example'] },
+    });
+    const keys = await asSeenByA<{ id: string; allowedOrigins: string[] }[]>('/v1/admin/api-keys');
+    expect(keys.find((k) => k.id === aKey.id)?.allowedOrigins).toEqual(['https://a.example']);
+  },
+
+  'POST /v1/admin/api-keys/:id/revoke': async () => {
+    await expectNotFound({ method: 'POST', url: `/v1/admin/api-keys/${aKey.id}/revoke` });
+    const keys = await asSeenByA<{ id: string; revokedAt: string | null }[]>('/v1/admin/api-keys');
+    expect(keys.find((k) => k.id === aKey.id)?.revokedAt).toBeNull();
   },
 
   // --- календарь ---
