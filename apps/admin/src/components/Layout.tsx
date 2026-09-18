@@ -7,6 +7,9 @@ import { LOCALE_NAMES, useI18n, type MessageKey } from '../i18n';
 import { Button, ErrorText, Loading, Select } from './ui';
 
 const NAV: { to: string; label: MessageKey; managersOnly?: boolean }[] = [
+  { to: '/journal', label: 'nav.journal' },
+  { to: '/clients', label: 'nav.clients' },
+  { to: '/dashboard', label: 'nav.dashboard' },
   { to: '/calendar', label: 'nav.calendar' },
   { to: '/dentists', label: 'nav.dentists' },
   { to: '/services', label: 'nav.services' },

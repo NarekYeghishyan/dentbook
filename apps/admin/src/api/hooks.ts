@@ -4,6 +4,8 @@ import type {
   ApiKey,
   AvailabilityQuery,
   AvailabilityResponse,
+  ClientCard,
+  ClientSummary,
   ClinicSettings,
   CreateApiKeyInput,
   CreateDentistInput,
@@ -11,21 +13,27 @@ import type {
   CreateLocationInput,
   CreateServiceInput,
   CreateUserInput,
+  DashboardResponse,
   Dentist,
+  JournalResponse,
   Location,
   LoginInput,
   MeResponse,
   RegisterClinicInput,
+  RescheduleInput,
   ScheduleExceptionItem,
   Service,
+  StaffBookingInput,
   StaffUser,
   TelegramLink,
   UpdateApiKeyInput,
+  UpdateClientInput,
   UpdateClinicInput,
   UpdateDentistInput,
   UpdateLocationInput,
   UpdateServiceInput,
   UpdateUserInput,
+  VisitOutcomeInput,
   WorkingHoursInput,
   WorkingHoursItem,
 } from '@dentbook/shared';
@@ -42,6 +50,9 @@ export const keys = {
   exceptions: (dentistId: string) => ['exceptions', dentistId] as const,
   availability: ['availability'] as const,
   apiKeys: ['api-keys'] as const,
+  journal: ['journal'] as const,
+  clients: ['clients'] as const,
+  dashboard: ['dashboard'] as const,
 };
 
 /** Мутация, после которой перечитываются затронутые данные. */
@@ -212,7 +223,7 @@ export const useSaveWorkingHours = (dentistId: string) =>
   useSave(
     (input: WorkingHoursInput) =>
       api<WorkingHoursItem[]>('PUT', `/dentists/${dentistId}/working-hours`, input),
-    [keys.hours(dentistId), keys.availability],
+    [keys.hours(dentistId), keys.availability, keys.journal],
   );
 
 export const useExceptions = (dentistId: string, from: string, to: string) =>
@@ -229,14 +240,14 @@ export const useCreateException = (dentistId: string) =>
   useSave(
     (input: CreateExceptionInput) =>
       api<ScheduleExceptionItem>('POST', `/dentists/${dentistId}/exceptions`, input),
-    [keys.exceptions(dentistId), keys.availability],
+    [keys.exceptions(dentistId), keys.availability, keys.journal],
   );
 
 export const useDeleteException = (dentistId: string) =>
   useSave(
     (exceptionId: string) =>
       api<void>('DELETE', `/dentists/${dentistId}/exceptions/${exceptionId}`),
-    [keys.exceptions(dentistId), keys.availability],
+    [keys.exceptions(dentistId), keys.availability, keys.journal],
   );
 
 // --- календарь ---
@@ -270,3 +281,77 @@ export const useUpdateApiKey = () =>
 
 export const useRevokeApiKey = () =>
   useSave((id: string) => api<ApiKey>('POST', `/api-keys/${id}/revoke`), [keys.apiKeys]);
+
+// --- журнал, клиенты, отчёты (Шаг 9) ---
+
+/** После любого действия с записью журнал, клиенты, дашборд и календарь устаревают. */
+const BOOKING_KEYS = [keys.journal, keys.clients, keys.dashboard, keys.availability];
+
+export const useJournal = (query: { locationId: string; from: string; to: string } | null) =>
+  useQuery({
+    queryKey: [...keys.journal, query],
+    queryFn: () => api<JournalResponse>('GET', `/journal?${new URLSearchParams(query!)}`),
+    enabled: query !== null,
+  });
+
+export const useCreateBooking = () =>
+  useSave(
+    (input: StaffBookingInput) => api<{ id: string }>('POST', '/appointments', input),
+    BOOKING_KEYS,
+  );
+
+export const useMoveAppointment = () =>
+  useSave(
+    ({ id, ...input }: RescheduleInput & { id: string }) =>
+      api<void>('PATCH', `/appointments/${id}`, input),
+    BOOKING_KEYS,
+  );
+
+export const useAppointmentAction = () =>
+  useSave(
+    ({
+      id,
+      action,
+      ...body
+    }: { id: string; action: 'confirm' | 'cancel' | 'outcome' } & Partial<VisitOutcomeInput>) =>
+      api<void>('POST', `/appointments/${id}/${action}`, action === 'outcome' ? body : undefined),
+    BOOKING_KEYS,
+  );
+
+export const useClients = (q: string, enabled = true) =>
+  useQuery({
+    enabled,
+    queryKey: [...keys.clients, 'search', q],
+    queryFn: () => api<ClientSummary[]>('GET', `/clients?${new URLSearchParams(q ? { q } : {})}`),
+  });
+
+export const useClient = (id: string) =>
+  useQuery({
+    queryKey: [...keys.clients, id],
+    queryFn: () => api<ClientCard>('GET', `/clients/${id}`),
+  });
+
+export const useUpdateClient = () =>
+  useSave(
+    ({ id, ...input }: UpdateClientInput & { id: string }) =>
+      api<ClientCard>('PATCH', `/clients/${id}`, input),
+    [keys.clients, keys.journal],
+  );
+
+export const useDashboard = (query: { from: string; to: string; locationId?: string }) =>
+  useQuery({
+    queryKey: [...keys.dashboard, query],
+    queryFn: () =>
+      api<DashboardResponse>(
+        'GET',
+        `/dashboard?${new URLSearchParams(
+          Object.entries(query).filter((e): e is [string, string] => Boolean(e[1])),
+        )}`,
+      ),
+  });
+
+/** Ссылка на выгрузку CSV: скачивается браузером с cookie сессии. */
+export const exportUrl = (query: { from: string; to: string; locationId?: string }) =>
+  `/v1/admin/appointments/export?${new URLSearchParams(
+    Object.entries(query).filter((e): e is [string, string] => Boolean(e[1])),
+  )}`;

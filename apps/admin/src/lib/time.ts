@@ -19,6 +19,34 @@ export const wallTimeToIso = (date: string, time: string, timeZone: string) =>
 /** Сегодняшняя дата в поясе. */
 export const todayIn = (timeZone: string) => localDateOf(new Date(), timeZone);
 
+/** Местная дата момента в поясе. */
+export const dateIn = (iso: string, timeZone: string) => localDateOf(new Date(iso), timeZone);
+
+/** Минуты от местной полуночи — по настенным часам пояса (для сетки журнала). */
+export function minutesOfDay(iso: string, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: 'numeric',
+    minute: 'numeric',
+    hourCycle: 'h23',
+  }).formatToParts(new Date(iso));
+  const value = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  return value('hour') * 60 + value('minute');
+}
+
+/** Настенные дата и минуты от полуночи в поясе → ISO UTC. */
+export const atMinutes = (date: string, minutes: number, timeZone: string) =>
+  zonedTimeToUtc(date, minutes, timeZone).toISOString();
+
+/** Первое и последнее число месяца даты. */
+export const monthStartOf = (date: string) => `${date.slice(0, 8)}01`;
+export function monthEndOf(date: string): string {
+  const [year, month] = date.split('-').map(Number);
+  const next =
+    month === 12 ? `${year! + 1}-01-01` : `${year}-${String(month! + 1).padStart(2, '0')}-01`;
+  return addDays(next, -1);
+}
+
 /** Понедельник недели, в которую входит дата. */
 export const mondayOf = (date: string) => addDays(date, 1 - isoWeekday(date));
 

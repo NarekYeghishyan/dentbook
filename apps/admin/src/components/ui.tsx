@@ -1,9 +1,10 @@
 /** Базовые элементы интерфейса на Tailwind. */
-import type {
-  ButtonHTMLAttributes,
-  InputHTMLAttributes,
-  ReactNode,
-  SelectHTMLAttributes,
+import {
+  useEffect,
+  type ButtonHTMLAttributes,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
 } from 'react';
 import { ApiError } from '../api/client';
 import { useI18n, type MessageKey } from '../i18n';
@@ -165,4 +166,49 @@ export function ErrorText({ error }: { error: unknown }) {
 export function Loading() {
   const { t } = useI18n();
   return <p className="text-sm text-slate-500">{t('common.loading')}</p>;
+}
+
+/** Окно поверх страницы: закрывается кнопкой, Escape и щелчком мимо. */
+export function Modal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose(): void;
+  children: ReactNode;
+}) {
+  const { t } = useI18n();
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div
+      className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className="mt-10 w-full max-w-lg rounded-lg bg-white p-5 shadow-xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <h2 className="text-base font-semibold text-slate-900">{title}</h2>
+          <button
+            type="button"
+            aria-label={t('appointment.close')}
+            className="rounded px-2 text-slate-500 hover:bg-slate-100"
+            onClick={onClose}
+          >
+            ✕
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
 }

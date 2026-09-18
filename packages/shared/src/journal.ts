@@ -17,6 +17,9 @@ const dateRange = <T extends z.ZodRawShape>(shape: T) =>
 export const journalQuerySchema = dateRange({ locationId: uuidSchema });
 export type JournalQuery = z.input<typeof journalQuerySchema>;
 
+/** Статусы записей в журнале и истории клиента: холдов там нет. */
+export type BookingStatus = Exclude<AppointmentStatus, 'hold' | 'expired'>;
+
 export interface JournalClient {
   id: string;
   fullName: string;
@@ -25,7 +28,7 @@ export interface JournalClient {
 
 export interface JournalAppointment {
   id: string;
-  status: AppointmentStatus;
+  status: BookingStatus;
   source: AppointmentSource;
   startAt: string;
   endAt: string;
@@ -108,7 +111,7 @@ export interface ClientSummary {
 
 export interface ClientAppointment {
   id: string;
-  status: AppointmentStatus;
+  status: BookingStatus;
   source: AppointmentSource;
   startAt: string;
   timeZone: string;

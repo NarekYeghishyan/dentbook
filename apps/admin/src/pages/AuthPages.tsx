@@ -34,7 +34,7 @@ export function LoginPage() {
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    login.mutate({ email, password }, { onSuccess: () => navigate('/calendar') });
+    login.mutate({ email, password }, { onSuccess: () => navigate('/journal') });
   }
 
   return (

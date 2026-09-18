@@ -7,8 +7,12 @@ import { Layout } from './components/Layout';
 import { I18nProvider } from './i18n';
 import { LoginPage, RegisterPage } from './pages/AuthPages';
 import { CalendarPage } from './pages/CalendarPage';
+import { ClientPage } from './pages/ClientPage';
+import { ClientsPage } from './pages/ClientsPage';
+import { DashboardPage } from './pages/DashboardPage';
 import { DentistPage } from './pages/DentistPage';
 import { DentistsPage } from './pages/DentistsPage';
+import { JournalPage } from './pages/journal/JournalPage';
 import { OfficesPage } from './pages/OfficesPage';
 import { ServicesPage } from './pages/ServicesPage';
 import { SettingsPage } from './pages/SettingsPage';
@@ -34,7 +38,11 @@ const router = createBrowserRouter(
       path: '/',
       element: <Layout />,
       children: [
-        { index: true, element: <Navigate to="/calendar" replace /> },
+        { index: true, element: <Navigate to="/journal" replace /> },
+        { path: 'journal', element: <JournalPage /> },
+        { path: 'clients', element: <ClientsPage /> },
+        { path: 'clients/:id', element: <ClientPage /> },
+        { path: 'dashboard', element: <DashboardPage /> },
         { path: 'calendar', element: <CalendarPage /> },
         { path: 'dentists', element: <DentistsPage /> },
         { path: 'dentists/:id', element: <DentistPage /> },
@@ -43,7 +51,7 @@ const router = createBrowserRouter(
         { path: 'website', element: <WebsitePage /> },
         { path: 'staff', element: <StaffPage /> },
         { path: 'settings', element: <SettingsPage /> },
-        { path: '*', element: <Navigate to="/calendar" replace /> },
+        { path: '*', element: <Navigate to="/journal" replace /> },
       ],
     },
   ],
