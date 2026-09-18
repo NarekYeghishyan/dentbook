@@ -2,15 +2,13 @@
  * Контракт админского API /v1/admin: схемы входа и формы ответов.
  */
 import { z } from 'zod';
-import type { UserRole } from './domain.js';
+import { LOCALES, STAFF_ROLES, type Locale, type UserRole } from './domain.js';
 import {
-  LOCALES,
   currencySchema,
   emailSchema,
   nameSchema,
   passwordSchema,
   timeZoneSchema,
-  type Locale,
 } from './validators.js';
 
 // --- auth ---
@@ -54,10 +52,6 @@ export const updateClinicSchema = z
 export type UpdateClinicInput = z.input<typeof updateClinicSchema>;
 
 // --- сотрудники ---
-
-/** Роли, которые можно выдать сотруднику. owner — только при регистрации клиники. */
-export const STAFF_ROLES = ['admin', 'registrar'] as const;
-export type StaffRole = (typeof STAFF_ROLES)[number];
 
 export const createUserSchema = z.object({
   fullName: nameSchema,

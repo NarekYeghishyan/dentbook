@@ -5,11 +5,19 @@
  * совпадать с CHECK-ограничениями в schema.sql.
  */
 
+/** Языки интерфейса (Q6): английский — базовый. */
+export const LOCALES = ['en', 'ru', 'hy'] as const;
+export type Locale = (typeof LOCALES)[number];
+
 export const CLINIC_STATUSES = ['active', 'suspended'] as const;
 export type ClinicStatus = (typeof CLINIC_STATUSES)[number];
 
 export const USER_ROLES = ['owner', 'admin', 'registrar', 'operator'] as const;
 export type UserRole = (typeof USER_ROLES)[number];
+
+/** Роли, которые можно выдать сотруднику. owner — только при регистрации клиники. */
+export const STAFF_ROLES = ['admin', 'registrar'] as const satisfies readonly UserRole[];
+export type StaffRole = (typeof STAFF_ROLES)[number];
 
 export const RESOURCE_KINDS = ['room', 'chair', 'equipment'] as const;
 export type ResourceKind = (typeof RESOURCE_KINDS)[number];

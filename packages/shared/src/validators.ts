@@ -4,10 +4,6 @@
  */
 import { z } from 'zod';
 
-/** Языки интерфейса (Q6): английский — базовый. */
-export const LOCALES = ['en', 'ru', 'hy'] as const;
-export type Locale = (typeof LOCALES)[number];
-
 function isTimeZone(value: string): boolean {
   try {
     new Intl.DateTimeFormat('en-US', { timeZone: value });
