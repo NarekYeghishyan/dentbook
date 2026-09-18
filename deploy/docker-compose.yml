@@ -17,16 +17,25 @@ x-app-depends: &app-depends
   migrate:
     condition: service_completed_successfully
 
+# Логи контейнеров ротируются: без этого json-file растёт, пока не кончится диск
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: '5'
+
 x-app: &app
   image: dentbook-app:${DENTBOOK_IMAGE_TAG:-latest}
   restart: unless-stopped
   env_file: .env
   mem_limit: 384m
+  logging: *logging
 
 services:
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging: *logging
     environment:
       POSTGRES_USER: dentbook
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set}
@@ -45,6 +54,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    logging: *logging
     # noeviction — требование BullMQ: вытеснение ключей ломает очереди
     command:
       [
