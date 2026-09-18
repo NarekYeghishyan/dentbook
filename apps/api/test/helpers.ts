@@ -1,15 +1,17 @@
 /** Общее для интеграционных тестов API: приложение на тестовой БД и регистрация клиник. */
-import { randomUUID } from 'node:crypto';
+import { createHmac, randomUUID } from 'node:crypto';
 import type { FastifyInstance, InjectOptions } from 'fastify';
 import type { Redis } from 'ioredis';
 import { expect } from 'vitest';
 import type { Database } from '@dentbook/db';
 import type { RegisterClinicInput } from '@dentbook/shared';
+import type { TelegramJob } from '@dentbook/shared/queues';
 import { buildApp } from '../src/app.js';
 import type { Env } from '../src/env.js';
 import { SESSION_COOKIE } from '../src/plugins/session.js';
 import type { CaptchaVerifier } from '../src/services/captcha.js';
 import type { SmsSender } from '../src/services/sms.js';
+import type { TelegramConfig, TelegramOutbox } from '../src/telegram/outbox.js';
 
 export function testEnv(overrides: Partial<Env> = {}): Env {
   return {
@@ -33,7 +35,12 @@ export function testEnv(overrides: Partial<Env> = {}): Env {
 export function testApp(
   db: Database,
   overrides: Partial<Env> = {},
-  extras: { redis?: Redis; sms?: SmsSender; captcha?: CaptchaVerifier } = {},
+  extras: {
+    redis?: Redis;
+    sms?: SmsSender;
+    captcha?: CaptchaVerifier;
+    telegram?: TelegramConfig;
+  } = {},
 ): FastifyInstance {
   return buildApp({ env: testEnv(overrides), db, logger: false, ...extras });
 }
@@ -206,4 +213,53 @@ export async function createClinicData(
     },
   });
   return { locationId: location.id, serviceId: service.id, dentistId: dentist.id };
+}
+
+/** Очередь Telegram в тестах: задачи складываются в память вместо BullMQ. */
+export class TestOutbox implements TelegramOutbox {
+  readonly jobs: { job: TelegramJob; delayMs: number | undefined }[] = [];
+
+  async enqueue(job: TelegramJob, options: { delayMs?: number } = {}): Promise<void> {
+    this.jobs.push({ job, delayMs: options.delayMs });
+  }
+
+  /** Сообщения в чат, без отложенных. */
+  messagesTo(chatId: number) {
+    return this.jobs
+      .filter((j) => j.delayMs === undefined && j.job.type === 'message' && j.job.chatId === chatId)
+      .map((j) => j.job as Extract<TelegramJob, { type: 'message' }>);
+  }
+}
+
+export const TEST_BOT_TOKEN = '123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw0';
+
+export function testTelegram(outbox: TelegramOutbox): TelegramConfig {
+  return {
+    botToken: TEST_BOT_TOKEN,
+    botUsername: 'dentbook_test_bot',
+    webhookSecret: 'test-webhook-secret-1234567890',
+    miniAppUrl: 'https://dentbook.example/miniapp/',
+    outbox,
+  };
+}
+
+/** initData Mini App, подписанная так же, как её подписывает Telegram. */
+export function signInitData(
+  userId: number,
+  options: { authDate?: Date; token?: string } = {},
+): string {
+  const fields: Record<string, string> = {
+    auth_date: String(Math.floor((options.authDate ?? new Date()).getTime() / 1000)),
+    query_id: 'AAHdF6IQAAAAAN0XohDhrOrc',
+    user: JSON.stringify({ id: userId, first_name: 'Anna', language_code: 'en' }),
+  };
+  const dataCheckString = Object.keys(fields)
+    .sort()
+    .map((k) => `${k}=${fields[k]}`)
+    .join('\n');
+  const secret = createHmac('sha256', 'WebAppData')
+    .update(options.token ?? TEST_BOT_TOKEN)
+    .digest();
+  const hash = createHmac('sha256', secret).update(dataCheckString).digest('hex');
+  return new URLSearchParams({ ...fields, hash }).toString();
 }

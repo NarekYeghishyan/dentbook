@@ -346,6 +346,14 @@ const attacks: Record<string, () => Promise<void>> = {
     ]);
   },
 
+  // --- Telegram врача ---
+
+  'POST /v1/admin/dentists/:id/telegram-link': () =>
+    expectNotFound({ method: 'POST', url: `/v1/admin/dentists/${aData.dentistId}/telegram-link` }),
+
+  'DELETE /v1/admin/dentists/:id/telegram': () =>
+    expectNotFound({ method: 'DELETE', url: `/v1/admin/dentists/${aData.dentistId}/telegram` }),
+
   // --- ключи формы записи ---
 
   'GET /v1/admin/api-keys': async () => {

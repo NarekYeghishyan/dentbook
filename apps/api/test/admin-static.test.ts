@@ -16,7 +16,11 @@ beforeAll(async () => {
   writeFileSync(join(root, 'index.html'), '<!doctype html><div id="root"></div>');
   writeFileSync(join(root, 'assets', 'index-abc123.js'), 'console.log(1)');
   // Раздача статики к БД не обращается
-  app = buildApp({ env: testEnv({ ADMIN_DIST_DIR: root }), db: {} as Database, logger: false });
+  app = buildApp({
+    env: testEnv({ ADMIN_DIST_DIR: root, MINIAPP_DIST_DIR: root }),
+    db: {} as Database,
+    logger: false,
+  });
   await app.ready();
 });
 
@@ -56,6 +60,18 @@ describe('admin static files', () => {
   it('does not serve files outside the build', async () => {
     const res = await app.inject({ method: 'GET', url: '/admin/../package.json' });
     expect(res.body).not.toContain('"name"');
+  });
+
+  it('lets Telegram frame the Mini App and load its script, unlike the admin panel', async () => {
+    const res = await app.inject({ method: 'GET', url: '/miniapp/schedule' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['x-frame-options']).toBeUndefined();
+    expect(res.headers['content-security-policy']).toContain(
+      "script-src 'self' https://telegram.org",
+    );
+    expect(res.headers['content-security-policy']).toContain(
+      'frame-ancestors https://web.telegram.org',
+    );
   });
 
   it('keeps API routes and their errors intact', async () => {
