@@ -11,6 +11,38 @@ produced them (CLAUDE.md §9).
 
 ## [Unreleased]
 
+### Шаг 5 — ключи и публичный API (закрыт 2026-09-18)
+
+#### Added
+
+- `feat(db): protect the buffer after a visit` — Q11: `appointments.blocked_until`, CHECK и
+  EXCLUDE по `tstzrange(start_at, blocked_until)` (миграция `0003`), помощники
+  `blockedUntil()`, `lockDentist()`, `expireStaleHolds()`; §2.1 в CLAUDE.md обновлён.
+- `feat(api): cache availability in redis` — кеш слотов (§6, TTL 60 с), сброс по врачу и по
+  клинике; ключи — `@dentbook/shared/cache-keys`.
+- `feat(api): lock schedule changes against bookings` — блок и удаление extra под
+  advisory-lock врача (TODO Шага 4).
+- `feat(api): issue and revoke publishable keys` — `/v1/admin/api-keys`, `pk_` + 192 бита.
+- `feat(api): add public booking api` — `/v1/public`: ключ и Origin (§2.5), CORS, лимиты в
+  Redis, config/services/availability, холды с назначением врача и альтернативами,
+  SMS-коды, подтверждение, статус и отмена по токену; тексты SMS в переводах.
+- `feat(worker): expire stale holds` — задача BullMQ раз в минуту, сброс кеша врачей.
+- `feat(admin): manage website keys` — страница «Сайт»: ключи, сайты, отзыв.
+- `test: cover public api, holds, concurrency and isolation` — Redis в Testcontainers,
+  тестовый отправитель SMS только в тестах.
+- `docs: add ADR-0008`.
+
+#### Changed
+
+- `.env.example`: `HOLD_TTL_SEC`, `PUBLIC_KEY_RATE_LIMIT`, `PUBLIC_IP_RATE_LIMIT`.
+- Логи: токен записи из query не пишется, тело с данными клиента маскируется.
+
+#### Verified
+
+- 288 тестов, `pnpm lint`, `pnpm typecheck` зелёные; паритет `schema.sql` с миграциями;
+- критерии: истёкший холд → слот снова доступен; 20 одновременных холдов → 2, остальные
+  `slot_taken`; два одновременных подтверждения одного холда → одна запись.
+
 ### Шаг 4 — админский API и панель (закрыт 2026-09-18)
 
 #### Added
