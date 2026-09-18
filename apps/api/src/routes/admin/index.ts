@@ -8,6 +8,8 @@
  */
 import type { FastifyPluginAsync } from 'fastify';
 import type { Database } from '@dentbook/db';
+import type { SlotCache } from '../../services/slot-cache.js';
+import { apiKeyRoutes } from './api-keys.js';
 import { authRoutes } from './auth.js';
 import { availabilityRoutes } from './availability.js';
 import { clinicRoutes, meRoutes } from './clinic.js';
@@ -19,10 +21,12 @@ import { userRoutes } from './users.js';
 export interface AdminRoutesOptions {
   db: Database;
   authRateLimitPerMin: number;
+  cache?: SlotCache;
 }
 
 export const adminRoutes: FastifyPluginAsync<AdminRoutesOptions> = async (app, opts) => {
   const { db } = opts;
+  const withCache = opts.cache ? { db, cache: opts.cache } : { db };
   await app.register(authRoutes, {
     prefix: '/auth',
     db,
@@ -32,11 +36,12 @@ export const adminRoutes: FastifyPluginAsync<AdminRoutesOptions> = async (app, o
   await app.register(async (clinicScope) => {
     clinicScope.addHook('onRequest', clinicScope.authenticate);
     await clinicScope.register(meRoutes, { db });
-    await clinicScope.register(clinicRoutes, { prefix: '/clinic', db });
+    await clinicScope.register(clinicRoutes, { prefix: '/clinic', ...withCache });
     await clinicScope.register(userRoutes, { prefix: '/users', db });
-    await clinicScope.register(locationRoutes, { prefix: '/locations', db });
-    await clinicScope.register(serviceRoutes, { prefix: '/services', db });
-    await clinicScope.register(dentistRoutes, { prefix: '/dentists', db });
-    await clinicScope.register(availabilityRoutes, { prefix: '/availability', db });
+    await clinicScope.register(locationRoutes, { prefix: '/locations', ...withCache });
+    await clinicScope.register(serviceRoutes, { prefix: '/services', ...withCache });
+    await clinicScope.register(dentistRoutes, { prefix: '/dentists', ...withCache });
+    await clinicScope.register(availabilityRoutes, { prefix: '/availability', ...withCache });
+    await clinicScope.register(apiKeyRoutes, { prefix: '/api-keys', db });
   });
 };
