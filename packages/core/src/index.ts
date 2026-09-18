@@ -6,6 +6,7 @@ export {
   type ComputeDaySlotsInput,
 } from './availability.js';
 export { pickDentist, type DentistCandidate } from './assign.js';
+export { workingMinutes, type WorkingMinutesInput } from './utilization.js';
 export {
   addDays,
   dayBounds,
