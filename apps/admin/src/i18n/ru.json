@@ -151,5 +151,8 @@
   "website.revoke": "Отозвать",
   "website.revokeConfirm": "Отозвать ключ? Форма записи с ним сразу перестанет работать.",
   "website.revoked": "Отозван",
-  "website.lastUsed": "использован {time}"
+  "website.lastUsed": "использован {time}",
+  "website.snippet": "Код для вашего сайта",
+  "website.copyCode": "Копировать код",
+  "website.snippetHint": "Вставьте его туда, где должна быть форма записи. В WordPress — блок «Произвольный HTML»."
 }

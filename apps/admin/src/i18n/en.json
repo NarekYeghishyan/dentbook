@@ -151,5 +151,8 @@
   "website.revoke": "Revoke",
   "website.revokeConfirm": "Revoke the key? The booking form with it stops working at once.",
   "website.revoked": "Revoked",
-  "website.lastUsed": "last used {time}"
+  "website.lastUsed": "last used {time}",
+  "website.snippet": "Code for your website",
+  "website.copyCode": "Copy code",
+  "website.snippetHint": "Paste it where the booking form should appear. In WordPress, use a Custom HTML block."
 }

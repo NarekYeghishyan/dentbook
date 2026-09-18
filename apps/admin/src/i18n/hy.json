@@ -151,5 +151,8 @@
   "website.revoke": "Չեղարկել",
   "website.revokeConfirm": "Չեղարկե՞լ բանալին։ Դրանով գրանցման ձևն անմիջապես կդադարի աշխատել։",
   "website.revoked": "Չեղարկված",
-  "website.lastUsed": "օգտագործվել է {time}"
+  "website.lastUsed": "օգտագործվել է {time}",
+  "website.snippet": "Կոդ ձեր կայքի համար",
+  "website.copyCode": "Պատճենել կոդը",
+  "website.snippetHint": "Տեղադրեք այն այնտեղ, որտեղ պետք է լինի գրանցման ձևը։ WordPress-ում՝ «Custom HTML» բլոկում։"
 }

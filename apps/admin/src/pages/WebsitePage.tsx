@@ -1,6 +1,6 @@
 /**
- * Ключи формы записи для сайта клиники (§2.5): ключ pk_ и сайты, с которых он работает.
- * Код встраивания формы появится вместе с виджетом (Шаг 6).
+ * Ключи формы записи для сайта клиники (§2.5): ключ pk_, сайты, с которых он работает,
+ * и готовый код встраивания формы (Шаг 6).
  */
 import { useState, type FormEvent } from 'react';
 import type { ApiKey } from '@dentbook/shared';
@@ -19,6 +19,13 @@ import {
 import { useI18n } from '../i18n';
 import { formatDateTime } from '../lib/time';
 
+/** Код для сайта клиники: скрипт формы отдаёт тот же домен, что и панель (Q14). */
+const embedCode = (token: string) =>
+  [
+    '<div id="dentbook-booking"></div>',
+    `<script src="${window.location.origin}/widget/dentbook-widget.js" data-key="${token}" data-target="#dentbook-booking" async></script>`,
+  ].join('\n');
+
 /** Сайты вводятся через запятую или с новой строки. */
 const parseOrigins = (text: string) =>
   text
@@ -32,13 +39,13 @@ function KeyRow({ apiKey }: { apiKey: ApiKey }) {
   const update = useUpdateApiKey();
   const revoke = useRevokeApiKey();
   const [origins, setOrigins] = useState(apiKey.allowedOrigins.join('\n'));
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<'key' | 'code' | null>(null);
   const revoked = apiKey.revokedAt !== null;
 
-  async function copy() {
-    await navigator.clipboard.writeText(apiKey.token);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+  async function copy(what: 'key' | 'code') {
+    await navigator.clipboard.writeText(what === 'key' ? apiKey.token : embedCode(apiKey.token));
+    setCopied(what);
+    setTimeout(() => setCopied(null), 1500);
   }
 
   return (
@@ -62,11 +69,25 @@ function KeyRow({ apiKey }: { apiKey: ApiKey }) {
           {apiKey.token}
         </code>
         {!revoked && (
-          <Button variant="secondary" onClick={() => void copy()}>
-            {copied ? t('website.copied') : t('website.copy')}
+          <Button variant="secondary" onClick={() => void copy('key')}>
+            {copied === 'key' ? t('website.copied') : t('website.copy')}
           </Button>
         )}
       </div>
+      {!revoked && (
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-slate-700">{t('website.snippet')}</p>
+          <pre className="overflow-x-auto rounded bg-slate-900 px-3 py-2 text-xs text-slate-100">
+            {embedCode(apiKey.token)}
+          </pre>
+          <div className="flex flex-wrap items-center gap-3">
+            <Button variant="secondary" onClick={() => void copy('code')}>
+              {copied === 'code' ? t('website.copied') : t('website.copyCode')}
+            </Button>
+            <span className="text-xs text-slate-500">{t('website.snippetHint')}</span>
+          </div>
+        </div>
+      )}
       {!revoked && (
         <form
           className="space-y-2"
