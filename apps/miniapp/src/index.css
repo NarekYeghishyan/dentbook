@@ -1,0 +1,17 @@
+@import 'tailwindcss';
+
+/* Цвета темы Telegram: telegram-web-app.js выставляет --tg-theme-* на <html> */
+@theme inline {
+  --color-bg: var(--tg-theme-bg-color, #ffffff);
+  --color-fg: var(--tg-theme-text-color, #111827);
+  --color-hint: var(--tg-theme-hint-color, #6b7280);
+  --color-link: var(--tg-theme-link-color, #2563eb);
+  --color-accent: var(--tg-theme-button-color, #2563eb);
+  --color-accent-fg: var(--tg-theme-button-text-color, #ffffff);
+  --color-card: var(--tg-theme-secondary-bg-color, #f3f4f6);
+  --color-danger: var(--tg-theme-destructive-text-color, #dc2626);
+}
+
+body {
+  @apply bg-bg text-fg antialiased;
+}

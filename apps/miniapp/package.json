@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@dentbook/core": "workspace:*",
     "@dentbook/shared": "workspace:*",
     "@tanstack/react-query": "^5.90.2",
     "react": "^19.2.0",
