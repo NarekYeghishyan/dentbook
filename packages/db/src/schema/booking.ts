@@ -61,6 +61,8 @@ export const appointments = pgTable(
     endAt: timestamptz('end_at').notNull(),
     /** Снимок services.buffer_min на момент записи. */
     bufferMin: integer('buffer_min').notNull().default(0),
+    /** end_at + buffer_min — конец времени, которое держит запись (Q11). Заполняет код. */
+    blockedUntil: timestamptz('blocked_until').notNull(),
     status: text('status', { enum: APPOINTMENT_STATUSES }).notNull(),
     holdExpiresAt: timestamptz('hold_expires_at'),
     source: text('source', { enum: APPOINTMENT_SOURCES }).notNull(),
@@ -90,6 +92,10 @@ export const appointments = pgTable(
     unique('appointments_public_token_key').on(t.publicToken),
     check('appointments_range', sql`end_at > start_at`),
     check('appointments_buffer_min', sql`buffer_min >= 0`),
+    check(
+      'appointments_blocked_until',
+      sql`blocked_until = end_at + buffer_min * interval '1 minute'`,
+    ),
     check('appointments_status', oneOf('status', APPOINTMENT_STATUSES)),
     check('appointments_source', oneOf('source', APPOINTMENT_SOURCES)),
     check(

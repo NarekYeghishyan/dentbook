@@ -352,6 +352,10 @@ CREATE TABLE appointments (
   -- Снимок services.buffer_min на момент записи (§6): правка услуги не сдвигает
   -- уже существующие записи
   buffer_min       integer     NOT NULL DEFAULT 0,
+  -- Конец времени, которое держит запись: end_at + buffer_min (Q11). Заполняет код,
+  -- CHECK ниже сверяет. Нужна как колонка: timestamptz + interval не IMMUTABLE и
+  -- в выражение EXCLUDE-индекса не годится.
+  blocked_until    timestamptz NOT NULL,
   status           text        NOT NULL,
   hold_expires_at  timestamptz,
   source           text        NOT NULL,
@@ -372,6 +376,7 @@ CREATE TABLE appointments (
   CONSTRAINT appointments_public_token_key   UNIQUE (public_token),
   CONSTRAINT appointments_range              CHECK (end_at > start_at),
   CONSTRAINT appointments_buffer_min         CHECK (buffer_min >= 0),
+  CONSTRAINT appointments_blocked_until      CHECK (blocked_until = end_at + buffer_min * interval '1 minute'),
   CONSTRAINT appointments_status             CHECK (status IN (
     'hold', 'pending', 'confirmed', 'cancelled', 'completed', 'no_show', 'expired'
   )),
@@ -392,12 +397,11 @@ CREATE TABLE appointments (
   CONSTRAINT appointments_patient_fk  FOREIGN KEY (clinic_id, patient_id)
     REFERENCES patients (clinic_id, id),
 
-  -- §2.1 дословно. Нарушение → SQLSTATE 23P01 → код slot_taken + альтернативы.
-  -- Буфер в ограничение не входит (как и в §2.1): сами приёмы не пересекутся
-  -- никогда, но при гонке две записи могут встать встык без буфера (Q11).
+  -- §2.1. Нарушение → SQLSTATE 23P01 → код slot_taken + альтернативы.
+  -- Интервал — вместе с буфером после приёма (Q11): буфер защищён и при гонке.
   CONSTRAINT appointments_no_dentist_overlap EXCLUDE USING gist (
     dentist_id WITH =,
-    tstzrange(start_at, end_at) WITH &&
+    tstzrange(start_at, blocked_until) WITH &&
   ) WHERE (status IN ('hold', 'pending', 'confirmed'))
 );
 

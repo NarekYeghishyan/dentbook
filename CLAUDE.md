@@ -25,9 +25,11 @@
 ```sql
 CONSTRAINT appointments_no_dentist_overlap EXCLUDE USING gist (
   dentist_id WITH =,
-  tstzrange(start_at, end_at) WITH &&
+  tstzrange(start_at, blocked_until) WITH &&
 ) WHERE (status IN ('hold', 'pending', 'confirmed'))
 ```
+
+`blocked_until = end_at + buffer_min` — запись держит время вместе с буфером после приёма, поэтому буфер тоже защищён от гонки (решение Q11). Колонку заполняет код, соответствие проверяет CHECK.
 
 Требует `CREATE EXTENSION btree_gist`. Код должен корректно обрабатывать ошибку `23P01` (exclusion_violation) и возвращать клиенту `slot_taken` с альтернативными слотами.
 

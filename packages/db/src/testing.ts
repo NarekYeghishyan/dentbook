@@ -1,10 +1,11 @@
 /**
- * Postgres для интеграционных тестов: контейнер той же версии, что в docker-compose,
+ * Postgres и Redis для интеграционных тестов: контейнер той же версии, что в docker-compose,
  * и схема из миграций. Только для тестов — в рабочий код не импортируется.
  * Миграции здесь применяет мигратор drizzle-orm: те же файлы, что у drizzle-kit (§9).
  */
 import { fileURLToPath } from 'node:url';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import { GenericContainer } from 'testcontainers';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { createDatabase, type Database } from './client.js';
 
@@ -31,6 +32,22 @@ export async function startTestDatabase(
     url,
     async stop() {
       await pool.end();
+      await container.stop();
+    },
+  };
+}
+
+export interface TestRedis {
+  url: string;
+  stop(): Promise<void>;
+}
+
+/** Redis той же версии, что в docker-compose: кеш слотов, лимиты, очереди. */
+export async function startTestRedis(): Promise<TestRedis> {
+  const container = await new GenericContainer('redis:7-alpine').withExposedPorts(6379).start();
+  return {
+    url: `redis://${container.getHost()}:${container.getMappedPort(6379)}`,
+    async stop() {
       await container.stop();
     },
   };

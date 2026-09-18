@@ -7,9 +7,11 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { BLOCKING_APPOINTMENT_STATUSES } from '@dentbook/shared';
 import {
+  PG_CHECK_VIOLATION,
   PG_EXCLUSION_VIOLATION,
   PG_FOREIGN_KEY_VIOLATION,
   appointments,
+  blockedUntil,
   clinics,
   createDatabase,
   isExclusionViolation,
@@ -48,6 +50,7 @@ const { clinic: clinicId, location: locationId } = DEMO_IDS;
 const { anna, boris } = DEMO_IDS.dentists;
 const { checkup } = DEMO_IDS.services;
 
+/** Холд с буфером 10 мин: держит время до end + 10 мин (Q11). */
 function hold(dentistId: string, startAt: string, endAt: string) {
   return {
     clinicId,
@@ -57,6 +60,7 @@ function hold(dentistId: string, startAt: string, endAt: string) {
     startAt: new Date(startAt),
     endAt: new Date(endAt),
     bufferMin: 10,
+    blockedUntil: blockedUntil(new Date(endAt), 10),
     status: 'hold' as const,
     holdExpiresAt: new Date('2030-01-01T00:00:00Z'),
     source: 'widget' as const,
@@ -108,14 +112,33 @@ describe('appointments_no_dentist_overlap (CLAUDE.md §2.1)', () => {
       .values(hold(anna, '2030-03-04T10:15:00Z', '2030-03-04T10:45:00Z'));
     await expect(overlap).rejects.toSatisfy(isExclusionViolation);
 
+    // Первая запись держит время до 10:40 — конец плюс буфер 10 мин
     await expect(
-      db.insert(appointments).values(hold(anna, end, '2030-03-04T11:00:00Z')),
+      db.insert(appointments).values(hold(anna, '2030-03-04T10:40:00Z', '2030-03-04T11:00:00Z')),
     ).resolves.toBeDefined();
   });
 
-  it('lets another dentist take the same time', async () => {
+  it('protects the buffer after a visit, even in a race (Q11)', async () => {
+    // Встык к концу приёма 10:30, но внутри буфера до 10:40
+    const intoBuffer = db.insert(appointments).values(hold(boris, end, '2030-03-04T11:00:00Z'));
     await db.insert(appointments).values(hold(boris, start, end));
+    await expect(intoBuffer).rejects.toSatisfy(isExclusionViolation);
+  });
+
+  it('rejects blocked_until that does not match end_at + buffer_min', async () => {
+    const wrong = db.insert(appointments).values({
+      ...hold(boris, '2030-03-06T10:00:00Z', '2030-03-06T10:30:00Z'),
+      blockedUntil: new Date('2030-03-06T10:30:00Z'),
+    });
+    await expect(wrong).rejects.toSatisfy(
+      (err: unknown) => pgErrorCode(err) === PG_CHECK_VIOLATION,
+    );
+  });
+
+  it('lets another dentist take the same time', async () => {
+    // Boris уже записан на это время в тесте про буфер
     expect(await blockingCount(boris, start)).toBe(1);
+    expect(await blockingCount(anna, start)).toBe(1);
   });
 
   it('frees the slot once the hold expires', async () => {
