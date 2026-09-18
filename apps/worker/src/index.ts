@@ -1,9 +1,12 @@
 import { Queue, Worker } from 'bullmq';
+import { Api } from 'grammy';
 import { Redis } from 'ioredis';
 import { pino } from 'pino';
 import { createDatabase } from '@dentbook/db';
+import { TELEGRAM_QUEUE } from '@dentbook/shared/queues';
 import { loadEnv } from './env.js';
 import { EXPIRE_HOLDS_EVERY_MS, EXPIRE_HOLDS_QUEUE, expireHolds } from './jobs/expire-holds.js';
+import { telegramProcessor } from './jobs/telegram.js';
 
 const env = loadEnv();
 
@@ -35,14 +38,25 @@ const workers = [
     },
     { connection },
   ),
+  ...(env.TELEGRAM_BOT_TOKEN
+    ? [
+        new Worker(
+          TELEGRAM_QUEUE,
+          telegramProcessor({ api: new Api(env.TELEGRAM_BOT_TOKEN), db }),
+          // Bot API: не больше ~30 сообщений в секунду на бота
+          { connection, concurrency: 5, limiter: { max: 25, duration: 1000 } },
+        ),
+      ]
+    : []),
 ];
+if (!env.TELEGRAM_BOT_TOKEN) log.warn('TELEGRAM_BOT_TOKEN is not set: telegram queue is idle');
 for (const worker of workers) {
   worker.on('failed', (job, err) =>
     log.error({ queue: job?.queueName, err: err.message }, 'job failed'),
   );
 }
 
-log.info({ queues: [EXPIRE_HOLDS_QUEUE] }, 'worker started');
+log.info({ workers: workers.length }, 'worker started');
 
 async function shutdown(): Promise<void> {
   await Promise.all(workers.map((worker) => worker.close()));
