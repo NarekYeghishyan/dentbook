@@ -103,7 +103,7 @@ export const dentistServices = pgTable(
   ],
 );
 
-/** Справочник ресурсов филиала. Связь с записями — после ответа на Q10. */
+/** Справочник ресурсов филиала, в записи не участвует (Q10: A). */
 export const resources = pgTable(
   'resources',
   {

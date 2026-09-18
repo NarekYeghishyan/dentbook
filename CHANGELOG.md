@@ -11,6 +11,44 @@ produced them (CLAUDE.md §9).
 
 ## [Unreleased]
 
+### Тестовый стенд (вне порядка шагов, 2026-09-17)
+
+#### Added
+
+- `build: add app docker image` — `Dockerfile` и `.dockerignore`: один образ для api, worker,
+  миграций и сидов; запуск через `node --import tsx` (ADR-0004).
+- `build(deploy): add server compose stack` — `deploy/docker-compose.yml`: Postgres 16,
+  Redis 7 (`noeviction` для BullMQ), `migrate` перед `api`/`worker`, API только на
+  `127.0.0.1`, лимиты памяти.
+- `build(deploy): add deploy script` — `deploy/deploy.sh`: загрузка рабочей копии без
+  игнорируемых файлов, сборка образа с тегом коммита, миграции, перезапуск, очистка старых
+  образов.
+- `build(deploy): add nginx template` — `deploy/nginx/dentbook.conf.template`: TLS,
+  ACME webroot, редирект с HTTP, прокси с `X-Request-Id` (§9).
+- `docs: add deployment guide and ADR-0004` — `deploy/README.md`: подготовка сервера,
+  nginx и certbot, выкладка, эксплуатация.
+- `.env.example`: `POSTGRES_PASSWORD`, `API_HOST_PORT` для серверного стека.
+- `docs: record test stand domains` — Q13 (закрыт: `mashna.am` — тестовый сайт клиники для
+  виджета, платформа на `dentbook.mashna.am`) и Q14 (открыт: один домен или поддомены для
+  частей платформы).
+- `docs: record telegram link delivery` — Q15 (закрыт: ссылка привязки врача — кнопка
+  «Скопировать» и QR-код в карточке врача, Шаг 7).
+- `docs: resolve resources question` — Q10 (закрыт: `resources` — справочник филиала,
+  в назначении врача и расчёте доступности не участвует).
+- `docs: record answers to open questions` — закрыты Q4 (значения по умолчанию), Q6 (en/ru/hy,
+  JSON + `t()`), Q7 (сервер — Node 22), Q11 (буфер защищается в БД, Шаг 5), Q12 (`pending` +
+  повторный алерт, SMS при подтверждении), Q14 (один домен, пути). Q5: клиенты в США, капча
+  Turnstile; SMS-провайдер — к Шагу 6.
+
+#### Verified
+
+- локально: образ собирается; стек поднимается с `--wait`; 3 миграции, 16 таблиц,
+  расширения и `appointments_no_dentist_overlap` на месте; сид дважды без дублей;
+  повторный `up` ничего не меняет; `/health` → 200; стек ~115 МБ RAM;
+- стенд `https://dentbook.mashna.am`: `deploy.sh` проходит; `/health` → 200 через nginx,
+  сертификат Let's Encrypt валиден, HTTP → HTTPS; наружу открыт только `127.0.0.1:3100`;
+  соседние сайты сервера отвечают как до изменений.
+
 ### Шаг 1 — каркас и БД (закрыт 2026-09-17)
 
 #### Added
