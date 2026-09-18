@@ -23,12 +23,16 @@ const envSchema = z.object({
     .default(12 * 60 * 60),
   // Попыток входа и регистрации в минуту с одного IP
   AUTH_RATE_LIMIT: z.coerce.number().int().positive().default(10),
+  // Каталог собранной админки (vite build); не задан — /admin не раздаётся
+  ADMIN_DIST_DIR: z.string().min(1).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
-  const parsed = envSchema.safeParse(source);
+  // Пустое значение — «не задано»: .env, скопированный из .env.example, получает умолчания
+  const defined = Object.fromEntries(Object.entries(source).filter(([, value]) => value !== ''));
+  const parsed = envSchema.safeParse(defined);
   if (!parsed.success) {
     // В сообщение попадают только имена переменных: значения — секреты
     const names = parsed.error.issues.map((issue) => issue.path.join('.')).join(', ');
