@@ -48,6 +48,12 @@ If ports 5432 / 6379 are taken by another project, set `POSTGRES_PORT` / `REDIS_
 The reference schema is [schema.sql](schema.sql); the Drizzle schema must match it, and a test
 enforces that. See [packages/db/README.md](packages/db/README.md) for how to change it.
 
+## Deployment
+
+Server setup, nginx/TLS and the deploy script are described in
+[deploy/README.md](deploy/README.md). Test environment: https://dentbook.mashna.am
+(`DEPLOY_HOST=dentbook-test deploy/deploy.sh`).
+
 ## Scripts
 
 | Command                                  | What it does                               |
