@@ -11,6 +11,46 @@ produced them (CLAUDE.md §9).
 
 ## [Unreleased]
 
+### Шаг 7 — бот и Mini App (закрыт 2026-09-18)
+
+#### Added
+
+- `feat(shared): add telegram queue and mini app contracts` — очередь `telegram`, задачи
+  сообщений и ответов на кнопки, контракт `/v1/miniapp`.
+- `feat(api): add telegram bot webhook, linking and alerts` — `/telegram/webhook` с
+  секретным заголовком и дедупликацией по `update_id`; привязка по `/start <токен>`
+  (одноразовый, 24 ч, в БД — SHA-256); алерты о новой записи и отмене, кнопка
+  «Подтвердить», напоминание о неподтверждённой записи через 2 ч (Q12); ссылка привязки и
+  отключение в `/v1/admin/dentists/:id/telegram*`.
+- `feat(api): add dentist mini app api` — `/v1/miniapp`: вход по initData (подпись и
+  свежесть, §8), расписание, закрытие и открытие времени, свободное время, запись своего
+  клиента, подтверждение.
+- `feat(worker): send telegram messages from the queue` — отправка с backoff, 403 →
+  `telegram_blocked` без повторов, отметки в `notifications`.
+- `feat(miniapp): add dentist schedule mini app` — `apps/miniapp` на `/miniapp/`:
+  расписание дня, закрыть время (со списком записей, если время занято), новая запись;
+  en/ru/hy, тема Telegram.
+- `feat(admin): connect dentists to telegram` — блок Telegram в карточке врача: статус,
+  ссылка с копированием и QR-кодом (Q15), отключение.
+- `feat(api): add telegram bot setup script` — `apps/api/src/telegram-setup.ts`: вебхук,
+  кнопка меню Mini App, описание `/start` на трёх языках.
+- `test: add mini app end-to-end test` — Mini App в Chromium против настоящего API.
+- `docs: add ADR-0010`.
+
+#### Changed
+
+- `refactor(shared): move phone normalization to shared` — `toE164` в
+  `@dentbook/shared/phone`: им пользуются форма записи и Mini App.
+- `Dockerfile` собирает Mini App и задаёт `MINIAPP_DIST_DIR`; `pnpm test:e2e` собирает его
+  перед тестами.
+- `.env.example`: раздел Telegram описан, `TELEGRAM_WEBHOOK_URL` и `MINIAPP_URL` убраны —
+  адреса выводятся из `PUBLIC_BASE_URL`; добавлен `MINIAPP_DIST_DIR`.
+
+#### Verified
+
+- 363 теста, `pnpm lint`, `pnpm typecheck` зелёные; `pnpm test:e2e` — 10 сценариев, из них
+  3 для Mini App: без подписи Telegram, чужой аккаунт, полный цикл врача.
+
 ### Шаг 6 — виджет (закрыт 2026-09-18)
 
 #### Added

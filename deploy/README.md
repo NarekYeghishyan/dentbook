@@ -49,8 +49,8 @@ EOF
 ```
 
 `DATABASE_URL` и `REDIS_URL` собирает `docker-compose.yml`. Без `JWT_SECRET` API не
-стартует. Переменные следующих шагов (`TELEGRAM_*`, `SMS_*`, `CAPTCHA_*` — см.
-`.env.example`) дописываются в этот же файл: он целиком передаётся контейнерам. На уже
+стартует. Остальные переменные (`TELEGRAM_*`, `SMS_*`, `CAPTCHA_*` — см. `.env.example`)
+дописываются в этот же файл: он целиком передаётся контейнерам. На уже
 развёрнутом сервере недостающий секрет дописывается так:
 
 ```bash
@@ -104,6 +104,36 @@ curl https://dentbook.example.com/health
 На серверах с ISPmanager сайт для этого домена в панели не создавать: панель напишет свой
 блок `server` с тем же `server_name`, и nginx выберет один из двух.
 
+### 5. Бот Telegram (§8, ADR-0010)
+
+1. В @BotFather: `/newbot` → имя и username бота → токен. Токен не пересылать в чатах и
+   не коммитить — только в `.env` на сервере.
+2. Дописать в `/opt/dentbook/.env` (токен вставить вручную):
+
+   ```bash
+   cat >> /opt/dentbook/.env <<EOF
+   PUBLIC_BASE_URL=https://dentbook.example.com
+   TELEGRAM_BOT_USERNAME=dentbook_example_bot
+   TELEGRAM_WEBHOOK_SECRET=$(openssl rand -hex 32)
+   TELEGRAM_BOT_TOKEN=
+   EOF
+   nano /opt/dentbook/.env   # вписать TELEGRAM_BOT_TOKEN=<токен от BotFather>
+   ```
+
+3. Перезапустить api и worker и настроить бота — вебхук, кнопку меню Mini App, команды:
+
+   ```bash
+   cd /opt/dentbook
+   docker compose up -d api worker
+   docker compose run --rm --no-deps api node --import tsx apps/api/src/telegram-setup.ts
+   ```
+
+   Скрипт печатает адрес вебхука и Mini App. Запускать заново после смены токена или домена.
+
+4. Проверка: в панели — «Врачи» → врач → «Создать ссылку для подключения», открыть ссылку
+   или QR-код с телефона врача и нажать «Старт». Карточка переходит в «Подключён», в боте
+   появляется кнопка «Schedule».
+
 ## Выкладка
 
 ```bash
@@ -146,6 +176,10 @@ DEPLOY_HOST=root@203.0.113.10 deploy/deploy.sh   # или алиас из ~/.ssh
   сертификат — certbot (`mashna.am`). Прежняя заглушка — в `/root/dentbook-backups/`.
 - Демо-клиника «DentBook Demo Clinic» (Нью-Йорк, офис, 3 услуги, 2 врача) — вход в панель и
   ключ формы в `/root/dentbook-demo.txt` на сервере (только root).
+- Бот Telegram на стенде выключен, пока нет токена от @BotFather: «Создать ссылку для
+  подключения» в панели отвечает, что бот не настроен. Включение — раздел «5. Бот Telegram»
+  выше; Mini App — `https://dentbook.mashna.am/miniapp/` (вне Telegram просит открыть его из
+  бота).
 - SMS и капча на стенде выключены, пока нет ключей Twilio и Turnstile (Q5): форма доходит до
   ввода телефона и сообщает, что онлайн-запись недоступна. Ключи дописываются в
   `/opt/dentbook/.env` (`SMS_PROVIDER=twilio`, `TWILIO_*`, `SMS_SENDER`, `CAPTCHA_*`), затем
