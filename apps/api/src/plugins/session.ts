@@ -22,6 +22,11 @@ const COOKIE_PATH = '/v1/admin';
 export type ClinicRole = Exclude<UserRole, 'operator'>;
 export const CLINIC_ROLES = ['owner', 'admin', 'registrar'] as const satisfies ClinicRole[];
 
+/** config роутов, меняющих данные клиники: регистратура их только читает (ADR-0006). */
+export const MANAGERS = { roles: ['owner', 'admin'] } as const satisfies {
+  roles: readonly ClinicRole[];
+};
+
 /** Кто делает запрос. clinicId участвует в каждом запросе к данным (§2.2). */
 export interface AuthContext {
   userId: string;

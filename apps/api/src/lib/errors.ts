@@ -3,12 +3,16 @@ import type { z } from 'zod';
 import { pgErrorCode } from '@dentbook/db';
 import type { ApiErrorBody, ErrorCode } from '@dentbook/shared';
 
-/** Ошибка с кодом из @dentbook/shared (CLAUDE.md §7). */
+/**
+ * Ошибка с кодом из @dentbook/shared (CLAUDE.md §7). extra — поля ответа рядом с error,
+ * например список записей, из-за которых нельзя закрыть время (§8).
+ */
 export class ApiError extends Error {
   constructor(
     readonly statusCode: number,
     readonly code: ErrorCode,
     message: string,
+    readonly extra?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -75,15 +79,16 @@ export function sendError(
   statusCode: number,
   code: ErrorCode,
   message: string,
+  extra: Record<string, unknown> = {},
 ) {
   const body: ApiErrorBody = { error: { code, message } };
-  return reply.status(statusCode).send(body);
+  return reply.status(statusCode).send({ ...extra, ...body });
 }
 
 /** Единый формат ошибок для всех роутов. */
 export function errorHandler(err: FastifyError, request: FastifyRequest, reply: FastifyReply) {
   if (err instanceof ApiError) {
-    return sendError(reply, err.statusCode, err.code, err.message);
+    return sendError(reply, err.statusCode, err.code, err.message, err.extra);
   }
   // Ошибки Fastify и плагинов уровня запроса: битый JSON, 415, лимит запросов
   const statusCode = err.statusCode ?? 500;

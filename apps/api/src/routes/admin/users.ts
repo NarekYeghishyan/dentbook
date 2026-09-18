@@ -10,11 +10,9 @@ import { createUserSchema, updateUserSchema, type StaffUser } from '@dentbook/sh
 import { forbidden, notFound, parse } from '../../lib/errors.js';
 import { idOf } from '../../lib/params.js';
 import { hashPassword } from '../../lib/password.js';
-import { authOf } from '../../plugins/session.js';
+import { authOf, MANAGERS } from '../../plugins/session.js';
 import { emailTaken } from './auth.js';
 import { staffColumns, toStaffUser } from './mappers.js';
-
-const MANAGERS = { roles: ['owner', 'admin'] } as const;
 
 export const userRoutes: FastifyPluginAsync<{ db: Database }> = async (app, { db }) => {
   async function findUser(clinicId: string, id: string) {
