@@ -34,7 +34,11 @@ export function LoginPage() {
 
   function submit(e: FormEvent) {
     e.preventDefault();
-    login.mutate({ email, password }, { onSuccess: () => navigate('/journal') });
+    // Оператор платформы — в свою панель, сотрудник клиники — в журнал
+    login.mutate(
+      { email, password },
+      { onSuccess: ({ role }) => navigate(role === 'operator' ? '/operator' : '/journal') },
+    );
   }
 
   return (

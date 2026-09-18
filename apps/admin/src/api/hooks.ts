@@ -18,7 +18,11 @@ import type {
   JournalResponse,
   Location,
   LoginInput,
+  LoginResponse,
   MeResponse,
+  OperatorClinic,
+  OperatorMe,
+  PlatformHealth,
   RegisterClinicInput,
   RescheduleInput,
   ScheduleExceptionItem,
@@ -77,7 +81,7 @@ export const useMe = () =>
 export function useLogin() {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: (input: LoginInput) => api<void>('POST', '/auth/login', input),
+    mutationFn: (input: LoginInput) => api<LoginResponse>('POST', '/auth/login', input),
     onSuccess: () => client.resetQueries(),
   });
 }
@@ -355,3 +359,32 @@ export const exportUrl = (query: { from: string; to: string; locationId?: string
   `/v1/admin/appointments/export?${new URLSearchParams(
     Object.entries(query).filter((e): e is [string, string] => Boolean(e[1])),
   )}`;
+
+// --- панель оператора платформы (Шаг 10) ---
+
+export const useOperatorMe = () =>
+  useQuery({
+    queryKey: ['operator', 'me'],
+    queryFn: () => api<OperatorMe>('GET', '/operator/me'),
+    retry: false,
+  });
+
+export const useOperatorClinics = () =>
+  useQuery({
+    queryKey: ['operator', 'clinics'],
+    queryFn: () => api<OperatorClinic[]>('GET', '/operator/clinics'),
+  });
+
+export const useSetClinicStatus = () =>
+  useSave(
+    ({ id, status }: { id: string; status: 'active' | 'suspended' }) =>
+      api<{ id: string; status: string }>('PATCH', `/operator/clinics/${id}`, { status }),
+    [['operator', 'clinics']],
+  );
+
+export const usePlatformHealth = () =>
+  useQuery({
+    queryKey: ['operator', 'health'],
+    queryFn: () => api<PlatformHealth>('GET', '/operator/health'),
+    refetchInterval: 30_000,
+  });

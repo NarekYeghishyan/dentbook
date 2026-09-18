@@ -14,6 +14,7 @@ import { DentistPage } from './pages/DentistPage';
 import { DentistsPage } from './pages/DentistsPage';
 import { JournalPage } from './pages/journal/JournalPage';
 import { OfficesPage } from './pages/OfficesPage';
+import { OperatorPage } from './pages/OperatorPage';
 import { ServicesPage } from './pages/ServicesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { StaffPage } from './pages/StaffPage';
@@ -34,6 +35,7 @@ const router = createBrowserRouter(
   [
     { path: '/login', element: <LoginPage /> },
     { path: '/register', element: <RegisterPage /> },
+    { path: '/operator', element: <OperatorPage /> },
     {
       path: '/',
       element: <Layout />,
