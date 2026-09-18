@@ -263,6 +263,7 @@ describe('config, services, availability', () => {
       locations: [
         { id: data.locationId, name: 'Main office', address: null, phone: null, time_zone: ZONE },
       ],
+      captcha: null,
     });
     expect(res.body).not.toContain(owner.email);
   });
@@ -766,5 +767,34 @@ describe('tenant isolation of the public API (§2.2)', () => {
       .set({ status: 'suspended' })
       .where(eq(clinics.id, other.clinicId));
     expect((await pub({ method: 'GET', url: '/v1/public/config' }, otherKey)).statusCode).toBe(401);
+  });
+});
+
+describe('captcha before SMS (Step 6)', () => {
+  it('requires a passed captcha when it is configured', async () => {
+    const captcha = { siteKey: 'site-key', verify: async (token: string) => token === 'passed' };
+    const guarded = testApp(database.db, {}, { redis, sms, captcha });
+    const headers = { authorization: `Bearer ${key}`, origin: ORIGIN };
+    try {
+      const config = await guarded.inject({ method: 'GET', url: '/v1/public/config', headers });
+      expect(config.json().captcha).toEqual({ provider: 'turnstile', site_key: 'site-key' });
+
+      const send = (payload: object) =>
+        guarded.inject({
+          method: 'POST',
+          url: '/v1/public/verifications',
+          headers,
+          payload: { phone: newPhone(), ...payload },
+        });
+      const sentBefore = sms.sent.length;
+      expect((await send({})).json().error.code).toBe('verification_required');
+      expect((await send({ captcha_token: 'robot' })).json().error.code).toBe(
+        'verification_failed',
+      );
+      expect(sms.sent.length).toBe(sentBefore);
+      expect((await send({ captcha_token: 'passed' })).statusCode).toBe(201);
+    } finally {
+      await guarded.close();
+    }
   });
 });

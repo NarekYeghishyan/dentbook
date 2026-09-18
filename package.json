@@ -20,7 +20,8 @@
     "migrate:generate": "pnpm --filter @dentbook/db generate",
     "seed": "pnpm --filter @dentbook/db seed",
     "db:up": "docker compose up -d postgres redis",
-    "db:down": "docker compose down"
+    "db:down": "docker compose down",
+    "test:e2e": "pnpm --filter @dentbook/widget size && vitest run -c vitest.e2e.config.ts"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",
@@ -28,6 +29,7 @@
     "@vitest/coverage-v8": "^3.2.4",
     "eslint": "^9.39.0",
     "eslint-config-prettier": "^10.1.8",
+    "playwright": "^1.63.0",
     "prettier": "^3.6.2",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3",

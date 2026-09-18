@@ -8,6 +8,7 @@ import type { RegisterClinicInput } from '@dentbook/shared';
 import { buildApp } from '../src/app.js';
 import type { Env } from '../src/env.js';
 import { SESSION_COOKIE } from '../src/plugins/session.js';
+import type { CaptchaVerifier } from '../src/services/captcha.js';
 import type { SmsSender } from '../src/services/sms.js';
 
 export function testEnv(overrides: Partial<Env> = {}): Env {
@@ -32,7 +33,7 @@ export function testEnv(overrides: Partial<Env> = {}): Env {
 export function testApp(
   db: Database,
   overrides: Partial<Env> = {},
-  extras: { redis?: Redis; sms?: SmsSender } = {},
+  extras: { redis?: Redis; sms?: SmsSender; captcha?: CaptchaVerifier } = {},
 ): FastifyInstance {
   return buildApp({ env: testEnv(overrides), db, logger: false, ...extras });
 }

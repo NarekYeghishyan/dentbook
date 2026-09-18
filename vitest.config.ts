@@ -6,6 +6,8 @@ export default defineConfig({
       '{apps,packages}/*/src/**/*.{test,spec}.ts',
       '{apps,packages}/*/test/**/*.{test,spec}.ts',
     ],
+    // Браузерные сквозные тесты — отдельно: pnpm test:e2e (vitest.e2e.config.ts)
+    exclude: ['**/node_modules/**', '**/*.e2e.test.ts'],
     // Интеграционные тесты на Testcontainers поднимают Postgres — нужен запас по времени
     testTimeout: 30_000,
     hookTimeout: 120_000,
