@@ -9,15 +9,19 @@ import type { Redis } from 'ioredis';
 import type { Database } from '@dentbook/db';
 import type { Env } from './env.js';
 import { ApiError, errorHandler, sendError, serializeError } from './lib/errors.js';
-import { adminStatic } from './plugins/admin-static.js';
+import { ADMIN_HEADERS, MINIAPP_HEADERS, spaStatic } from './plugins/spa-static.js';
 import { widgetStatic } from './plugins/widget-static.js';
 import { sessionPlugin } from './plugins/session.js';
 import { adminRoutes } from './routes/admin/index.js';
+import { miniappRoutes } from './routes/miniapp/index.js';
 import { publicRoutes } from './routes/public/index.js';
 import type { CaptchaVerifier } from './services/captcha.js';
+import { createNotifier } from './services/notifier.js';
 import { RedisSlotCache } from './services/slot-cache.js';
 import type { SmsSender } from './services/sms.js';
 import { deriveVerificationKey } from './services/verification.js';
+import type { TelegramConfig } from './telegram/outbox.js';
+import { telegramWebhook } from './telegram/webhook.js';
 
 export interface AppDeps {
   env: Env;
@@ -31,6 +35,8 @@ export interface AppDeps {
   sms?: SmsSender;
   /** Капча перед SMS; без неё код отправляется без капчи. */
   captcha?: CaptchaVerifier;
+  /** Бот Telegram (§8); без него нет вебхука, Mini App и алертов врачам. */
+  telegram?: TelegramConfig;
   /** false — без логов (тесты). */
   logger?: LoggerOption;
 }
@@ -71,7 +77,15 @@ function loggerOptions(env: Env): LoggerOption {
  * Плагины регистрируются без await и загружаются на ready() — тест успевает
  * повесить свои хуки (например, onRoute) до загрузки роутов.
  */
-export function buildApp({ env, db, redis, sms, captcha, logger }: AppDeps): FastifyInstance {
+export function buildApp({
+  env,
+  db,
+  redis,
+  sms,
+  captcha,
+  telegram,
+  logger,
+}: AppDeps): FastifyInstance {
   const app = Fastify({
     logger: logger ?? loggerOptions(env),
     // Сквозной request_id (CLAUDE.md §9)
@@ -103,6 +117,7 @@ export function buildApp({ env, db, redis, sms, captcha, logger }: AppDeps): Fas
   });
 
   const cache = redis ? new RedisSlotCache(redis, app.log) : undefined;
+  const notifier = createNotifier({ db, telegram, log: app.log });
 
   app.get('/health', async () => ({ status: 'ok' as const }));
   app.register(adminRoutes, {
@@ -110,6 +125,7 @@ export function buildApp({ env, db, redis, sms, captcha, logger }: AppDeps): Fas
     db,
     authRateLimitPerMin: env.AUTH_RATE_LIMIT,
     ...(cache ? { cache } : {}),
+    ...(telegram ? { telegramBot: telegram.botUsername } : {}),
   });
   if (redis) {
     app.register(publicRoutes, {
@@ -123,9 +139,32 @@ export function buildApp({ env, db, redis, sms, captcha, logger }: AppDeps): Fas
       perKeyPerMin: env.PUBLIC_KEY_RATE_LIMIT,
       perIpPerMin: env.PUBLIC_IP_RATE_LIMIT,
       verificationKey: deriveVerificationKey(env.JWT_SECRET),
+      notifier,
     });
   }
-  if (env.ADMIN_DIST_DIR) app.register(adminStatic, { root: env.ADMIN_DIST_DIR });
+  if (telegram) {
+    app.register(telegramWebhook, { prefix: '/telegram', db, telegram });
+    app.register(miniappRoutes, {
+      prefix: '/v1/miniapp',
+      db,
+      botToken: telegram.botToken,
+      ...(cache ? { cache } : {}),
+    });
+  }
+  if (env.ADMIN_DIST_DIR) {
+    app.register(spaStatic, {
+      root: env.ADMIN_DIST_DIR,
+      basePath: '/admin/',
+      headers: ADMIN_HEADERS,
+    });
+  }
+  if (env.MINIAPP_DIST_DIR) {
+    app.register(spaStatic, {
+      root: env.MINIAPP_DIST_DIR,
+      basePath: '/miniapp/',
+      headers: MINIAPP_HEADERS,
+    });
+  }
   if (env.WIDGET_DIST_DIR) app.register(widgetStatic, { root: env.WIDGET_DIST_DIR });
 
   return app;
