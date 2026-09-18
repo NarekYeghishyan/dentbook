@@ -183,6 +183,6 @@ DEPLOY_HOST=root@203.0.113.10 deploy/deploy.sh   # или алиас из ~/.ssh
 - SMS и капча на стенде выключены, пока нет ключей Twilio и Turnstile (Q5): форма доходит до
   ввода телефона и сообщает, что онлайн-запись недоступна. Ключи дописываются в
   `/opt/dentbook/.env` (`SMS_PROVIDER=twilio`, `TWILIO_*`, `SMS_SENDER`, `CAPTCHA_*`), затем
-  выкладка или `docker compose up -d api`.
+  выкладка или `docker compose up -d api worker` (worker шлёт напоминания).
 - Выкладка: `DEPLOY_HOST=dentbook-test deploy/deploy.sh` (алиас в локальном `~/.ssh/config`).
 - Лимиты памяти в `docker-compose.yml` защищают соседние сайты: стек занимает ~120 МБ.

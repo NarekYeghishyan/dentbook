@@ -11,6 +11,30 @@ produced them (CLAUDE.md §9).
 
 ## [Unreleased]
 
+### Шаг 8 — уведомления (закрыт 2026-09-18)
+
+#### Added
+
+- `feat(shared): share the twilio sender` — `@dentbook/shared/sms`: `TwilioSmsSender`
+  возвращает SID сообщения, отказ — `SmsError` с кодом и признаком «повтор не поможет».
+- `feat(api): schedule client reminders and confirmation sms` — очередь `sms`: напоминания
+  за 24 ч и 2 ч при записи с сайта и врачом в Mini App, SMS о подтверждении записи в боте
+  и в Mini App (Q12), снятие напоминаний при отмене клиентом.
+- `feat(worker): send client sms from the queue` — текст из БД в момент отправки, шаблоны
+  en/ru/hy, пропуск неуместных уведомлений (запись не подтверждена, визит начался),
+  повторы с паузой, постоянный отказ — сразу `failed`.
+- `docs: add ADR-0011`, Q16 (тихие часы, текст об отписке).
+
+#### Changed
+
+- Разбор окружения worker'а: `SMS_PROVIDER`, `TWILIO_*`, `SMS_SENDER`, как у API.
+- `Notifier`: `appointmentConfirmed`; `appointmentCreated` без алерта врачу для его
+  собственной записи.
+
+#### Verified
+
+- 390 тестов, `pnpm lint`, `pnpm typecheck` зелёные; `pnpm test:e2e` — 10 сценариев.
+
 ### Шаг 7 — бот и Mini App (закрыт 2026-09-18)
 
 #### Added
