@@ -3,7 +3,7 @@ import { z } from 'zod';
 /**
  * Конфигурация — только переменные окружения, разбор при старте (CLAUDE.md §9).
  * Здесь перечислено то, что нужно API сегодня; переменные шагов 5–8
- * (TELEGRAM_*, SMS_*, CAPTCHA_*, JWT_*) добавляются на своих шагах — см. .env.example.
+ * (TELEGRAM_*, SMS_*, CAPTCHA_*) добавляются на своих шагах — см. .env.example.
  */
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -13,6 +13,16 @@ const envSchema = z.object({
   // TODO: строгая проверка формата DSN — когда будет выбран пул соединений (Шаг 1)
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().min(1),
+  // Подпись сессий админки (HS256): не короче 32 символов — `openssl rand -hex 32`
+  JWT_SECRET: z.string().min(32),
+  // Время жизни сессии админки, секунды (по умолчанию 12 ч)
+  JWT_ACCESS_TTL: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(12 * 60 * 60),
+  // Попыток входа и регистрации в минуту с одного IP
+  AUTH_RATE_LIMIT: z.coerce.number().int().positive().default(10),
 });
 
 export type Env = z.infer<typeof envSchema>;
