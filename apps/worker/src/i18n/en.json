@@ -2,5 +2,7 @@
   "sms.confirmed": "{clinic}: your visit on {when} at {office} is confirmed.",
   "sms.reminder24h": "{clinic}: a reminder of your visit on {when} at {office}.",
   "sms.reminder2h": "{clinic}: see you soon! Your visit is on {when} at {office}.",
+  "sms.rescheduled": "{clinic}: your visit has been moved to {when} at {office}.",
+  "sms.cancelled": "{clinic}: your visit on {when} at {office} has been cancelled.",
   "sms.optOut": "Reply STOP to opt out."
 }

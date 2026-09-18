@@ -8,12 +8,14 @@
  */
 import type { FastifyPluginAsync } from 'fastify';
 import type { Database } from '@dentbook/db';
+import type { Notifier } from '../../services/notifier.js';
 import type { SlotCache } from '../../services/slot-cache.js';
 import { apiKeyRoutes } from './api-keys.js';
 import { authRoutes } from './auth.js';
 import { availabilityRoutes } from './availability.js';
 import { clinicRoutes, meRoutes } from './clinic.js';
 import { dentistRoutes } from './dentists.js';
+import { journalRoutes } from './journal.js';
 import { locationRoutes } from './locations.js';
 import { serviceRoutes } from './services.js';
 import { userRoutes } from './users.js';
@@ -21,6 +23,7 @@ import { userRoutes } from './users.js';
 export interface AdminRoutesOptions {
   db: Database;
   authRateLimitPerMin: number;
+  notifier: Notifier;
   cache?: SlotCache;
   /** Имя бота Telegram, если он настроен. */
   telegramBot?: string;
@@ -49,5 +52,6 @@ export const adminRoutes: FastifyPluginAsync<AdminRoutesOptions> = async (app, o
     });
     await clinicScope.register(availabilityRoutes, { prefix: '/availability', ...withCache });
     await clinicScope.register(apiKeyRoutes, { prefix: '/api-keys', db });
+    await clinicScope.register(journalRoutes, { ...withCache, notifier: opts.notifier });
   });
 };

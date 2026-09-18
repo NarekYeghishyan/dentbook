@@ -3,7 +3,7 @@
  * Одна функция для календаря админки, публичного API и проверки холда.
  * Свободные слоты не хранятся в БД (§2.4) — считаются на запрос; кеш в Redis живёт 60 с.
  */
-import { and, asc, eq, gt, inArray, lt, or } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, lt, ne, or } from 'drizzle-orm';
 import {
   addDays,
   computeDaySlots,
@@ -22,6 +22,7 @@ import {
   services,
   workingHours,
   type Database,
+  type Executor,
 } from '@dentbook/db';
 import type { AvailabilityDay, AvailabilityResponse } from '@dentbook/shared';
 import { notFound } from '../lib/errors.js';
@@ -42,6 +43,12 @@ export interface AvailabilityRequest {
   includeHidden: boolean;
   /** Без минимального запаса min_lead_min: врач записывает своего клиента (Mini App). */
   ignoreLeadTime?: boolean;
+  /** Без предела max_advance_days: записывает сотрудник (журнал, Шаг 9). */
+  ignoreMaxAdvance?: boolean;
+  /** Не считать эту запись занятостью: её переносят (Шаг 9). */
+  excludeAppointmentId?: string;
+  /** Не считать записи вовсе: отличить «занято» от «вне рабочего времени». */
+  ignoreAppointments?: boolean;
 }
 
 const MINUTE_MS = 60_000;
@@ -53,8 +60,8 @@ function datesBetween(from: string, to: string): string[] {
 }
 
 /** Расписание врачей за окно дат из БД: шаблон в филиале, исключения, записи. */
-async function loadSchedules(
-  db: Database,
+export async function loadSchedules(
+  db: Executor,
   params: {
     clinicId: string;
     locationId: string;
@@ -62,6 +69,8 @@ async function loadSchedules(
     windowStart: Date;
     windowEnd: Date;
     now: Date;
+    excludeAppointmentId?: string | undefined;
+    ignoreAppointments?: boolean | undefined;
   },
 ) {
   const { clinicId, locationId, dentistIds, windowStart, windowEnd, now } = params;
@@ -100,23 +109,28 @@ async function loadSchedules(
         ),
       ),
     // Записи врача во всех филиалах: в двух местах сразу он не бывает
-    db
-      .select({
-        dentistId: appointments.dentistId,
-        startAt: appointments.startAt,
-        endAt: appointments.endAt,
-        bufferMin: appointments.bufferMin,
-      })
-      .from(appointments)
-      .where(
-        and(
-          eq(appointments.clinicId, clinicId),
-          inArray(appointments.dentistId, dentistIds),
-          lt(appointments.startAt, windowEnd),
-          gt(appointments.blockedUntil, windowStart),
-          takesDentistTime(now),
-        ),
-      ),
+    params.ignoreAppointments
+      ? Promise.resolve([])
+      : db
+          .select({
+            dentistId: appointments.dentistId,
+            startAt: appointments.startAt,
+            endAt: appointments.endAt,
+            bufferMin: appointments.bufferMin,
+          })
+          .from(appointments)
+          .where(
+            and(
+              eq(appointments.clinicId, clinicId),
+              inArray(appointments.dentistId, dentistIds),
+              lt(appointments.startAt, windowEnd),
+              gt(appointments.blockedUntil, windowStart),
+              takesDentistTime(now),
+              params.excludeAppointmentId
+                ? ne(appointments.id, params.excludeAppointmentId)
+                : undefined,
+            ),
+          ),
   ]);
 
   return (dentistId: string) => ({
@@ -176,7 +190,9 @@ export async function computeAvailability(
 
   // Не раньше сегодняшней даты и не дальше max_advance_days
   const today = localDateOf(now, timeZone);
-  const lastDate = addDays(today, clinic.maxAdvanceDays);
+  const lastDate = request.ignoreMaxAdvance ? request.to : addDays(today, clinic.maxAdvanceDays);
+  // Кеш хранит слоты «как есть»; расчёт без части записей в него не пишется и не читается
+  if (request.excludeAppointmentId || request.ignoreAppointments) cache = undefined;
   const from = request.from < today ? today : request.from;
   const to = request.to > lastDate ? lastDate : request.to;
   if (from > to || !location.isActive || !service.isActive) {
@@ -235,6 +251,8 @@ export async function computeAvailability(
       windowStart: dayBounds(addDays(from, -1), timeZone).start,
       windowEnd: dayBounds(addDays(to, 1), timeZone).end,
       now,
+      excludeAppointmentId: request.excludeAppointmentId,
+      ignoreAppointments: request.ignoreAppointments,
     });
     const leadMin = request.ignoreLeadTime ? 0 : clinic.minLeadMin;
     const notBefore = new Date(now.getTime() + leadMin * MINUTE_MS);

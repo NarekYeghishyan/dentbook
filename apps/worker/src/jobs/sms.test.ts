@@ -23,6 +23,18 @@ describe('skipReason (Step 8)', () => {
     );
   });
 
+  it('tells about a move of a pending booking and about a cancellation only once cancelled', () => {
+    const now = hoursBefore(30);
+    expect(skipReason('appointment_rescheduled', 'pending', start, now, 'UTC')).toBeNull();
+    expect(skipReason('appointment_rescheduled', 'cancelled', start, now, 'UTC')).toBe(
+      'appointment_cancelled',
+    );
+    expect(skipReason('appointment_cancelled', 'cancelled', start, now, 'UTC')).toBeNull();
+    expect(skipReason('appointment_cancelled', 'confirmed', start, now, 'UTC')).toBe(
+      'appointment_confirmed',
+    );
+  });
+
   it('does not remind after the visit started', () => {
     expect(skipReason('reminder_2h', 'confirmed', start, start, 'UTC')).toBe('visit_started');
     expect(skipReason('appointment_confirmed', 'confirmed', start, hoursBefore(-1), 'UTC')).toBe(

@@ -40,6 +40,12 @@ let bData: ClinicFixture;
 let aExceptionId: string;
 /** Ключ формы записи клиники A. */
 let aKey: { id: string; token: string };
+/** Запись клиники A, сделанная регистратурой, и её клиент. */
+let aAppointmentId: string;
+let aClientId: string;
+const A_CLIENT_PHONE = '+12025557001';
+/** Понедельник 10:00 по Нью-Йорку — рабочее время врача A. */
+const A_VISIT = '2030-01-07T15:00:00Z';
 
 beforeAll(async () => {
   database = await startTestDatabase();
@@ -84,6 +90,27 @@ beforeAll(async () => {
     },
     201,
   );
+  aAppointmentId = (
+    await call<{ id: string }>(
+      app,
+      a,
+      {
+        method: 'POST',
+        url: '/v1/admin/appointments',
+        payload: {
+          locationId: aData.locationId,
+          serviceId: aData.serviceId,
+          dentistId: aData.dentistId,
+          startAt: A_VISIT,
+          client: { fullName: 'Client of A', phone: A_CLIENT_PHONE },
+        },
+      },
+      201,
+    )
+  ).id;
+  aClientId = (
+    await call<{ id: string }[]>(app, a, { method: 'GET', url: '/v1/admin/clients' })
+  )[0]!.id;
 }, 180_000);
 
 afterAll(async () => {
@@ -403,6 +430,130 @@ const attacks: Record<string, () => Promise<void>> = {
       url: `/v1/admin/availability?${query(bData, aData.dentistId)}`,
     });
     expect(res.statusCode).toBe(200);
+    expect(res.body).not.toContain(aData.dentistId);
+  },
+
+  // --- журнал, записи, клиенты, отчёты (Шаг 9) ---
+
+  'GET /v1/admin/journal': async () => {
+    const range = 'from=2030-01-07&to=2030-01-07';
+    await expectNotFound({
+      method: 'GET',
+      url: `/v1/admin/journal?locationId=${aData.locationId}&${range}`,
+    });
+    const own = await as(app, b, {
+      method: 'GET',
+      url: `/v1/admin/journal?locationId=${bData.locationId}&${range}`,
+    });
+    expect(own.statusCode).toBe(200);
+    expect(own.body).not.toContain(aAppointmentId);
+    expect(own.body).not.toContain(aData.dentistId);
+  },
+
+  'POST /v1/admin/appointments': async () => {
+    const booking = (fixture: ClinicFixture, dentistId: string) => ({
+      locationId: fixture.locationId,
+      serviceId: fixture.serviceId,
+      dentistId,
+      startAt: '2030-01-08T15:00:00Z',
+      client: { fullName: 'Intruder', phone: '+12025557002' },
+    });
+    // Чужой офис — 404; свой офис и чужой врач — записать нельзя
+    await expectNotFound({
+      method: 'POST',
+      url: '/v1/admin/appointments',
+      payload: booking(aData, aData.dentistId),
+    });
+    const res = await as(app, b, {
+      method: 'POST',
+      url: '/v1/admin/appointments',
+      payload: booking(bData, aData.dentistId),
+    });
+    expect(res.statusCode).toBe(400);
+    const journal = await asSeenByA<{ appointments: { id: string }[] }>(
+      `/v1/admin/journal?locationId=${aData.locationId}&from=2030-01-08&to=2030-01-08`,
+    );
+    expect(journal.appointments).toEqual([]);
+  },
+
+  'PATCH /v1/admin/appointments/:id': async () => {
+    await expectNotFound({
+      method: 'PATCH',
+      url: `/v1/admin/appointments/${aAppointmentId}`,
+      payload: { startAt: '2030-01-07T16:00:00Z' },
+    });
+    const journal = await asSeenByA<{ appointments: { id: string; startAt: string }[] }>(
+      `/v1/admin/journal?locationId=${aData.locationId}&from=2030-01-07&to=2030-01-07`,
+    );
+    expect(journal.appointments).toEqual([
+      expect.objectContaining({ id: aAppointmentId, startAt: new Date(A_VISIT).toISOString() }),
+    ]);
+  },
+
+  'POST /v1/admin/appointments/:id/confirm': () =>
+    expectNotFound({ method: 'POST', url: `/v1/admin/appointments/${aAppointmentId}/confirm` }),
+
+  'POST /v1/admin/appointments/:id/cancel': async () => {
+    await expectNotFound({
+      method: 'POST',
+      url: `/v1/admin/appointments/${aAppointmentId}/cancel`,
+    });
+    const card = await asSeenByA<{ appointments: { status: string }[] }>(
+      `/v1/admin/clients/${aClientId}`,
+    );
+    expect(card.appointments.map((x) => x.status)).toEqual(['confirmed']);
+  },
+
+  'POST /v1/admin/appointments/:id/outcome': () =>
+    expectNotFound({
+      method: 'POST',
+      url: `/v1/admin/appointments/${aAppointmentId}/outcome`,
+      payload: { status: 'no_show' },
+    }),
+
+  'GET /v1/admin/appointments/export': async () => {
+    const res = await as(app, b, {
+      method: 'GET',
+      url: '/v1/admin/appointments/export?from=2030-01-01&to=2030-01-31',
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.body).not.toContain(A_CLIENT_PHONE);
+    await expectNotFound({
+      method: 'GET',
+      url: `/v1/admin/appointments/export?from=2030-01-01&to=2030-01-31&locationId=${aData.locationId}`,
+    });
+  },
+
+  'GET /v1/admin/clients': async () => {
+    const res = await as(app, b, { method: 'GET', url: '/v1/admin/clients?q=Client%20of%20A' });
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual([]);
+    const byPhone = await as(app, b, { method: 'GET', url: '/v1/admin/clients?q=5557001' });
+    expect(byPhone.json()).toEqual([]);
+  },
+
+  'GET /v1/admin/clients/:id': () =>
+    expectNotFound({ method: 'GET', url: `/v1/admin/clients/${aClientId}` }),
+
+  'PATCH /v1/admin/clients/:id': async () => {
+    await expectNotFound({
+      method: 'PATCH',
+      url: `/v1/admin/clients/${aClientId}`,
+      payload: { fullName: 'Renamed by B' },
+    });
+    const card = await asSeenByA<{ fullName: string }>(`/v1/admin/clients/${aClientId}`);
+    expect(card.fullName).toBe('Client of A');
+  },
+
+  'GET /v1/admin/dashboard': async () => {
+    const range = 'from=2030-01-01&to=2030-01-31';
+    await expectNotFound({
+      method: 'GET',
+      url: `/v1/admin/dashboard?${range}&locationId=${aData.locationId}`,
+    });
+    const res = await as(app, b, { method: 'GET', url: `/v1/admin/dashboard?${range}` });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().bookings.total).toBe(0);
     expect(res.body).not.toContain(aData.dentistId);
   },
 };

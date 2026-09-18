@@ -1,6 +1,6 @@
 /**
- * SMS клиентам из очереди (Шаг 8): подтверждение записи (Q12) и напоминания за 24 ч и
- * 2 ч. В задаче только id уведомления: телефон и текст берутся из БД в момент отправки
+ * SMS клиентам из очереди (Шаг 8): подтверждение записи (Q12), напоминания за 24 ч и
+ * 2 ч, перенос и отмена клиникой (Шаг 9). В задаче только id уведомления: телефон и текст берутся из БД в момент отправки
  * (§2.6), так что текст отражает запись на сейчас. Перед отправкой — проверка, что
  * уведомление ещё уместно; неуместное помечается cancelled с причиной.
  * Повторы — у очереди (SMS_JOB_OPTIONS); отказ, который повтор не исправит, — сразу failed.
@@ -22,8 +22,22 @@ import { translate, type MessageKey } from '../i18n/index.js';
 
 const TEMPLATES: Partial<Record<NotificationKind, MessageKey>> = {
   appointment_confirmed: 'sms.confirmed',
+  appointment_rescheduled: 'sms.rescheduled',
+  appointment_cancelled: 'sms.cancelled',
   reminder_24h: 'sms.reminder24h',
   reminder_2h: 'sms.reminder2h',
+};
+
+/**
+ * В каком статусе записи уведомление ещё уместно. Напоминания и подтверждение — только о
+ * подтверждённой записи; о переносе — и ожидающей; об отмене — об отменённой.
+ */
+const RELEVANT_STATUSES: Partial<Record<NotificationKind, readonly AppointmentStatus[]>> = {
+  appointment_confirmed: ['confirmed'],
+  appointment_rescheduled: ['pending', 'confirmed'],
+  appointment_cancelled: ['cancelled'],
+  reminder_24h: ['confirmed'],
+  reminder_2h: ['confirmed'],
 };
 
 /** Тихие часы по времени офиса (Q16): с 21:00 до 8:00 напоминания не шлём. */
@@ -41,10 +55,10 @@ export function localHour(at: Date, timeZone: string): number {
 }
 
 /**
- * Почему уведомление уже не нужно, или null. Клиенту пишем только о подтверждённой
- * будущей записи. Напоминание за сутки, опоздавшее к сроку напоминания за 2 ч, не шлём —
- * его заменит второе. Напоминание в тихие часы пропускаем (Q16): у раннего визита
- * остаётся напоминание за сутки.
+ * Почему уведомление уже не нужно, или null: запись в неподходящем статусе
+ * (RELEVANT_STATUSES) или визит уже начался. Напоминание за сутки, опоздавшее к сроку
+ * напоминания за 2 ч, не шлём — его заменит второе. Напоминание в тихие часы пропускаем
+ * (Q16): у раннего визита остаётся напоминание за сутки.
  */
 export function skipReason(
   kind: NotificationKind,
@@ -53,7 +67,7 @@ export function skipReason(
   now: Date,
   timeZone: string,
 ): string | null {
-  if (status !== 'confirmed') return `appointment_${status}`;
+  if (!RELEVANT_STATUSES[kind]?.includes(status)) return `appointment_${status}`;
   if (now >= startAt) return 'visit_started';
   if (
     kind === 'reminder_24h' &&

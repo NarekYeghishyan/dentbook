@@ -2,5 +2,7 @@
   "sms.confirmed": "{clinic}: ваш визит {when}, {office}, подтверждён.",
   "sms.reminder24h": "{clinic}: напоминаем о визите {when}, {office}.",
   "sms.reminder2h": "{clinic}: скоро ждём вас! Визит {when}, {office}.",
+  "sms.rescheduled": "{clinic}: ваш визит перенесён на {when}, {office}.",
+  "sms.cancelled": "{clinic}: ваш визит {when}, {office}, отменён.",
   "sms.optOut": "Отписаться: ответьте STOP."
 }

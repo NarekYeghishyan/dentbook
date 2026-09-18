@@ -128,6 +128,7 @@ export function buildApp({
     prefix: '/v1/admin',
     db,
     authRateLimitPerMin: env.AUTH_RATE_LIMIT,
+    notifier,
     ...(cache ? { cache } : {}),
     ...(telegram ? { telegramBot: telegram.botUsername } : {}),
   });

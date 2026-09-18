@@ -17,6 +17,8 @@ export interface AppointmentDetails {
   locale: Locale;
   /** «Mon, Sep 21, 10:30 AM» в поясе офиса. */
   when: string;
+  /** Пояс офиса (§2.3). */
+  timeZone: string;
   service: string;
   office: string;
   client: string;
@@ -66,5 +68,5 @@ export async function describeAppointment(
   if (!row) return undefined;
   const locale = row.locale as Locale;
   const { startAt, zone, ...rest } = row;
-  return { ...rest, locale, when: formatWhen(startAt, zone, locale) };
+  return { ...rest, locale, timeZone: zone, when: formatWhen(startAt, zone, locale) };
 }
