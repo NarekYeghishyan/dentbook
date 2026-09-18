@@ -36,5 +36,6 @@
   "status.cancelled": "Отменена",
   "source.widget": "Сайт",
   "source.telegram": "Telegram",
-  "source.admin": "Регистратура"
+  "source.admin": "Регистратура",
+  "tg.clinicSuspended": "Аккаунт клиники приостановлен. Обратитесь в клинику."
 }

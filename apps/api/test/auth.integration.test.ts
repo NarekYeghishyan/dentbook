@@ -144,7 +144,8 @@ describe('POST /v1/admin/auth/login and /logout', () => {
   it('logs in with any email case and records the login time', async () => {
     const owner = await registerClinic(app);
     const res = await login(owner.email.toUpperCase());
-    expect(res.statusCode).toBe(204);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ role: 'owner' });
     const me = await app.inject({
       method: 'GET',
       url: '/v1/admin/me',

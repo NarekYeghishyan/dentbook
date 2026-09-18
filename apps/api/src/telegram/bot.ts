@@ -49,6 +49,7 @@ export function createUpdateHandler(deps: {
         id: dentists.id,
         clinicId: dentists.clinicId,
         clinicName: clinics.name,
+        clinicStatus: clinics.status,
         locale: clinics.locale,
       })
       .from(dentists)
@@ -64,6 +65,7 @@ export function createUpdateHandler(deps: {
         clinicId: telegramLinkTokens.clinicId,
         name: dentists.fullName,
         clinicName: clinics.name,
+        clinicStatus: clinics.status,
         locale: clinics.locale,
       })
       .from(telegramLinkTokens)
@@ -78,6 +80,9 @@ export function createUpdateHandler(deps: {
       );
     if (!invite) return send(chatId, translate('en', 'tg.linkInvalid'));
     const locale = invite.locale as Locale;
+    // Приостановленная оператором клиника (Шаг 10) новых врачей не подключает
+    if (invite.clinicStatus !== 'active')
+      return send(chatId, translate(locale, 'tg.clinicSuspended'));
     try {
       await db.transaction(async (tx) => {
         await tx
@@ -124,6 +129,9 @@ export function createUpdateHandler(deps: {
       telegram.outbox.enqueue({ type: 'answer', callbackQueryId, text });
     const dentist = await dentistByChat(chatId);
     if (!dentist) return answer(translate('en', 'tg.notLinked'));
+    if (dentist.clinicStatus !== 'active') {
+      return answer(translate(dentist.locale, 'tg.clinicSuspended'));
+    }
 
     const [confirmed] = await db
       .update(appointments)

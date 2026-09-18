@@ -18,6 +18,7 @@ import { miniappRoutes } from './routes/miniapp/index.js';
 import { publicRoutes } from './routes/public/index.js';
 import type { CaptchaVerifier } from './services/captcha.js';
 import { createNotifier } from './services/notifier.js';
+import type { QueueInspector } from './services/queues.js';
 import type { SmsOutbox } from './services/sms-outbox.js';
 import { RedisSlotCache } from './services/slot-cache.js';
 import { deriveVerificationKey } from './services/verification.js';
@@ -36,6 +37,8 @@ export interface AppDeps {
   sms?: SmsSender;
   /** Очередь SMS-уведомлений клиентам (Шаг 8); без неё напоминаний нет. */
   smsOutbox?: SmsOutbox;
+  /** Счётчики очередей для панели оператора; без Redis их нет. */
+  queues?: QueueInspector;
   /** Капча перед SMS; без неё код отправляется без капчи. */
   captcha?: CaptchaVerifier;
   /** Бот Telegram (§8); без него нет вебхука, Mini App и алертов врачам. */
@@ -86,6 +89,7 @@ export function buildApp({
   redis,
   sms,
   smsOutbox,
+  queues,
   captcha,
   telegram,
   logger,
@@ -129,6 +133,8 @@ export function buildApp({
     db,
     authRateLimitPerMin: env.AUTH_RATE_LIMIT,
     notifier,
+    providers: { sms: Boolean(sms), captcha: Boolean(captcha), telegram: Boolean(telegram) },
+    ...(queues ? { queues } : {}),
     ...(cache ? { cache } : {}),
     ...(telegram ? { telegramBot: telegram.botUsername } : {}),
   });

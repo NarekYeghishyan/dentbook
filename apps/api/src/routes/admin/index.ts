@@ -9,6 +9,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Database } from '@dentbook/db';
 import type { Notifier } from '../../services/notifier.js';
+import type { QueueInspector } from '../../services/queues.js';
 import type { SlotCache } from '../../services/slot-cache.js';
 import { apiKeyRoutes } from './api-keys.js';
 import { authRoutes } from './auth.js';
@@ -17,6 +18,7 @@ import { clinicRoutes, meRoutes } from './clinic.js';
 import { dentistRoutes } from './dentists.js';
 import { journalRoutes } from './journal.js';
 import { locationRoutes } from './locations.js';
+import { operatorRoutes, type OperatorRoutesOptions } from './operator.js';
 import { serviceRoutes } from './services.js';
 import { userRoutes } from './users.js';
 
@@ -24,6 +26,9 @@ export interface AdminRoutesOptions {
   db: Database;
   authRateLimitPerMin: number;
   notifier: Notifier;
+  /** Состояние платформы для панели оператора (Шаг 10). */
+  providers: OperatorRoutesOptions['providers'];
+  queues?: QueueInspector;
   cache?: SlotCache;
   /** Имя бота Telegram, если он настроен. */
   telegramBot?: string;
@@ -36,6 +41,13 @@ export const adminRoutes: FastifyPluginAsync<AdminRoutesOptions> = async (app, o
     prefix: '/auth',
     db,
     rateLimitPerMin: opts.authRateLimitPerMin,
+  });
+  // Оператор платформы — своя область: у него нет клиники, хук другой
+  await app.register(operatorRoutes, {
+    prefix: '/operator',
+    db,
+    providers: opts.providers,
+    ...(opts.queues ? { queues: opts.queues } : {}),
   });
 
   await app.register(async (clinicScope) => {

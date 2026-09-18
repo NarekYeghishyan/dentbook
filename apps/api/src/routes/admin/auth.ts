@@ -2,7 +2,7 @@
 import { eq } from 'drizzle-orm';
 import type { FastifyPluginAsync } from 'fastify';
 import { clinics, pgErrorCode, PG_UNIQUE_VIOLATION, users, type Database } from '@dentbook/db';
-import { loginSchema, registerClinicSchema } from '@dentbook/shared';
+import { loginSchema, registerClinicSchema, type LoginResponse } from '@dentbook/shared';
 import { ApiError, parse, unauthorized } from '../../lib/errors.js';
 import { DUMMY_PASSWORD_HASH, hashPassword, verifyPassword } from '../../lib/password.js';
 
@@ -62,7 +62,12 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
   app.post('/login', { config }, async (request, reply) => {
     const input = parse(loginSchema, request.body);
     const [user] = await db
-      .select({ id: users.id, passwordHash: users.passwordHash, isActive: users.isActive })
+      .select({
+        id: users.id,
+        role: users.role,
+        passwordHash: users.passwordHash,
+        isActive: users.isActive,
+      })
       .from(users)
       .where(eq(users.email, input.email))
       .limit(1);
@@ -72,7 +77,9 @@ export const authRoutes: FastifyPluginAsync<AuthRoutesOptions> = async (
 
     await db.update(users).set({ lastLoginAt: new Date() }).where(eq(users.id, user.id));
     await app.session.start(reply, user.id);
-    return reply.status(204).send();
+    // Роль нужна панели: сотрудник идёт в журнал клиники, оператор — в панель оператора
+    const response: LoginResponse = { role: user.role };
+    return reply.status(200).send(response);
   });
 
   app.post('/logout', async (_request, reply) => {

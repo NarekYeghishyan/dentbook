@@ -11,6 +11,7 @@ import { buildApp } from '../src/app.js';
 import type { Env } from '../src/env.js';
 import { SESSION_COOKIE } from '../src/plugins/session.js';
 import type { CaptchaVerifier } from '../src/services/captcha.js';
+import type { QueueInspector } from '../src/services/queues.js';
 import type { SmsOutbox } from '../src/services/sms-outbox.js';
 import type { TelegramConfig, TelegramOutbox } from '../src/telegram/outbox.js';
 
@@ -40,6 +41,7 @@ export function testApp(
     redis?: Redis;
     sms?: SmsSender;
     smsOutbox?: SmsOutbox;
+    queues?: QueueInspector;
     captcha?: CaptchaVerifier;
     telegram?: TelegramConfig;
   } = {},
@@ -138,7 +140,7 @@ export async function addStaff(
     url: '/v1/admin/auth/login',
     payload: { email, password: PASSWORD },
   });
-  expect(login.statusCode, login.body).toBe(204);
+  expect(login.statusCode, login.body).toBe(200);
   return {
     clinicId: owner.clinicId,
     userId: created.json<{ id: string }>().id,

@@ -42,11 +42,15 @@ export interface SessionManager {
 declare module 'fastify' {
   interface FastifyRequest {
     auth: AuthContext | null;
+    /** Оператор платформы в роутах /operator (Шаг 10). */
+    operator: { userId: string } | null;
   }
   interface FastifyInstance {
     session: SessionManager;
     /** Хук: пускает только сотрудника активной клиники с ролью из config.roles. */
     authenticate(request: FastifyRequest): Promise<void>;
+    /** Хук: пускает только активного оператора платформы. */
+    authenticateOperator(request: FastifyRequest): Promise<void>;
   }
   interface FastifyContextConfig {
     /** Кому доступен роут; по умолчанию — всем сотрудникам клиники. */
@@ -104,14 +108,18 @@ export const sessionPlugin = fp<SessionOptions>(
     } satisfies SessionManager);
 
     app.decorateRequest('auth', null);
+    app.decorateRequest('operator', null);
 
-    app.decorate('authenticate', async (request: FastifyRequest) => {
-      let userId: string;
+    const sessionUser = async (request: FastifyRequest): Promise<string> => {
       try {
-        ({ sub: userId } = await request.jwtVerify<{ sub: string }>());
+        return (await request.jwtVerify<{ sub: string }>()).sub;
       } catch {
         throw unauthorized();
       }
+    };
+
+    app.decorate('authenticate', async (request: FastifyRequest) => {
+      const userId = await sessionUser(request);
 
       const [row] = await db
         .select({
@@ -126,7 +134,7 @@ export const sessionPlugin = fp<SessionOptions>(
         .limit(1);
 
       if (!row || !row.isActive) throw unauthorized();
-      // TODO(Шаг 10): у оператора платформы свои роуты — панель оператора
+      // У оператора платформы нет клиники: его роуты — /operator
       if (row.role === 'operator' || row.clinicId === null) throw forbidden('No clinic access');
       if (row.clinicStatus !== 'active') throw forbidden('Clinic is suspended');
 
@@ -134,6 +142,18 @@ export const sessionPlugin = fp<SessionOptions>(
       if (!roles.includes(row.role)) throw forbidden();
 
       request.auth = { userId, clinicId: row.clinicId, role: row.role };
+    });
+
+    app.decorate('authenticateOperator', async (request: FastifyRequest) => {
+      const userId = await sessionUser(request);
+      const [row] = await db
+        .select({ role: users.role, isActive: users.isActive })
+        .from(users)
+        .where(eq(users.id, userId))
+        .limit(1);
+      if (!row || !row.isActive) throw unauthorized();
+      if (row.role !== 'operator') throw forbidden('Platform operators only');
+      request.operator = { userId };
     });
   },
 );

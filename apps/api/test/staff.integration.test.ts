@@ -101,7 +101,7 @@ describe('staff management', () => {
         payload: { email: staff.email, password },
       });
     expect((await login(PASSWORD)).statusCode).toBe(401);
-    expect((await login('a-new-password-42')).statusCode).toBe(204);
+    expect((await login('a-new-password-42')).statusCode).toBe(200);
   });
 
   it('nobody changes their own role or status', async () => {

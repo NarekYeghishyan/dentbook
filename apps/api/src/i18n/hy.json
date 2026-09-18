@@ -36,5 +36,6 @@
   "status.cancelled": "Չեղարկված",
   "source.widget": "Կայք",
   "source.telegram": "Telegram",
-  "source.admin": "Ընդունարան"
+  "source.admin": "Ընդունարան",
+  "tg.clinicSuspended": "Կլինիկայի հաշիվը կասեցված է։ Դիմեք կլինիկային։"
 }

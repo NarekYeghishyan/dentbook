@@ -556,7 +556,34 @@ const attacks: Record<string, () => Promise<void>> = {
     expect(res.json().bookings.total).toBe(0);
     expect(res.body).not.toContain(aData.dentistId);
   },
+
+  // --- панель оператора платформы (Шаг 10): сотрудникам клиник закрыта ---
+
+  'GET /v1/admin/operator/me': () =>
+    expectOperatorOnly({ method: 'GET', url: '/v1/admin/operator/me' }),
+
+  'GET /v1/admin/operator/clinics': () =>
+    expectOperatorOnly({ method: 'GET', url: '/v1/admin/operator/clinics' }),
+
+  'PATCH /v1/admin/operator/clinics/:id': async () => {
+    await expectOperatorOnly({
+      method: 'PATCH',
+      url: `/v1/admin/operator/clinics/${a.clinicId}`,
+      payload: { status: 'suspended' },
+    });
+    expect((await as(app, a, { method: 'GET', url: '/v1/admin/me' })).statusCode).toBe(200);
+  },
+
+  'GET /v1/admin/operator/health': () =>
+    expectOperatorOnly({ method: 'GET', url: '/v1/admin/operator/health' }),
 };
+
+/** Владелец клиники — даже своей — в панель оператора не попадает. */
+async function expectOperatorOnly(options: InjectOptions) {
+  const res = await as(app, b, options);
+  expect(res.statusCode, `${options.method} ${options.url}: ${res.body}`).toBe(403);
+  expect(res.json().error.code).toBe('forbidden');
+}
 
 describe('tenant isolation (CLAUDE.md §2.2)', () => {
   it('collects the admin routes', () => {
