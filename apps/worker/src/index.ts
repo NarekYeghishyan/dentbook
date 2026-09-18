@@ -3,9 +3,11 @@ import { Api } from 'grammy';
 import { Redis } from 'ioredis';
 import { pino } from 'pino';
 import { createDatabase } from '@dentbook/db';
-import { TELEGRAM_QUEUE } from '@dentbook/shared/queues';
+import { SMS_QUEUE, TELEGRAM_QUEUE } from '@dentbook/shared/queues';
+import { TwilioSmsSender } from '@dentbook/shared/sms';
 import { loadEnv } from './env.js';
 import { EXPIRE_HOLDS_EVERY_MS, EXPIRE_HOLDS_QUEUE, expireHolds } from './jobs/expire-holds.js';
+import { smsProcessor } from './jobs/sms.js';
 import { telegramProcessor } from './jobs/telegram.js';
 
 const env = loadEnv();
@@ -48,8 +50,27 @@ const workers = [
         ),
       ]
     : []),
+  ...(env.SMS_PROVIDER === 'twilio'
+    ? [
+        new Worker(
+          SMS_QUEUE,
+          smsProcessor({
+            db,
+            // Наличие ключей при SMS_PROVIDER проверяет loadEnv()
+            sms: new TwilioSmsSender({
+              accountSid: env.TWILIO_ACCOUNT_SID!,
+              authToken: env.TWILIO_AUTH_TOKEN!,
+              sender: env.SMS_SENDER!,
+            }),
+          }),
+          // Очередь отправки держит сам Twilio; лимит — чтобы пачка напоминаний не шла залпом
+          { connection, concurrency: 5, limiter: { max: 10, duration: 1000 } },
+        ),
+      ]
+    : []),
 ];
 if (!env.TELEGRAM_BOT_TOKEN) log.warn('TELEGRAM_BOT_TOKEN is not set: telegram queue is idle');
+if (!env.SMS_PROVIDER) log.warn('SMS_PROVIDER is not set: sms queue is idle');
 for (const worker of workers) {
   worker.on('failed', (job, err) =>
     log.error({ queue: job?.queueName, err: err.message }, 'job failed'),
