@@ -6,6 +6,7 @@ import { createLocationSchema, updateLocationSchema, type Location } from '@dent
 import { notFound, parse } from '../../lib/errors.js';
 import { idOf } from '../../lib/params.js';
 import { authOf, MANAGERS } from '../../plugins/session.js';
+import type { SlotCache } from '../../services/slot-cache.js';
 
 const columns = {
   id: locations.id,
@@ -17,7 +18,10 @@ const columns = {
   sortOrder: locations.sortOrder,
 };
 
-export const locationRoutes: FastifyPluginAsync<{ db: Database }> = async (app, { db }) => {
+export const locationRoutes: FastifyPluginAsync<{ db: Database; cache?: SlotCache }> = async (
+  app,
+  { db, cache },
+) => {
   const scoped = (clinicId: string, id: string) =>
     and(eq(locations.id, id), eq(locations.clinicId, clinicId));
 
@@ -48,13 +52,16 @@ export const locationRoutes: FastifyPluginAsync<{ db: Database }> = async (app, 
   });
 
   app.patch('/:id', { config: MANAGERS }, async (request): Promise<Location> => {
+    const { clinicId } = authOf(request);
     const input = parse(updateLocationSchema, request.body);
-    const where = scoped(authOf(request).clinicId, idOf(request));
+    const where = scoped(clinicId, idOf(request));
     const [row] =
       Object.keys(input).length > 0
         ? await db.update(locations).set(input).where(where).returning(columns)
         : await db.select(columns).from(locations).where(where);
     if (!row) throw notFound();
+    // Пояс филиала, длительность или видимость услуги меняют слоты всей клиники
+    await cache?.invalidateClinic(clinicId);
     return row;
   });
 };

@@ -10,6 +10,7 @@ import { findWeeklyOverlap } from '@dentbook/core';
 import {
   dentistServices,
   dentists,
+  lockDentist,
   locations,
   scheduleExceptions,
   services,
@@ -33,6 +34,7 @@ import { ApiError, notFound, parse } from '../../lib/errors.js';
 import { idOf } from '../../lib/params.js';
 import { authOf, MANAGERS } from '../../plugins/session.js';
 import { findConflictingAppointments, timeHasAppointments } from '../../services/schedule.js';
+import type { SlotCache } from '../../services/slot-cache.js';
 
 /** Шаг приоритета: между соседями остаётся место. */
 const PRIORITY_STEP = 10;
@@ -72,7 +74,15 @@ const toException = (row: {
   endAt: row.endAt.toISOString(),
 });
 
-export const dentistRoutes: FastifyPluginAsync<{ db: Database }> = async (app, { db }) => {
+export const dentistRoutes: FastifyPluginAsync<{ db: Database; cache?: SlotCache }> = async (
+  app,
+  { db, cache },
+) => {
+  /** Расписание или записи врача изменились — его слоты в кеше больше не верны (§6). */
+  const onScheduleChange = async (clinicId: string, dentistId: string) => {
+    await cache?.invalidateDentist(clinicId, dentistId);
+  };
+
   async function loadDentists(clinicId: string, id?: string): Promise<Dentist[]> {
     const rows = await db
       .select(dentistColumns)
@@ -158,6 +168,7 @@ export const dentistRoutes: FastifyPluginAsync<{ db: Database }> = async (app, {
         .update(dentists)
         .set(input)
         .where(and(eq(dentists.id, id), eq(dentists.clinicId, clinicId)));
+      await onScheduleChange(clinicId, id);
     }
     return loadDentist(clinicId, id);
   });
@@ -204,6 +215,7 @@ export const dentistRoutes: FastifyPluginAsync<{ db: Database }> = async (app, {
           .values(unique.map((serviceId) => ({ clinicId, dentistId, serviceId })));
       }
     });
+    await onScheduleChange(clinicId, dentistId);
     return loadDentist(clinicId, dentistId);
   });
 
@@ -260,6 +272,7 @@ export const dentistRoutes: FastifyPluginAsync<{ db: Database }> = async (app, {
         await tx.insert(workingHours).values(items.map((i) => ({ ...i, clinicId, dentistId })));
       }
     });
+    await onScheduleChange(clinicId, dentistId);
     return loadHours(clinicId, dentistId);
   });
 
@@ -283,36 +296,41 @@ export const dentistRoutes: FastifyPluginAsync<{ db: Database }> = async (app, {
     return rows.map(toException);
   });
 
-  // TODO(Шаг 5): проверку конфликтов и вставку block — под advisory-lock на врача, тем же,
-  // что берёт создание записи (schema.sql): сейчас между ними возможна гонка.
+  // Проверка записей и вставка block — под advisory-lock на врача, тем же, что берёт
+  // создание холда: иначе запись могла бы проскочить между проверкой и вставкой.
   app.post('/:id/exceptions', { config: MANAGERS }, async (request, reply) => {
     const { clinicId, dentistId } = await dentistOf(request);
     const input = parse(createExceptionSchema, request.body);
     if (input.locationId) await assertOwned(locations, clinicId, [input.locationId]);
-    if (input.type === 'block') {
-      const conflicts = await findConflictingAppointments(db, {
-        clinicId,
-        dentistId,
-        start: input.startAt,
-        end: input.endAt,
-        now: new Date(),
-      });
-      if (conflicts.length > 0) throw timeHasAppointments(conflicts);
-    }
-    const [row] = await db
-      .insert(scheduleExceptions)
-      .values({
-        clinicId,
-        dentistId,
-        type: input.type,
-        startAt: input.startAt,
-        endAt: input.endAt,
-        locationId: input.locationId ?? null,
-        reason: input.reason ?? null,
-        createdBy: authOf(request).userId,
-      })
-      .returning(exceptionColumns);
-    return reply.status(201).send(toException(row!));
+    const row = await db.transaction(async (tx) => {
+      await lockDentist(tx, dentistId);
+      if (input.type === 'block') {
+        const conflicts = await findConflictingAppointments(tx, {
+          clinicId,
+          dentistId,
+          start: input.startAt,
+          end: input.endAt,
+          now: new Date(),
+        });
+        if (conflicts.length > 0) throw timeHasAppointments(conflicts);
+      }
+      const [inserted] = await tx
+        .insert(scheduleExceptions)
+        .values({
+          clinicId,
+          dentistId,
+          type: input.type,
+          startAt: input.startAt,
+          endAt: input.endAt,
+          locationId: input.locationId ?? null,
+          reason: input.reason ?? null,
+          createdBy: authOf(request).userId,
+        })
+        .returning(exceptionColumns);
+      return inserted!;
+    });
+    await onScheduleChange(clinicId, dentistId);
+    return reply.status(201).send(toException(row));
   });
 
   /**
@@ -329,19 +347,23 @@ export const dentistRoutes: FastifyPluginAsync<{ db: Database }> = async (app, {
       eq(scheduleExceptions.dentistId, dentistId),
       eq(scheduleExceptions.clinicId, clinicId),
     );
-    const [row] = await db.select(exceptionColumns).from(scheduleExceptions).where(where);
-    if (!row) throw notFound();
-    if (row.type === 'extra') {
-      const conflicts = await findConflictingAppointments(db, {
-        clinicId,
-        dentistId,
-        start: row.startAt,
-        end: row.endAt,
-        now: new Date(),
-      });
-      if (conflicts.length > 0) throw timeHasAppointments(conflicts);
-    }
-    await db.delete(scheduleExceptions).where(where);
+    await db.transaction(async (tx) => {
+      await lockDentist(tx, dentistId);
+      const [row] = await tx.select(exceptionColumns).from(scheduleExceptions).where(where);
+      if (!row) throw notFound();
+      if (row.type === 'extra') {
+        const conflicts = await findConflictingAppointments(tx, {
+          clinicId,
+          dentistId,
+          start: row.startAt,
+          end: row.endAt,
+          now: new Date(),
+        });
+        if (conflicts.length > 0) throw timeHasAppointments(conflicts);
+      }
+      await tx.delete(scheduleExceptions).where(where);
+    });
+    await onScheduleChange(clinicId, dentistId);
     return reply.status(204).send();
   });
 };

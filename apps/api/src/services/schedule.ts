@@ -1,6 +1,6 @@
 /** Проверки расписания, общие для админки и Telegram (Шаг 7). */
 import { and, asc, eq, gt, inArray, lt, or } from 'drizzle-orm';
-import { appointments, type Database } from '@dentbook/db';
+import { appointments, type Executor } from '@dentbook/db';
 import type { ConflictingAppointment } from '@dentbook/shared';
 import { ApiError } from '../lib/errors.js';
 
@@ -19,7 +19,7 @@ export const takesDentistTime = (now: Date) =>
  * Такое время закрыть нельзя (§8) — записи сначала переносит регистратура.
  */
 export async function findConflictingAppointments(
-  db: Database,
+  db: Executor,
   params: { clinicId: string; dentistId: string; start: Date; end: Date; now: Date },
 ): Promise<ConflictingAppointment[]> {
   const rows = await db

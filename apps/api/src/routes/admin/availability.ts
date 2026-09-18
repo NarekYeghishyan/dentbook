@@ -10,8 +10,12 @@ import {
 import { ApiError, parse } from '../../lib/errors.js';
 import { authOf } from '../../plugins/session.js';
 import { computeAvailability } from '../../services/availability.js';
+import type { SlotCache } from '../../services/slot-cache.js';
 
-export const availabilityRoutes: FastifyPluginAsync<{ db: Database }> = async (app, { db }) => {
+export const availabilityRoutes: FastifyPluginAsync<{ db: Database; cache?: SlotCache }> = async (
+  app,
+  { db, cache },
+) => {
   app.get('', async (request): Promise<AvailabilityResponse> => {
     const query = parse(availabilityQuerySchema, request.query);
     if (query.to < query.from || addDays(query.from, AVAILABILITY_MAX_DAYS - 1) < query.to) {
@@ -21,11 +25,15 @@ export const availabilityRoutes: FastifyPluginAsync<{ db: Database }> = async (a
         `Invalid fields: to (1 to ${AVAILABILITY_MAX_DAYS} days from "from")`,
       );
     }
-    return computeAvailability(db, {
-      ...query,
-      clinicId: authOf(request).clinicId,
-      now: new Date(),
-      includeHidden: true,
-    });
+    return computeAvailability(
+      db,
+      {
+        ...query,
+        clinicId: authOf(request).clinicId,
+        now: new Date(),
+        includeHidden: true,
+      },
+      cache,
+    );
   });
 };

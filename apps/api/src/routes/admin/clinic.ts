@@ -5,6 +5,7 @@ import { clinics, users, type Database } from '@dentbook/db';
 import { updateClinicSchema, type MeResponse } from '@dentbook/shared';
 import { notFound, parse } from '../../lib/errors.js';
 import { authOf } from '../../plugins/session.js';
+import type { SlotCache } from '../../services/slot-cache.js';
 import { loadClinic, staffColumns, toStaffUser } from './mappers.js';
 
 export const meRoutes: FastifyPluginAsync<{ db: Database }> = async (app, { db }) => {
@@ -19,7 +20,10 @@ export const meRoutes: FastifyPluginAsync<{ db: Database }> = async (app, { db }
   });
 };
 
-export const clinicRoutes: FastifyPluginAsync<{ db: Database }> = async (app, { db }) => {
+export const clinicRoutes: FastifyPluginAsync<{ db: Database; cache?: SlotCache }> = async (
+  app,
+  { db, cache },
+) => {
   app.get('', async (request) => loadClinic(db, authOf(request).clinicId));
 
   app.patch('', { config: { roles: ['owner', 'admin'] } }, async (request) => {
@@ -27,6 +31,8 @@ export const clinicRoutes: FastifyPluginAsync<{ db: Database }> = async (app, { 
     const input = parse(updateClinicSchema, request.body);
     if (Object.keys(input).length > 0) {
       await db.update(clinics).set(input).where(eq(clinics.id, clinicId));
+      // Пояс, шаг сетки, запас и горизонт записи меняют все слоты клиники
+      await cache?.invalidateClinic(clinicId);
     }
     return loadClinic(db, clinicId);
   });

@@ -1,7 +1,7 @@
 /**
  * Доступность на даты (CLAUDE.md §6): данные из БД → чистый движок @dentbook/core.
- * Одна функция для календаря админки и публичного API (Шаг 5).
- * Свободные слоты не хранятся (§2.4) — считаются на каждый запрос.
+ * Одна функция для календаря админки, публичного API и проверки холда.
+ * Свободные слоты не хранятся в БД (§2.4) — считаются на запрос; кеш в Redis живёт 60 с.
  */
 import { and, asc, eq, gt, inArray, lt, or } from 'drizzle-orm';
 import {
@@ -11,7 +11,6 @@ import {
   localDateOf,
   type BusyAppointment,
   type ScheduleException,
-  type WeeklyHours,
 } from '@dentbook/core';
 import {
   appointments,
@@ -27,6 +26,7 @@ import {
 import type { AvailabilityDay, AvailabilityResponse } from '@dentbook/shared';
 import { notFound } from '../lib/errors.js';
 import { takesDentistTime } from './schedule.js';
+import type { SlotCache, SlotKey } from './slot-cache.js';
 
 export interface AvailabilityRequest {
   clinicId: string;
@@ -38,7 +38,7 @@ export interface AvailabilityRequest {
   from: string;
   to: string;
   now: Date;
-  /** Показывать ли услуги и филиалы, скрытые от виджета (админке — да). */
+  /** Показывать ли услуги, скрытые от виджета, и неактивные филиалы (админке — да). */
   includeHidden: boolean;
 }
 
@@ -50,9 +50,94 @@ function datesBetween(from: string, to: string): string[] {
   return dates;
 }
 
+/** Расписание врачей за окно дат из БД: шаблон в филиале, исключения, записи. */
+async function loadSchedules(
+  db: Database,
+  params: {
+    clinicId: string;
+    locationId: string;
+    dentistIds: string[];
+    windowStart: Date;
+    windowEnd: Date;
+    now: Date;
+  },
+) {
+  const { clinicId, locationId, dentistIds, windowStart, windowEnd, now } = params;
+  const [hours, exceptions, busy] = await Promise.all([
+    db
+      .select({
+        dentistId: workingHours.dentistId,
+        weekday: workingHours.weekday,
+        startTime: workingHours.startTime,
+        endTime: workingHours.endTime,
+      })
+      .from(workingHours)
+      .where(
+        and(
+          eq(workingHours.clinicId, clinicId),
+          eq(workingHours.locationId, locationId),
+          inArray(workingHours.dentistId, dentistIds),
+        ),
+      ),
+    db
+      .select({
+        dentistId: scheduleExceptions.dentistId,
+        type: scheduleExceptions.type,
+        startAt: scheduleExceptions.startAt,
+        endAt: scheduleExceptions.endAt,
+      })
+      .from(scheduleExceptions)
+      .where(
+        and(
+          eq(scheduleExceptions.clinicId, clinicId),
+          inArray(scheduleExceptions.dentistId, dentistIds),
+          lt(scheduleExceptions.startAt, windowEnd),
+          gt(scheduleExceptions.endAt, windowStart),
+          // block закрывает время врача везде; extra — время в своём филиале
+          or(eq(scheduleExceptions.type, 'block'), eq(scheduleExceptions.locationId, locationId)),
+        ),
+      ),
+    // Записи врача во всех филиалах: в двух местах сразу он не бывает
+    db
+      .select({
+        dentistId: appointments.dentistId,
+        startAt: appointments.startAt,
+        endAt: appointments.endAt,
+        bufferMin: appointments.bufferMin,
+      })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.clinicId, clinicId),
+          inArray(appointments.dentistId, dentistIds),
+          lt(appointments.startAt, windowEnd),
+          gt(appointments.blockedUntil, windowStart),
+          takesDentistTime(now),
+        ),
+      ),
+  ]);
+
+  return (dentistId: string) => ({
+    weeklyHours: hours.filter((h) => h.dentistId === dentistId),
+    exceptions: exceptions
+      .filter((e) => e.dentistId === dentistId)
+      .map((e): ScheduleException => ({
+        type: e.type,
+        interval: { start: e.startAt, end: e.endAt },
+      })),
+    appointments: busy
+      .filter((a) => a.dentistId === dentistId)
+      .map((a): BusyAppointment => ({
+        interval: { start: a.startAt, end: a.endAt },
+        bufferMin: a.bufferMin,
+      })),
+  });
+}
+
 export async function computeAvailability(
   db: Database,
   request: AvailabilityRequest,
+  cache?: SlotCache,
 ): Promise<AvailabilityResponse> {
   const { clinicId, now } = request;
 
@@ -79,27 +164,26 @@ export async function computeAvailability(
     .from(services)
     .where(and(eq(services.id, request.serviceId), eq(services.clinicId, clinicId)));
 
-  const visible = (entity: { isActive: boolean; isPublic?: boolean } | undefined) =>
-    entity !== undefined &&
-    (request.includeHidden || (entity.isActive && entity.isPublic !== false));
-  if (!clinic || !visible(location) || !visible(service)) throw notFound();
+  const hidden = !location?.isActive || !service?.isActive || !service.isPublic;
+  if (!clinic || !location || !service || (hidden && !request.includeHidden)) throw notFound();
 
-  const timeZone = location!.timezone ?? clinic.timezone;
-  const { durationMin, bufferMin } = service!;
+  const timeZone = location.timezone ?? clinic.timezone;
+  const { durationMin, bufferMin } = service;
   const response: AvailabilityResponse = { timeZone, durationMin, days: [] };
+  const allDates = datesBetween(request.from, request.to);
 
   // Не раньше сегодняшней даты и не дальше max_advance_days
   const today = localDateOf(now, timeZone);
   const lastDate = addDays(today, clinic.maxAdvanceDays);
   const from = request.from < today ? today : request.from;
   const to = request.to > lastDate ? lastDate : request.to;
-  if (from > to || !location!.isActive || !service!.isActive) {
-    response.days = datesBetween(request.from, request.to).map((date) => ({ date, slots: [] }));
+  if (from > to || !location.isActive || !service.isActive) {
+    response.days = allDates.map((date) => ({ date, slots: [] }));
     return response;
   }
 
   const candidates = await db
-    .select({ id: dentists.id, priority: dentists.priority })
+    .select({ id: dentists.id })
     .from(dentists)
     .innerJoin(
       dentistServices,
@@ -118,108 +202,62 @@ export async function computeAvailability(
     )
     .orderBy(asc(dentists.priority), asc(dentists.id));
   const dentistIds = candidates.map((d) => d.id);
+  const dates = datesBetween(from, to);
 
-  // Окно данных: смены, задевающие даты, — от суток до первой даты до суток после последней
-  const windowStart = dayBounds(addDays(from, -1), timeZone).start;
-  const windowEnd = dayBounds(addDays(to, 1), timeZone).end;
+  // Слоты по парам «врач × дата»: сначала кеш, недостающее — из БД одним заходом
+  const keyOf = (dentistId: string, date: string): SlotKey => ({
+    clinicId,
+    dentistId,
+    date,
+    serviceId: request.serviceId,
+    locationId: request.locationId,
+  });
+  const pairs = dates.flatMap((date) => dentistIds.map((dentistId) => ({ date, dentistId })));
+  const cached = cache
+    ? await cache.get(pairs.map((p) => keyOf(p.dentistId, p.date)))
+    : pairs.map(() => null);
+  const startsOf = new Map<string, number[]>();
+  const pairKey = (dentistId: string, date: string) => `${dentistId}|${date}`;
+  const missing = pairs.filter((pair, i) => {
+    const hit = cached[i];
+    if (hit) startsOf.set(pairKey(pair.dentistId, pair.date), hit);
+    return !hit;
+  });
 
-  const [hours, exceptions, busy] =
-    dentistIds.length === 0
-      ? [[], [], []]
-      : await Promise.all([
-          db
-            .select({
-              dentistId: workingHours.dentistId,
-              weekday: workingHours.weekday,
-              startTime: workingHours.startTime,
-              endTime: workingHours.endTime,
-            })
-            .from(workingHours)
-            .where(
-              and(
-                eq(workingHours.clinicId, clinicId),
-                eq(workingHours.locationId, request.locationId),
-                inArray(workingHours.dentistId, dentistIds),
-              ),
-            ),
-          db
-            .select({
-              dentistId: scheduleExceptions.dentistId,
-              type: scheduleExceptions.type,
-              startAt: scheduleExceptions.startAt,
-              endAt: scheduleExceptions.endAt,
-            })
-            .from(scheduleExceptions)
-            .where(
-              and(
-                eq(scheduleExceptions.clinicId, clinicId),
-                inArray(scheduleExceptions.dentistId, dentistIds),
-                lt(scheduleExceptions.startAt, windowEnd),
-                gt(scheduleExceptions.endAt, windowStart),
-                // block закрывает время врача везде; extra — время в своём филиале
-                or(
-                  eq(scheduleExceptions.type, 'block'),
-                  eq(scheduleExceptions.locationId, request.locationId),
-                ),
-              ),
-            ),
-          // Записи врача во всех филиалах: в двух местах сразу он не бывает
-          db
-            .select({
-              dentistId: appointments.dentistId,
-              startAt: appointments.startAt,
-              endAt: appointments.endAt,
-              bufferMin: appointments.bufferMin,
-            })
-            .from(appointments)
-            .where(
-              and(
-                eq(appointments.clinicId, clinicId),
-                inArray(appointments.dentistId, dentistIds),
-                lt(appointments.startAt, windowEnd),
-                gt(appointments.endAt, windowStart),
-                takesDentistTime(now),
-              ),
-            ),
-        ]);
-
-  const notBefore = new Date(now.getTime() + clinic.minLeadMin * MINUTE_MS);
-  const byDentist = <T extends { dentistId: string }>(rows: T[], id: string) =>
-    rows.filter((r) => r.dentistId === id);
-
-  const perDentist = candidates.map((dentist) => ({
-    id: dentist.id,
-    weeklyHours: byDentist(hours, dentist.id) satisfies WeeklyHours[],
-    exceptions: byDentist(exceptions, dentist.id).map((e): ScheduleException => ({
-      type: e.type,
-      interval: { start: e.startAt, end: e.endAt },
-    })),
-    appointments: byDentist(busy, dentist.id).map((a): BusyAppointment => ({
-      interval: { start: a.startAt, end: a.endAt },
-      bufferMin: a.bufferMin,
-    })),
-  }));
-
-  response.days = datesBetween(request.from, request.to).map((date): AvailabilityDay => {
-    if (date < from || date > to) return { date, slots: [] };
-    // Время начала → свободные врачи; candidates уже по приоритету
-    const slots = new Map<number, string[]>();
-    for (const dentist of perDentist) {
+  if (missing.length > 0) {
+    // Окно данных: смены, задевающие даты, — от суток до первой даты до суток после последней
+    const scheduleOf = await loadSchedules(db, {
+      clinicId,
+      locationId: request.locationId,
+      dentistIds: [...new Set(missing.map((p) => p.dentistId))],
+      windowStart: dayBounds(addDays(from, -1), timeZone).start,
+      windowEnd: dayBounds(addDays(to, 1), timeZone).end,
+      now,
+    });
+    const notBefore = new Date(now.getTime() + clinic.minLeadMin * MINUTE_MS);
+    const computed = missing.map(({ dentistId, date }) => {
       const starts = computeDaySlots({
         date,
         timeZone,
-        weeklyHours: dentist.weeklyHours,
-        exceptions: dentist.exceptions,
-        appointments: dentist.appointments,
+        ...scheduleOf(dentistId),
         durationMin,
         bufferMin,
         stepMin: clinic.slotStepMin,
         notBefore,
-      });
-      for (const start of starts) {
-        const free = slots.get(start.getTime()) ?? [];
-        free.push(dentist.id);
-        slots.set(start.getTime(), free);
+      }).map((s) => s.getTime());
+      startsOf.set(pairKey(dentistId, date), starts);
+      return { key: keyOf(dentistId, date), starts };
+    });
+    await cache?.set(computed);
+  }
+
+  response.days = allDates.map((date): AvailabilityDay => {
+    if (date < from || date > to) return { date, slots: [] };
+    // Время начала → свободные врачи; dentistIds уже по приоритету
+    const slots = new Map<number, string[]>();
+    for (const dentistId of dentistIds) {
+      for (const start of startsOf.get(pairKey(dentistId, date)) ?? []) {
+        slots.set(start, [...(slots.get(start) ?? []), dentistId]);
       }
     }
     return {
