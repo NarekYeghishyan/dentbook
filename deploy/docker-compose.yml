@@ -1,0 +1,108 @@
+# Сервер: api, worker, Postgres, Redis. Подготовка сервера и выкладка — deploy/README.md.
+# Файл копируется в каталог развёртывания (по умолчанию /opt/dentbook) рядом с .env.
+# Имя проекта отличается от dev-стека (docker-compose.yml в корне): тома и контейнеры
+# не пересекаются, даже если оба стека запущены на одной машине.
+name: dentbook-server
+
+x-app-env: &app-env
+  NODE_ENV: production
+  DATABASE_URL: postgres://dentbook:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set}@postgres:5432/dentbook
+  REDIS_URL: redis://redis:6379
+
+x-app-depends: &app-depends
+  postgres:
+    condition: service_healthy
+  redis:
+    condition: service_healthy
+  migrate:
+    condition: service_completed_successfully
+
+x-app: &app
+  image: dentbook-app:${DENTBOOK_IMAGE_TAG:-latest}
+  restart: unless-stopped
+  env_file: .env
+  mem_limit: 384m
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dentbook
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is not set}
+      POSTGRES_DB: dentbook
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U dentbook -d dentbook']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    mem_limit: 512m
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # noeviction — требование BullMQ: вытеснение ключей ломает очереди
+    command:
+      [
+        'redis-server',
+        '--appendonly',
+        'yes',
+        '--maxmemory',
+        '128mb',
+        '--maxmemory-policy',
+        'noeviction',
+      ]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    mem_limit: 192m
+
+  migrate:
+    <<: *app
+    restart: 'no'
+    command: ['pnpm', 'migrate']
+    environment: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    command: ['node', '--import', 'tsx', 'apps/api/src/index.ts']
+    environment:
+      <<: *app-env
+      API_HOST: 0.0.0.0
+      API_PORT: '3000'
+    ports:
+      # Только localhost: снаружи API доступен через nginx
+      - '127.0.0.1:${API_HOST_PORT:-3100}:3000'
+    depends_on: *app-depends
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    <<: *app
+    command: ['node', '--import', 'tsx', 'apps/worker/src/index.ts']
+    environment: *app-env
+    depends_on: *app-depends
+
+volumes:
+  pgdata:
+  redisdata:
