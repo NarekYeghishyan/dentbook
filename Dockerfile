@@ -14,10 +14,14 @@ COPY . .
 RUN pnpm install --frozen-lockfile \
   && rm -rf "$(pnpm store path)"
 
-# Админка и форма записи — статика, её раздаёт API на /admin/ и /widget/ (Q14)
-RUN pnpm --filter @dentbook/admin build && pnpm --filter @dentbook/widget size
+# Админка, форма записи и Mini App — статика, её раздаёт API на /admin/, /widget/ и
+# /miniapp/ (Q14)
+RUN pnpm --filter @dentbook/admin build \
+  && pnpm --filter @dentbook/widget size \
+  && pnpm --filter @dentbook/miniapp build
 ENV ADMIN_DIST_DIR=/app/apps/admin/dist \
-    WIDGET_DIST_DIR=/app/apps/widget/dist
+    WIDGET_DIST_DIR=/app/apps/widget/dist \
+    MINIAPP_DIST_DIR=/app/apps/miniapp/dist
 
 ENV NODE_ENV=production
 USER node
