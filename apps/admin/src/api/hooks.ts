@@ -19,6 +19,7 @@ import type {
   ScheduleExceptionItem,
   Service,
   StaffUser,
+  TelegramLink,
   UpdateApiKeyInput,
   UpdateClinicInput,
   UpdateDentistInput,
@@ -186,6 +187,19 @@ export const useSetDentistServices = () =>
     ({ id, serviceIds }: { id: string; serviceIds: string[] }) =>
       api<Dentist>('PUT', `/dentists/${id}/services`, { serviceIds }),
     [keys.dentists, keys.availability],
+  );
+
+/** Ссылка привязки Telegram (§8, Q15). Не кешируется: каждая — новый одноразовый токен. */
+export const useCreateTelegramLink = () =>
+  useMutation({
+    mutationFn: (dentistId: string) =>
+      api<TelegramLink>('POST', `/dentists/${dentistId}/telegram-link`),
+  });
+
+export const useUnlinkTelegram = () =>
+  useSave(
+    (dentistId: string) => api<Dentist>('DELETE', `/dentists/${dentistId}/telegram`),
+    [keys.dentists],
   );
 
 export const useWorkingHours = (dentistId: string) =>

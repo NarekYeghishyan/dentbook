@@ -1,4 +1,5 @@
-/** Карточка врача: профиль, услуги, недельный шаблон, исключения расписания. */
+/** Карточка врача: профиль, услуги, Telegram, недельный шаблон, исключения расписания. */
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import type {
@@ -10,7 +11,9 @@ import type {
 } from '@dentbook/shared';
 import { ApiError } from '../api/client';
 import {
+  keys,
   useCreateException,
+  useCreateTelegramLink,
   useDeleteException,
   useDentists,
   useExceptions,
@@ -18,6 +21,7 @@ import {
   useSaveWorkingHours,
   useServices,
   useSetDentistServices,
+  useUnlinkTelegram,
   useUpdateDentist,
   useWorkingHours,
 } from '../api/hooks';
@@ -130,6 +134,125 @@ function Services({ dentist }: { dentist: Dentist }) {
           </Button>
         )}
       </div>
+    </Card>
+  );
+}
+
+/** Пока ссылка открыта, а врач ещё не привязан, — перечитывать список врачей. */
+const LINK_POLL_MS = 5_000;
+
+/**
+ * Привязка Telegram (§8, Q15): одноразовая ссылка t.me на сутки — копией или QR-кодом.
+ * Врач нажимает Start в боте, и карточка сама переходит в «Подключён».
+ */
+function TelegramCard({ dentist }: { dentist: Dentist }) {
+  const { t, locale } = useI18n();
+  const { clinic } = useSession();
+  const canManage = useCanManage();
+  const client = useQueryClient();
+  const createLink = useCreateTelegramLink();
+  const unlink = useUnlinkTelegram();
+  const [qr, setQr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const link = dentist.telegramLinked ? undefined : createLink.data;
+
+  useEffect(() => {
+    setQr(null);
+    if (!link) return;
+    let current = true;
+    import('qrcode')
+      .then(({ toDataURL }) => toDataURL(link.url, { margin: 1, width: 220 }))
+      .then((data) => current && setQr(data));
+    const poll = setInterval(
+      () => client.invalidateQueries({ queryKey: keys.dentists }),
+      LINK_POLL_MS,
+    );
+    return () => {
+      current = false;
+      clearInterval(poll);
+    };
+  }, [link, client]);
+
+  async function copy() {
+    if (!link) return;
+    await navigator.clipboard.writeText(link.url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }
+
+  function disconnect() {
+    if (window.confirm(t('telegram.disconnectConfirm'))) unlink.mutate(dentist.id);
+  }
+
+  const error = createLink.error ?? unlink.error;
+  const notConfigured = error instanceof ApiError && error.status === 503;
+
+  return (
+    <Card title={t('telegram.title')}>
+      <p className="mb-4 text-sm text-slate-600">{t('telegram.hint')}</p>
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {dentist.telegramLinked ? (
+          <Badge tone={dentist.telegramBlocked ? 'red' : 'green'}>{t('telegram.connected')}</Badge>
+        ) : (
+          <Badge>{t('telegram.notConnected')}</Badge>
+        )}
+        {dentist.telegramBlocked && (
+          <span className="text-sm text-red-700">{t('telegram.blocked')}</span>
+        )}
+      </div>
+
+      {link && (
+        <div className="mb-4 space-y-3">
+          <div className="flex gap-2">
+            <Input readOnly aria-label={t('telegram.link')} value={link.url} />
+            <Button variant="secondary" onClick={() => void copy()}>
+              {copied ? t('telegram.copied') : t('telegram.copy')}
+            </Button>
+          </div>
+          {qr && (
+            <img
+              src={qr}
+              width={220}
+              height={220}
+              alt={t('telegram.qrAlt')}
+              className="rounded-md border border-slate-200"
+            />
+          )}
+          <p className="text-sm text-slate-600">
+            {t('telegram.linkHint', {
+              time: formatDateTime(link.expiresAt, clinic.timezone, locale),
+            })}
+          </p>
+        </div>
+      )}
+
+      {notConfigured ? (
+        <p role="alert" className="mb-4 text-sm text-amber-700">
+          {t('telegram.notConfigured')}
+        </p>
+      ) : (
+        <div className="mb-4">
+          <ErrorText error={error} />
+        </div>
+      )}
+
+      {canManage && (
+        <div className="flex gap-2">
+          {dentist.telegramLinked ? (
+            <Button variant="danger" disabled={unlink.isPending} onClick={disconnect}>
+              {t('telegram.disconnect')}
+            </Button>
+          ) : (
+            <Button
+              variant={link ? 'secondary' : 'primary'}
+              disabled={createLink.isPending}
+              onClick={() => createLink.mutate(dentist.id)}
+            >
+              {t(link ? 'telegram.newLink' : 'telegram.createLink')}
+            </Button>
+          )}
+        </div>
+      )}
     </Card>
   );
 }
@@ -477,6 +600,7 @@ export function DentistPage() {
         <Profile dentist={dentist} />
         <Services dentist={dentist} />
       </div>
+      <TelegramCard dentist={dentist} />
       <WeeklyHours dentistId={dentist.id} locations={offices} />
       <Exceptions dentistId={dentist.id} locations={offices} />
     </div>
