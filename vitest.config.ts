@@ -13,6 +13,10 @@ export default defineConfig({
       provider: 'v8',
       reporter: ['text', 'lcov'],
       include: ['packages/core/src/**', 'packages/shared/src/**', 'apps/api/src/**'],
+      thresholds: {
+        // Шаг 2: движок доступности — покрытие не ниже 90% (CLAUDE.md §10)
+        'packages/core/src/**': { statements: 90, branches: 90, functions: 90, lines: 90 },
+      },
     },
   },
 });
