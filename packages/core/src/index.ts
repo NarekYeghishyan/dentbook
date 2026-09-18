@@ -14,4 +14,9 @@ export {
   zonedTimeToUtc,
   type LocalDate,
 } from './tz.js';
-export { parseTimeOfDay, workingIntervalsForDate, type WeeklyHours } from './working-hours.js';
+export {
+  findWeeklyOverlap,
+  parseTimeOfDay,
+  workingIntervalsForDate,
+  type WeeklyHours,
+} from './working-hours.js';

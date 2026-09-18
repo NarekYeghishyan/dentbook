@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { parseTimeOfDay, workingIntervalsForDate, type WeeklyHours } from './working-hours.js';
+import {
+  findWeeklyOverlap,
+  parseTimeOfDay,
+  workingIntervalsForDate,
+  type WeeklyHours,
+} from './working-hours.js';
 
 const MONDAY = '2026-03-02';
 const intervals = (rows: WeeklyHours[], date = MONDAY, zone = 'UTC'): string[][] =>
@@ -69,5 +74,41 @@ describe('workingIntervalsForDate', () => {
     ['24:00', '09:00'],
   ])('rejects an empty shift %s–%s', (startTime, endTime) => {
     expect(() => intervals([{ weekday: 1, startTime, endTime }])).toThrow(RangeError);
+  });
+});
+
+describe('findWeeklyOverlap', () => {
+  const row = (weekday: number, startTime: string, endTime: string) => ({
+    weekday,
+    startTime,
+    endTime,
+  });
+
+  it('accepts shifts that only touch', () => {
+    expect(findWeeklyOverlap([row(1, '09:00', '13:00'), row(1, '13:00', '18:00')])).toBeUndefined();
+  });
+
+  it('finds overlapping shifts on the same day', () => {
+    expect(
+      findWeeklyOverlap([
+        row(2, '09:00', '18:00'),
+        row(1, '09:00', '18:00'),
+        row(2, '17:00', '20:00'),
+      ]),
+    ).toEqual([0, 2]);
+  });
+
+  it("finds a night shift running into the next day's shift", () => {
+    expect(findWeeklyOverlap([row(1, '22:00', '02:00'), row(2, '01:00', '09:00')])).toEqual([0, 1]);
+    expect(findWeeklyOverlap([row(1, '22:00', '02:00'), row(2, '02:00', '09:00')])).toBeUndefined();
+  });
+
+  it('wraps a Sunday night shift into Monday', () => {
+    expect(findWeeklyOverlap([row(7, '22:00', '03:00'), row(1, '02:00', '10:00')])).toEqual([0, 1]);
+    expect(findWeeklyOverlap([row(7, '22:00', '00:00'), row(1, '00:00', '10:00')])).toBeUndefined();
+  });
+
+  it('accepts an empty template', () => {
+    expect(findWeeklyOverlap([])).toBeUndefined();
   });
 });

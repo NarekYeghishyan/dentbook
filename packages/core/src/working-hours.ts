@@ -68,3 +68,33 @@ export function workingIntervalsForDate(
   }
   return intervals.sort((a, b) => a.start.getTime() - b.start.getTime());
 }
+
+const WEEK_MIN = 7 * 24 * 60;
+
+/**
+ * Пересекающиеся смены недельного шаблона — индексы первой найденной пары или undefined.
+ * Врач не бывает в двух местах сразу, поэтому смены сравниваются во всех филиалах.
+ * Считается по настенному времени: переход на летнее время на шаблон не влияет.
+ * Ночная смена воскресенья переходит в понедельник.
+ */
+export function findWeeklyOverlap(rows: readonly WeeklyHours[]): [number, number] | undefined {
+  const pieces: { start: number; end: number; row: number }[] = [];
+  rows.forEach((row, index) => {
+    const startMin = parseTimeOfDay(row.startTime);
+    const endMin = parseTimeOfDay(row.endTime);
+    const start = (row.weekday - 1) * 24 * 60 + startMin;
+    const end = start + (endMin > startMin ? endMin - startMin : endMin + 24 * 60 - startMin);
+    // Смена, уходящая за конец недели, делится на две части
+    pieces.push({ start, end: Math.min(end, WEEK_MIN), row: index });
+    if (end > WEEK_MIN) pieces.push({ start: 0, end: end - WEEK_MIN, row: index });
+  });
+  pieces.sort((a, b) => a.start - b.start);
+  for (let i = 1; i < pieces.length; i++) {
+    const previous = pieces[i - 1]!;
+    const current = pieces[i]!;
+    if (current.start < previous.end && current.row !== previous.row) {
+      return [Math.min(previous.row, current.row), Math.max(previous.row, current.row)];
+    }
+  }
+  return undefined;
+}
