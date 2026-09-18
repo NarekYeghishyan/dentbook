@@ -122,6 +122,14 @@ export interface Dentist {
   isActive: boolean;
   serviceIds: string[];
   telegramLinked: boolean;
+  /** Врач заблокировал бота: сообщения не доходят, пока он снова не напишет боту. */
+  telegramBlocked: boolean;
+}
+
+/** Одноразовая ссылка привязки Telegram (§8, TTL 24 ч): копируется или сканируется QR (Q15). */
+export interface TelegramLink {
+  url: string;
+  expiresAt: string;
 }
 
 // --- рабочие часы ---
