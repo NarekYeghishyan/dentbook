@@ -7,6 +7,7 @@
 | `../Dockerfile`                | один образ `dentbook-app` для api, worker, миграций и сидов       |
 | `docker-compose.yml`           | стек на сервере: postgres, redis, migrate, api, worker            |
 | `deploy.sh`                    | выкладка рабочей копии: загрузка → сборка → миграции → перезапуск |
+| `backup.sh`                    | резервная копия БД на сервере с ротацией                          |
 | `nginx/dentbook.conf.template` | nginx перед API: TLS, редирект с HTTP, прокси на `127.0.0.1`      |
 
 ## Требования к серверу
@@ -149,21 +150,84 @@ DEPLOY_HOST=root@203.0.113.10 deploy/deploy.sh   # или алиас из ~/.ssh
 
 Из `/opt/dentbook` на сервере:
 
-| Задача                    | Команда                                                                   |
-| ------------------------- | ------------------------------------------------------------------------- |
-| состояние                 | `docker compose ps -a`                                                    |
-| логи                      | `docker compose logs -f api worker`                                       |
-| демо-данные (только тест) | `docker compose run --rm migrate pnpm seed`                               |
-| psql                      | `docker compose exec postgres psql -U dentbook -d dentbook`               |
-| резервная копия БД        | `docker compose exec -T postgres pg_dump -U dentbook dentbook > dump.sql` |
-| остановить                | `docker compose down` (данные остаются в томах)                           |
-| удалить вместе с данными  | `docker compose down -v`                                                  |
+| Задача                    | Команда                                                                                                   |
+| ------------------------- | --------------------------------------------------------------------------------------------------------- |
+| состояние                 | `docker compose ps -a`                                                                                    |
+| логи                      | `docker compose logs -f api worker`                                                                       |
+| демо-данные (только тест) | `docker compose run --rm migrate pnpm seed`                                                               |
+| psql                      | `docker compose exec postgres psql -U dentbook -d dentbook`                                               |
+| резервная копия БД        | `bash src/deploy/backup.sh` — см. «Резервные копии»                                                       |
+| оператор платформы        | `docker compose run --rm --no-deps api node --import tsx apps/api/src/create-operator.ts <email> "<имя>"` |
+| остановить                | `docker compose down` (данные остаются в томах)                                                           |
+| удалить вместе с данными  | `docker compose down -v`                                                                                  |
 
 `docker compose exec` читает stdin: в скриптах, которые сами приходят через stdin
 (`ssh host 'bash -s' <<EOF`), добавлять `</dev/null`, иначе команда съест остаток скрипта.
 
 Откат — выкладка нужного коммита: `git switch --detach <commit> && deploy/deploy.sh`.
 Миграции только добавляются, поэтому откат кода на схему новее — осознанное решение.
+
+Логи контейнеров ротируются (`x-logging` в `docker-compose.yml`: 5 файлов по 10 МБ на
+контейнер) — диск ими не забивается.
+
+### Оператор платформы
+
+Панель оператора — `https://<домен>/admin/`, вход тем же экраном, что у клиник: оператора
+пускает в «Оператор платформы» (клиники, приостановка, очереди, ошибки доставки). Учётная
+запись создаётся только командой из таблицы выше. Она печатает пароль один раз, и его
+нужно сразу сохранить в менеджере паролей. Повторный запуск для того же email выдаёт
+новый пароль.
+
+### Резервные копии
+
+`deploy/backup.sh` делает `pg_dump` в `/opt/dentbook/backups/dentbook-<время UTC>.sql.gz`
+(права 600) и удаляет копии старше 14 дней (`KEEP_DAYS`). Ежедневно в 3:15 по часам
+сервера:
+
+```bash
+( crontab -l 2>/dev/null; echo '15 3 * * * bash /opt/dentbook/src/deploy/backup.sh >> /opt/dentbook/backups/backup.log 2>&1' ) | crontab -
+```
+
+Копии лежат на том же сервере: от потери диска они не спасают. Для боя их нужно
+забирать с сервера, например `rsync` с другой машины по cron, или в хранилище провайдера.
+
+Восстановление в пустую БД (сначала остановить api и worker):
+
+```bash
+docker compose stop api worker
+gunzip -c backups/dentbook-<время>.sql.gz | docker compose exec -T postgres psql -U dentbook -d dentbook
+docker compose up -d api worker
+```
+
+## Боевой запуск (Шаг 10)
+
+Сервер клиента пока не выбран (VPS, Q18). Когда он появится:
+
+1. **Сервер** — разделы 1–4 «Разовой подготовки» выше. На отдельном VPS без соседей лимиты
+   памяти в `docker-compose.yml` можно поднять.
+2. **`.env`** — всё из `.env.example`: `PUBLIC_BASE_URL`, `JWT_SECRET`,
+   `POSTGRES_PASSWORD`, `SMS_PROVIDER=twilio`, `TWILIO_*`, `SMS_SENDER`, `CAPTCHA_*`,
+   `TELEGRAM_*`. Секреты генерируются на сервере и не пересылаются в чатах.
+3. **SMS в США** — отправитель в Twilio должен быть зарегистрирован (10DLC или toll-free
+   verification) до запуска: без регистрации операторы режут сообщения. Регистрация занимает
+   от нескольких дней.
+4. **Капча** — в Cloudflare Turnstile добавить домены сайтов клиник (виджет Turnstile
+   проверяет домен страницы).
+5. **Бот** — раздел 5 выше: токен, `telegram-setup.ts`.
+6. **Выкладка** — `DEPLOY_HOST=… deploy/deploy.sh`. Демо-данные (`pnpm seed`) на бою не
+   запускать.
+7. **Оператор** — создать своего оператора, войти, в «Состоянии платформы» все три
+   провайдера — «настроен».
+8. **Резервные копии** — cron из раздела выше и копирование копий с сервера.
+9. **Мониторинг** — внешняя проверка `https://<домен>/health` раз в минуту (UptimeRobot,
+   Better Stack и т. п.) с уведомлением; в панели оператора — очереди и ошибки доставки.
+10. **Проверка под нагрузкой** — `apps/api/src/load-test.ts`: N одновременных холдов одного
+    слота дают столько записей, сколько врачей свободно (у одного врача — одну). Лимит
+    холдов с IP (`PUBLIC_IP_RATE_LIMIT`, 10 в минуту) на время прогона поднять или гонять
+    `--n 10`. Полный цикл с кодом из SMS на 50 клиентов проверяет
+    `apps/api/test/load.integration.test.ts`.
+11. **Первая клиника** — регистрация в панели, офис, врачи, услуги, часы, ключ сайта; форма
+    на сайте клиники по [docs/embed.md](../docs/embed.md).
 
 ## Тестовый стенд
 

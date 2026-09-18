@@ -11,6 +11,32 @@ produced them (CLAUDE.md §9).
 
 ## [Unreleased]
 
+### Шаг 10 — сдача (закрыт 2026-09-18)
+
+#### Added
+
+- `feat(api): add the platform operator api` — `/v1/admin/operator`: клиники со сводкой,
+  приостановка и возобновление, состояние платформы (провайдеры, очереди BullMQ, ошибки
+  доставки за сутки); команда `create-operator.ts`; бот отказывает приостановленной клинике.
+- `feat(admin): add the platform operator panel` — «Оператор платформы» в панели, вход ведёт
+  туда по роли.
+- `test: add the booking load test` — `apps/api/src/load-test.ts` и
+  `load.integration.test.ts`: 50 клиентов на один слот → одна запись.
+- `feat(deploy): back up the database and rotate container logs` — `deploy/backup.sh`,
+  `x-logging` в `deploy/docker-compose.yml`.
+- `docs: add the public API reference and embed guide` — `docs/api/public-api.md`,
+  `docs/embed.md`.
+- `docs: close step 10 and add ADR-0013`, Q18; чек-лист боевого запуска.
+
+#### Changed
+
+- `POST /v1/admin/auth/login` отвечает `200 { role }` вместо `204`.
+
+#### Verified
+
+- 444 теста, `pnpm lint`, `pnpm typecheck` зелёные; `pnpm test:e2e` — 12 сценариев;
+  нагрузочный прогон на стенде.
+
 ### Шаг 9 — журнал и отчёты (закрыт 2026-09-18)
 
 #### Added

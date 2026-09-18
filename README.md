@@ -7,11 +7,17 @@ read it before changing anything.
 
 ## Status
 
-Step 1 of 10 (skeleton and database) is done: the Drizzle schema, migrations and seeds are
-in place, and the double-booking constraint is covered by a concurrency test. Step 2
-(availability engine) is next. No API endpoints or UI yet.
-Current state per step: [docs/PROGRESS.md](docs/PROGRESS.md); open questions:
-[docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md).
+All ten steps of the plan are done and deployed to the test environment
+(https://dentbook.mashna.am): availability engine, clinic panel with the front desk journal,
+public API and embeddable booking form, Telegram bot and dentist Mini App, SMS notifications
+and reminders, reports and the platform operator panel. Production deployment waits for the
+client's server. Current state per step: [docs/PROGRESS.md](docs/PROGRESS.md); open
+questions: [docs/OPEN-QUESTIONS.md](docs/OPEN-QUESTIONS.md).
+
+Documentation for clinics and their developers:
+
+- [Adding the booking form to a website](docs/embed.md)
+- [Public booking API](docs/api/public-api.md)
 
 ## Layout
 
@@ -63,6 +69,7 @@ Server setup, nginx/TLS and the deploy script are described in
 | `pnpm lint`                              | ESLint + Prettier check                    |
 | `pnpm typecheck`                         | `tsc -b` across the workspace              |
 | `pnpm test`                              | Vitest (unit + Testcontainers integration) |
+| `pnpm test:e2e`                          | browser tests (Playwright + Chromium)      |
 | `pnpm test:coverage`                     | coverage report                            |
 | `pnpm migrate` / `pnpm migrate:generate` | apply / generate Drizzle migrations        |
 | `pnpm seed`                              | seed demo data                             |
