@@ -26,3 +26,6 @@ export const passwordSchema = z.string().min(10).max(200);
 export const nameSchema = z.string().trim().min(1).max(200);
 
 export const uuidSchema = z.uuid();
+
+/** Телефон в E.164: '+12025550123'. Приводит к нему форма записи. */
+export const phoneSchema = z.string().regex(/^\+[1-9]\d{6,14}$/, 'E.164, e.g. +12025550123');

@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./cache-keys": "./src/cache-keys.ts",
     "./domain": "./src/domain.ts",
     "./errors": "./src/errors.ts"
   },

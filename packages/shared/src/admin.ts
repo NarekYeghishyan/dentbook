@@ -99,3 +99,39 @@ export interface MeResponse {
   user: StaffUser;
   clinic: ClinicSettings;
 }
+
+// --- ключи виджета (§2.5) ---
+
+/** Ровно origin: 'https://example.com' или 'http://localhost:8080' — без пути и слеша. */
+export const originSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .refine((value) => {
+    try {
+      const url = new URL(value);
+      return ['http:', 'https:'].includes(url.protocol) && url.origin === value;
+    } catch {
+      return false;
+    }
+  }, 'Origin like https://example.com');
+
+export const createApiKeySchema = z.object({
+  name: nameSchema,
+  allowedOrigins: z.array(originSchema).min(1).max(20),
+});
+export type CreateApiKeyInput = z.input<typeof createApiKeySchema>;
+
+export const updateApiKeySchema = createApiKeySchema.partial();
+export type UpdateApiKeyInput = z.input<typeof updateApiKeySchema>;
+
+export interface ApiKey {
+  id: string;
+  name: string;
+  /** pk_… — публичный по природе: лежит в HTML сайта клиники. */
+  token: string;
+  allowedOrigins: string[];
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}
