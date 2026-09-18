@@ -126,7 +126,7 @@ describe('sms queue (Step 8)', () => {
     expect(sent[0]!.to).toMatch(/^\+120255510\d\d$/);
     // 10:00 UTC = 11:00 в Берлине (зимнее время)
     expect(normalize(sent[0]!.text)).toMatch(
-      /^Demo Dental: a reminder of your visit on \w{3}, Mar \d{1,2}, 11:00 AM at Main office\.$/,
+      /^Demo Dental: a reminder of your visit on \w{3}, Mar \d{1,2}, 11:00 AM at Main office\. Reply STOP to opt out\.$/,
     );
     expect(await stateOf(notificationId)).toMatchObject({
       status: 'sent',
@@ -144,7 +144,9 @@ describe('sms queue (Step 8)', () => {
       sms: sender,
       now: () => new Date(startAt.getTime() - 48 * HOUR),
     })(job(notificationId));
-    expect(sent[0]!.text).toMatch(/^Demo Dental: your visit on .+ at Main office is confirmed\.$/);
+    expect(sent[0]!.text).toMatch(
+      /^Demo Dental: your visit on .+ at Main office is confirmed\. Reply STOP to opt out\.$/,
+    );
   });
 
   it.each([

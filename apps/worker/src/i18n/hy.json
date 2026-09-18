@@ -1,5 +1,6 @@
 {
   "sms.confirmed": "{clinic}: ձեր այցը {when}, {office}, հաստատված է։",
   "sms.reminder24h": "{clinic}: հիշեցնում ենք ձեր այցի մասին՝ {when}, {office}։",
-  "sms.reminder2h": "{clinic}: շուտով սպասում ենք ձեզ։ Այցը՝ {when}, {office}։"
+  "sms.reminder2h": "{clinic}: շուտով սպասում ենք ձեզ։ Այցը՝ {when}, {office}։",
+  "sms.optOut": "Բաժանորդագրությունը դադարեցնելու համար պատասխանեք STOP։"
 }

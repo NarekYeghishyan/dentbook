@@ -26,16 +26,32 @@ const TEMPLATES: Partial<Record<NotificationKind, MessageKey>> = {
   reminder_2h: 'sms.reminder2h',
 };
 
+/** Тихие часы по времени офиса (Q16): с 21:00 до 8:00 напоминания не шлём. */
+export const QUIET_FROM_HOUR = 21;
+export const QUIET_UNTIL_HOUR = 8;
+
+/** Час (0–23) по местному времени пояса. */
+export function localHour(at: Date, timeZone: string): number {
+  const hour = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour: 'numeric',
+    hourCycle: 'h23',
+  }).format(at);
+  return Number(hour);
+}
+
 /**
  * Почему уведомление уже не нужно, или null. Клиенту пишем только о подтверждённой
- * будущей записи; напоминание за сутки, опоздавшее к сроку напоминания за 2 ч, не шлём —
- * его заменит второе.
+ * будущей записи. Напоминание за сутки, опоздавшее к сроку напоминания за 2 ч, не шлём —
+ * его заменит второе. Напоминание в тихие часы пропускаем (Q16): у раннего визита
+ * остаётся напоминание за сутки.
  */
 export function skipReason(
   kind: NotificationKind,
   status: AppointmentStatus,
   startAt: Date,
   now: Date,
+  timeZone: string,
 ): string | null {
   if (status !== 'confirmed') return `appointment_${status}`;
   if (now >= startAt) return 'visit_started';
@@ -44,6 +60,10 @@ export function skipReason(
     now.getTime() >= startAt.getTime() - REMINDER_OFFSETS_MS.reminder_2h
   ) {
     return 'superseded';
+  }
+  if (kind === 'reminder_24h' || kind === 'reminder_2h') {
+    const hour = localHour(now, timeZone);
+    if (hour >= QUIET_FROM_HOUR || hour < QUIET_UNTIL_HOUR) return 'quiet_hours';
   }
   return null;
 }
@@ -101,7 +121,7 @@ export function smsProcessor(deps: { db: Database; sms: SmsSender; now?: () => D
     // Снято при отмене записи или уже отправлено прошлой попыткой
     if (!row || row.status !== 'scheduled') return 'skipped';
 
-    const reason = skipReason(row.kind, row.appointmentStatus, row.startAt, now);
+    const reason = skipReason(row.kind, row.appointmentStatus, row.startAt, now, row.zone);
     if (reason) {
       await mark(id, { status: 'cancelled', lastError: reason });
       return 'skipped';
@@ -112,11 +132,12 @@ export function smsProcessor(deps: { db: Database; sms: SmsSender; now?: () => D
       throw new UnrecoverableError(`no SMS template for ${row.kind}`);
     }
     const locale = row.locale as Locale;
-    const text = translate(locale, template, {
+    // Текст об отписке — в каждом уведомлении (Q16); STOP обрабатывает сам провайдер
+    const text = `${translate(locale, template, {
       clinic: row.clinic,
       when: formatWhen(row.startAt, row.zone, locale),
       office: row.office,
-    });
+    })} ${translate(locale, 'sms.optOut')}`;
 
     const attempt = job.attemptsMade + 1;
     try {

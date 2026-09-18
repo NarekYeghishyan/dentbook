@@ -23,7 +23,9 @@ produced them (CLAUDE.md §9).
 - `feat(worker): send client sms from the queue` — текст из БД в момент отправки, шаблоны
   en/ru/hy, пропуск неуместных уведомлений (запись не подтверждена, визит начался),
   повторы с паузой, постоянный отказ — сразу `failed`.
-- `docs: add ADR-0011`, Q16 (тихие часы, текст об отписке).
+- `feat(worker): keep quiet hours and add the opt-out line` — Q16: напоминания на
+  21:00–8:00 по времени офиса не шлются, в каждом SMS — «Reply STOP to opt out».
+- `docs: add ADR-0011`, Q16 и Q17 с ответами.
 
 #### Changed
 

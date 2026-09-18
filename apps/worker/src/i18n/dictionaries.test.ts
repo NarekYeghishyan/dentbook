@@ -17,12 +17,12 @@ describe('client SMS templates (§9)', () => {
     }
   });
 
-  it('fits an English reminder into one SMS segment', () => {
-    const text = translate('en', 'sms.reminder2h', {
+  it('fits an English reminder with the opt-out line into one SMS segment', () => {
+    const text = `${translate('en', 'sms.reminder2h', {
       clinic: 'Brooklyn Family Dental Care',
       when: 'Wed, Sep 30, 10:30 AM',
       office: 'Downtown Brooklyn office',
-    });
+    })} ${translate('en', 'sms.optOut')}`;
     expect(text.length).toBeLessThanOrEqual(160);
   });
 });
