@@ -104,3 +104,80 @@ export function as(app: FastifyInstance, session: Session | null, options: Injec
     headers: { ...options.headers, ...(session ? { cookie: session.cookie } : {}) },
   });
 }
+
+/** Запрос от имени сессии с проверкой статуса; возвращает тело. */
+export async function call<T = unknown>(
+  app: FastifyInstance,
+  session: Session,
+  options: InjectOptions,
+  expectedStatus = 200,
+): Promise<T> {
+  const res = await as(app, session, options);
+  expect(res.statusCode, `${options.method} ${options.url}: ${res.body}`).toBe(expectedStatus);
+  return (res.body ? res.json() : undefined) as T;
+}
+
+export interface ClinicFixture {
+  locationId: string;
+  serviceId: string;
+  dentistId: string;
+}
+
+/**
+ * Минимальная клиника: филиал, услуга 30 мин, врач с этой услугой и сменами пн–пт
+ * 09:00–17:00 по времени филиала.
+ */
+export async function createClinicData(
+  app: FastifyInstance,
+  owner: Session,
+  options: { timezone?: string; dentistName?: string } = {},
+): Promise<ClinicFixture> {
+  const location = await call<{ id: string }>(
+    app,
+    owner,
+    {
+      method: 'POST',
+      url: '/v1/admin/locations',
+      payload: { name: 'Main office', timezone: options.timezone ?? 'America/New_York' },
+    },
+    201,
+  );
+  const service = await call<{ id: string }>(
+    app,
+    owner,
+    {
+      method: 'POST',
+      url: '/v1/admin/services',
+      payload: { name: 'Checkup', durationMin: 30, price: '80.00' },
+    },
+    201,
+  );
+  const dentist = await call<{ id: string }>(
+    app,
+    owner,
+    {
+      method: 'POST',
+      url: '/v1/admin/dentists',
+      payload: { fullName: options.dentistName ?? 'Dr. Anna' },
+    },
+    201,
+  );
+  await call(app, owner, {
+    method: 'PUT',
+    url: `/v1/admin/dentists/${dentist.id}/services`,
+    payload: { serviceIds: [service.id] },
+  });
+  await call(app, owner, {
+    method: 'PUT',
+    url: `/v1/admin/dentists/${dentist.id}/working-hours`,
+    payload: {
+      items: [1, 2, 3, 4, 5].map((weekday) => ({
+        locationId: location.id,
+        weekday,
+        startTime: '09:00',
+        endTime: '17:00',
+      })),
+    },
+  });
+  return { locationId: location.id, serviceId: service.id, dentistId: dentist.id };
+}
