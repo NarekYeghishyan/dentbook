@@ -11,6 +11,44 @@ produced them (CLAUDE.md §9).
 
 ## [Unreleased]
 
+### Шаг 3 — аутентификация и тенантность (закрыт 2026-09-18)
+
+#### Added
+
+- `feat(shared): add admin api schemas` — `validators.ts` (пояс, валюта, email, пароль, языки
+  en/ru/hy), `admin.ts` (регистрация, вход, настройки клиники, сотрудники, формы ответов).
+- `feat(api): add app factory and error handling` — `buildApp()` для сервера и тестов, единый
+  формат ошибок §7, `parse()` через zod, ошибки БД в логах без ПДн (§2.6), `trustProxy` на одно
+  звено.
+- `feat(api): add admin sessions` — JWT в httpOnly-cookie (`SameSite=Strict`), пароли на
+  `scrypt`, роль и активность из БД на каждом запросе, `config.roles` на роутах.
+- `feat(api): add clinic registration and login` — `/v1/admin/auth/register|login|logout`,
+  лимит попыток по IP, `GET /v1/admin/me`.
+- `feat(api): add clinic settings and staff management` — `GET|PATCH /v1/admin/clinic`,
+  `GET|POST /v1/admin/users`, `GET|PATCH /v1/admin/users/:id`.
+- `test(db): add test database helper` — `@dentbook/db/testing`: Postgres в Testcontainers
+  с миграциями.
+- `test(api): cover auth, staff and tenant isolation` — изоляция тенантов на каждом роуте
+  `/v1/admin`, сессии (истёкшая, чужая подпись, отключённый сотрудник, смена роли),
+  приостановленная клиника, оператор платформы, лимит попыток.
+- `docs: add ADR-0006` — сессии, роли, изоляция тенантов.
+
+#### Changed
+
+- `.env.example`: `JWT_SECRET`, `JWT_ACCESS_TTL`, `AUTH_RATE_LIMIT`; `JWT_REFRESH_TTL` убран —
+  refresh-токенов нет (ADR-0006). `deploy/README.md`: `JWT_SECRET` на сервере.
+
+#### Fixed
+
+- до коммита: срок сессии задавался числом, и `@fastify/jwt` понимал его как секунды вместо
+  миллисекунд — сессия жила бы в 1000 раз дольше. Срок передаётся строкой (`43200s`),
+  тест на истёкшую сессию это проверяет.
+
+#### Verified
+
+- 166 тестов, `pnpm lint`, `pnpm typecheck` зелёные;
+- тест изоляции падает, если убрать фильтр по `clinic_id` из запроса сотрудника.
+
 ### Шаг 2 — движок доступности (закрыт 2026-09-18)
 
 #### Added

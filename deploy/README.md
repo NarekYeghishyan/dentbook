@@ -44,12 +44,18 @@ cat > /opt/dentbook/.env <<EOF
 LOG_LEVEL=info
 API_HOST_PORT=3100
 POSTGRES_PASSWORD=$(openssl rand -hex 24)
+JWT_SECRET=$(openssl rand -hex 32)
 EOF
 ```
 
-`DATABASE_URL` и `REDIS_URL` собирает `docker-compose.yml`. Переменные следующих шагов
-(`JWT_*`, `TELEGRAM_*`, `SMS_*`, `CAPTCHA_*` — см. `.env.example`) дописываются в этот же
-файл: он целиком передаётся контейнерам.
+`DATABASE_URL` и `REDIS_URL` собирает `docker-compose.yml`. Без `JWT_SECRET` API не
+стартует. Переменные следующих шагов (`TELEGRAM_*`, `SMS_*`, `CAPTCHA_*` — см.
+`.env.example`) дописываются в этот же файл: он целиком передаётся контейнерам. На уже
+развёрнутом сервере недостающий секрет дописывается так:
+
+```bash
+grep -q '^JWT_SECRET=' /opt/dentbook/.env || echo "JWT_SECRET=$(openssl rand -hex 32)" >> /opt/dentbook/.env
+```
 
 ### 3. Первая выкладка
 
