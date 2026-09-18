@@ -10,9 +10,11 @@ import type { Database } from '@dentbook/db';
 import type { Env } from './env.js';
 import { ApiError, errorHandler, sendError, serializeError } from './lib/errors.js';
 import { adminStatic } from './plugins/admin-static.js';
+import { widgetStatic } from './plugins/widget-static.js';
 import { sessionPlugin } from './plugins/session.js';
 import { adminRoutes } from './routes/admin/index.js';
 import { publicRoutes } from './routes/public/index.js';
+import type { CaptchaVerifier } from './services/captcha.js';
 import { RedisSlotCache } from './services/slot-cache.js';
 import type { SmsSender } from './services/sms.js';
 import { deriveVerificationKey } from './services/verification.js';
@@ -25,8 +27,10 @@ export interface AppDeps {
    * лимит на ключ в §7 без общего счётчика не выполнить.
    */
   redis?: Redis;
-  /** Отправка SMS; до Шага 6 провайдера нет — POST /verifications отвечает 503. */
+  /** Отправка SMS; без провайдера POST /verifications отвечает 503. */
   sms?: SmsSender;
+  /** Капча перед SMS; без неё код отправляется без капчи. */
+  captcha?: CaptchaVerifier;
   /** false — без логов (тесты). */
   logger?: LoggerOption;
 }
@@ -67,7 +71,7 @@ function loggerOptions(env: Env): LoggerOption {
  * Плагины регистрируются без await и загружаются на ready() — тест успевает
  * повесить свои хуки (например, onRoute) до загрузки роутов.
  */
-export function buildApp({ env, db, redis, sms, logger }: AppDeps): FastifyInstance {
+export function buildApp({ env, db, redis, sms, captcha, logger }: AppDeps): FastifyInstance {
   const app = Fastify({
     logger: logger ?? loggerOptions(env),
     // Сквозной request_id (CLAUDE.md §9)
@@ -114,6 +118,7 @@ export function buildApp({ env, db, redis, sms, logger }: AppDeps): FastifyInsta
       redis,
       ...(cache ? { cache } : {}),
       ...(sms ? { sms } : {}),
+      ...(captcha ? { captcha } : {}),
       holdTtlSec: env.HOLD_TTL_SEC,
       perKeyPerMin: env.PUBLIC_KEY_RATE_LIMIT,
       perIpPerMin: env.PUBLIC_IP_RATE_LIMIT,
@@ -121,6 +126,7 @@ export function buildApp({ env, db, redis, sms, logger }: AppDeps): FastifyInsta
     });
   }
   if (env.ADMIN_DIST_DIR) app.register(adminStatic, { root: env.ADMIN_DIST_DIR });
+  if (env.WIDGET_DIST_DIR) app.register(widgetStatic, { root: env.WIDGET_DIST_DIR });
 
   return app;
 }
