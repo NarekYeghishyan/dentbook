@@ -18,6 +18,7 @@ import type {
   PublicAppointment,
 } from '@dentbook/shared';
 import { ApiError, notFound } from '../lib/errors.js';
+import type { Notifier } from './notifier.js';
 import type { SlotCache } from './slot-cache.js';
 import { checkCode, consumeVerification } from './verification.js';
 
@@ -79,7 +80,7 @@ async function loadAppointment(
 export async function confirmAppointment(
   db: Database,
   input: ConfirmAppointmentInput,
-  params: { clinicId: string; now: Date; key: Buffer },
+  params: { clinicId: string; now: Date; key: Buffer; notifier: Notifier },
 ): Promise<ConfirmedAppointment> {
   const { clinicId, now } = params;
   await checkCode(db, {
@@ -137,7 +138,8 @@ export async function confirmAppointment(
     if (!appointment) throw holdExpired();
     return appointment.id;
   });
-  // TODO(Шаг 7): алерт врачу в Telegram; TODO(Шаг 8): SMS клиенту и напоминания
+  // TODO(Шаг 8): SMS клиенту и напоминания
+  await params.notifier.appointmentCreated(clinicId, id);
   const { appointment, token } = await loadAppointment(db, clinicId, id);
   return { ...appointment, token };
 }
@@ -154,7 +156,7 @@ export async function getAppointment(
 export async function cancelAppointment(
   db: Database,
   cache: SlotCache | undefined,
-  params: { clinicId: string; id: string; token: string; now: Date },
+  params: { clinicId: string; id: string; token: string; now: Date; notifier: Notifier },
 ): Promise<PublicAppointment> {
   const { clinicId, id, token, now } = params;
   const [row] = await db
@@ -172,7 +174,8 @@ export async function cancelAppointment(
     .returning({ dentistId: appointments.dentistId });
   if (row) {
     await cache?.invalidateDentist(clinicId, row.dentistId);
-    // TODO(Шаг 8): снять напоминания; TODO(Шаг 7): сообщить врачу
+    await params.notifier.appointmentCancelled(clinicId, id);
+    // TODO(Шаг 8): снять напоминания
   }
   const appointment = await getAppointment(db, { clinicId, id, token });
   if (!row && appointment.status !== 'cancelled') {

@@ -22,6 +22,8 @@ export interface AdminRoutesOptions {
   db: Database;
   authRateLimitPerMin: number;
   cache?: SlotCache;
+  /** Имя бота Telegram, если он настроен. */
+  telegramBot?: string;
 }
 
 export const adminRoutes: FastifyPluginAsync<AdminRoutesOptions> = async (app, opts) => {
@@ -40,7 +42,11 @@ export const adminRoutes: FastifyPluginAsync<AdminRoutesOptions> = async (app, o
     await clinicScope.register(userRoutes, { prefix: '/users', db });
     await clinicScope.register(locationRoutes, { prefix: '/locations', ...withCache });
     await clinicScope.register(serviceRoutes, { prefix: '/services', ...withCache });
-    await clinicScope.register(dentistRoutes, { prefix: '/dentists', ...withCache });
+    await clinicScope.register(dentistRoutes, {
+      prefix: '/dentists',
+      ...withCache,
+      ...(opts.telegramBot ? { telegramBot: opts.telegramBot } : {}),
+    });
     await clinicScope.register(availabilityRoutes, { prefix: '/availability', ...withCache });
     await clinicScope.register(apiKeyRoutes, { prefix: '/api-keys', db });
   });

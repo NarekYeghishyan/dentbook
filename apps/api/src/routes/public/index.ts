@@ -27,6 +27,7 @@ import { computeAvailability } from '../../services/availability.js';
 import { cancelAppointment, confirmAppointment, getAppointment } from '../../services/booking.js';
 import { createHold, releaseHold } from '../../services/holds.js';
 import type { CaptchaVerifier } from '../../services/captcha.js';
+import type { Notifier } from '../../services/notifier.js';
 import type { SlotCache } from '../../services/slot-cache.js';
 import type { SmsSender } from '../../services/sms.js';
 import { createVerification } from '../../services/verification.js';
@@ -44,6 +45,8 @@ export interface PublicRoutesOptions {
   perIpPerMin: number;
   /** Ключ HMAC для SMS-кодов. */
   verificationKey: Buffer;
+  /** Уведомления врачу о записях и отменах. */
+  notifier: Notifier;
 }
 
 export const publicRoutes: FastifyPluginAsync<PublicRoutesOptions> = async (app, opts) => {
@@ -186,6 +189,7 @@ export const publicRoutes: FastifyPluginAsync<PublicRoutesOptions> = async (app,
       clinicId: publicOf(request).clinicId,
       now: new Date(),
       key: opts.verificationKey,
+      notifier: opts.notifier,
     });
     return reply.status(201).send(appointment);
   });
@@ -203,6 +207,7 @@ export const publicRoutes: FastifyPluginAsync<PublicRoutesOptions> = async (app,
       id: idOf(request),
       token: result.data.token,
       now: new Date(),
+      notifier: opts.notifier,
     });
   });
 };

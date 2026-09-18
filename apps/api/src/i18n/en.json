@@ -1,3 +1,16 @@
 {
-  "sms.verificationCode": "{code} is your {clinic} booking code. It expires in 5 minutes."
+  "sms.verificationCode": "{code} is your {clinic} booking code. It expires in 5 minutes.",
+  "tg.linked": "Hi, {name}! This Telegram is now connected to {clinic}. New bookings will arrive here.",
+  "tg.linkInvalid": "This link is invalid or has expired. Ask the clinic for a new one.",
+  "tg.linkTaken": "This Telegram account is already connected to another dentist.",
+  "tg.notLinked": "Hi! To get bookings here, open the connection link from your clinic.",
+  "tg.welcomeBack": "You are connected to {clinic}.",
+  "tg.openSchedule": "📅 Open schedule",
+  "tg.confirm": "✅ Confirm",
+  "tg.newBooking": "New booking\n{when}\n{service} · {office}\nClient: {client}, {phone}",
+  "tg.newBookingPending": "New booking awaits your confirmation\n{when}\n{service} · {office}\nClient: {client}, {phone}",
+  "tg.pendingReminder": "Reminder: this booking still awaits confirmation\n{when}\n{service} · {office}\nClient: {client}, {phone}",
+  "tg.cancelled": "Booking cancelled by the client\n{when}\n{service} · {office}\nClient: {client}",
+  "tg.confirmed": "Confirmed: {when}, {client}.",
+  "tg.alreadyHandled": "This booking no longer awaits confirmation."
 }

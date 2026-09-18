@@ -1,3 +1,16 @@
 {
-  "sms.verificationCode": "{code}՝ {clinic}-ում գրանցման կոդը։ Գործում է 5 րոպե։"
+  "sms.verificationCode": "{code}՝ {clinic}-ում գրանցման կոդը։ Գործում է 5 րոպե։",
+  "tg.linked": "Բարև, {name}։ Այս Telegram-ը միացված է {clinic} կլինիկային։ Նոր գրանցումները կգան այստեղ։",
+  "tg.linkInvalid": "Հղումն անվավեր է կամ ժամկետանց։ Կլինիկայից խնդրեք նորը։",
+  "tg.linkTaken": "Այս Telegram հաշիվն արդեն միացված է այլ բժշկի։",
+  "tg.notLinked": "Բարև։ Գրանցումներն այստեղ ստանալու համար բացեք կլինիկայից ստացած միացման հղումը։",
+  "tg.welcomeBack": "Դուք միացված եք {clinic} կլինիկային։",
+  "tg.openSchedule": "📅 Բացել գրաֆիկը",
+  "tg.confirm": "✅ Հաստատել",
+  "tg.newBooking": "Նոր գրանցում\n{when}\n{service} · {office}\nՀաճախորդ՝ {client}, {phone}",
+  "tg.newBookingPending": "Նոր գրանցումը սպասում է ձեր հաստատմանը\n{when}\n{service} · {office}\nՀաճախորդ՝ {client}, {phone}",
+  "tg.pendingReminder": "Հիշեցում․ գրանցումը դեռ սպասում է հաստատման\n{when}\n{service} · {office}\nՀաճախորդ՝ {client}, {phone}",
+  "tg.cancelled": "Հաճախորդը չեղարկել է գրանցումը\n{when}\n{service} · {office}\nՀաճախորդ՝ {client}",
+  "tg.confirmed": "Հաստատված է՝ {when}, {client}։",
+  "tg.alreadyHandled": "Այս գրանցումն այլևս չի սպասում հաստատման։"
 }

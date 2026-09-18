@@ -40,6 +40,8 @@ export interface AvailabilityRequest {
   now: Date;
   /** Показывать ли услуги, скрытые от виджета, и неактивные филиалы (админке — да). */
   includeHidden: boolean;
+  /** Без минимального запаса min_lead_min: врач записывает своего клиента (Mini App). */
+  ignoreLeadTime?: boolean;
 }
 
 const MINUTE_MS = 60_000;
@@ -234,7 +236,8 @@ export async function computeAvailability(
       windowEnd: dayBounds(addDays(to, 1), timeZone).end,
       now,
     });
-    const notBefore = new Date(now.getTime() + clinic.minLeadMin * MINUTE_MS);
+    const leadMin = request.ignoreLeadTime ? 0 : clinic.minLeadMin;
+    const notBefore = new Date(now.getTime() + leadMin * MINUTE_MS);
     const computed = missing.map(({ dentistId, date }) => {
       const starts = computeDaySlots({
         date,

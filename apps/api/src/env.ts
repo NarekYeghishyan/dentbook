@@ -42,6 +42,24 @@ const envSchema = z
     TWILIO_AUTH_TOKEN: z.string().min(1).optional(),
     // Отправитель: номер в E.164 или Messaging Service SID (MG…)
     SMS_SENDER: z.string().min(1).optional(),
+    // Адрес платформы снаружи: вебхук Telegram и Mini App (https://dentbook.mashna.am)
+    PUBLIC_BASE_URL: z.url().optional(),
+    // Бот Telegram (§8); без токена бот, вебхук и Mini App выключены
+    TELEGRAM_BOT_TOKEN: z
+      .string()
+      .regex(/^\d+:[\w-]{30,}$/)
+      .optional(),
+    TELEGRAM_BOT_USERNAME: z
+      .string()
+      .regex(/^\w{5,32}$/)
+      .optional(),
+    // Секрет заголовка X-Telegram-Bot-Api-Secret-Token: openssl rand -hex 32
+    TELEGRAM_WEBHOOK_SECRET: z
+      .string()
+      .regex(/^[\w-]{16,256}$/)
+      .optional(),
+    // Каталог собранного Mini App; не задан — /miniapp не раздаётся
+    MINIAPP_DIST_DIR: z.string().min(1).optional(),
   })
   .superRefine((env, ctx) => {
     const missing = (names: (keyof typeof env)[]) =>
@@ -51,6 +69,9 @@ const envSchema = z
     if (env.CAPTCHA_SITE_KEY || env.CAPTCHA_SECRET) missing(['CAPTCHA_SITE_KEY', 'CAPTCHA_SECRET']);
     if (env.SMS_PROVIDER === 'twilio')
       missing(['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'SMS_SENDER']);
+    if (env.TELEGRAM_BOT_TOKEN) {
+      missing(['TELEGRAM_BOT_USERNAME', 'TELEGRAM_WEBHOOK_SECRET', 'PUBLIC_BASE_URL']);
+    }
   });
 
 export type Env = z.infer<typeof envSchema>;

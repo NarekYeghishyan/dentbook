@@ -1,3 +1,16 @@
 {
-  "sms.verificationCode": "{code} — код записи в {clinic}. Действует 5 минут."
+  "sms.verificationCode": "{code} — код записи в {clinic}. Действует 5 минут.",
+  "tg.linked": "Здравствуйте, {name}! Этот Telegram подключён к клинике {clinic}. Новые записи будут приходить сюда.",
+  "tg.linkInvalid": "Ссылка недействительна или истекла. Попросите в клинике новую.",
+  "tg.linkTaken": "Этот аккаунт Telegram уже подключён к другому врачу.",
+  "tg.notLinked": "Здравствуйте! Чтобы получать записи здесь, откройте ссылку подключения от клиники.",
+  "tg.welcomeBack": "Вы подключены к клинике {clinic}.",
+  "tg.openSchedule": "📅 Открыть расписание",
+  "tg.confirm": "✅ Подтвердить",
+  "tg.newBooking": "Новая запись\n{when}\n{service} · {office}\nКлиент: {client}, {phone}",
+  "tg.newBookingPending": "Новая запись ждёт вашего подтверждения\n{when}\n{service} · {office}\nКлиент: {client}, {phone}",
+  "tg.pendingReminder": "Напоминание: запись всё ещё ждёт подтверждения\n{when}\n{service} · {office}\nКлиент: {client}, {phone}",
+  "tg.cancelled": "Клиент отменил запись\n{when}\n{service} · {office}\nКлиент: {client}",
+  "tg.confirmed": "Подтверждено: {when}, {client}.",
+  "tg.alreadyHandled": "Эта запись больше не ждёт подтверждения."
 }

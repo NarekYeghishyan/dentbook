@@ -3,6 +3,7 @@
  * Приоритет (§6) задаётся порядком: PUT /dentists/order с полным списком врачей.
  * Удаления врача нет: на него ссылаются записи, он отключается.
  */
+import { randomBytes } from 'node:crypto';
 import { and, asc, eq, gt, inArray, lt, max } from 'drizzle-orm';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -14,6 +15,7 @@ import {
   locations,
   scheduleExceptions,
   services,
+  telegramLinkTokens,
   workingHours,
   type Database,
 } from '@dentbook/db';
@@ -28,6 +30,7 @@ import {
   workingHoursSchema,
   type Dentist,
   type ScheduleExceptionItem,
+  type TelegramLink,
   type WorkingHoursItem,
 } from '@dentbook/shared';
 import { ApiError, notFound, parse } from '../../lib/errors.js';
@@ -35,6 +38,8 @@ import { idOf } from '../../lib/params.js';
 import { authOf, MANAGERS } from '../../plugins/session.js';
 import { findConflictingAppointments, timeHasAppointments } from '../../services/schedule.js';
 import type { SlotCache } from '../../services/slot-cache.js';
+import { hashLinkToken } from '../../telegram/bot.js';
+import { linkUrl } from '../../telegram/outbox.js';
 
 /** Шаг приоритета: между соседями остаётся место. */
 const PRIORITY_STEP = 10;
@@ -45,7 +50,11 @@ const dentistColumns = {
   priority: dentists.priority,
   isActive: dentists.isActive,
   telegramChatId: dentists.telegramChatId,
+  telegramBlocked: dentists.telegramBlocked,
 };
+
+/** Ссылка привязки Telegram живёт сутки (§8). */
+const LINK_TTL_MS = 24 * 60 * 60 * 1000;
 
 const exceptionColumns = {
   id: scheduleExceptions.id,
@@ -74,9 +83,16 @@ const toException = (row: {
   endAt: row.endAt.toISOString(),
 });
 
-export const dentistRoutes: FastifyPluginAsync<{ db: Database; cache?: SlotCache }> = async (
+export interface DentistRoutesOptions {
+  db: Database;
+  cache?: SlotCache;
+  /** Имя бота; без него (бот не настроен) ссылки привязки не выдаются. */
+  telegramBot?: string;
+}
+
+export const dentistRoutes: FastifyPluginAsync<DentistRoutesOptions> = async (
   app,
-  { db, cache },
+  { db, cache, telegramBot },
 ) => {
   /** Расписание или записи врача изменились — его слоты в кеше больше не верны (§6). */
   const onScheduleChange = async (clinicId: string, dentistId: string) => {
@@ -196,6 +212,38 @@ export const dentistRoutes: FastifyPluginAsync<{ db: Database; cache?: SlotCache
       }
     });
     return loadDentists(clinicId);
+  });
+
+  // --- Telegram (§8, Q15) ---
+
+  /** Одноразовая ссылка t.me/<bot>?start=<token>; в БД — только SHA-256 токена. */
+  app.post('/:id/telegram-link', { config: MANAGERS }, async (request, reply) => {
+    const { clinicId, dentistId } = await dentistOf(request);
+    if (!telegramBot) throw new ApiError(503, 'internal_error', 'Telegram bot is not configured');
+    const token = randomBytes(32).toString('base64url');
+    const expiresAt = new Date(Date.now() + LINK_TTL_MS);
+    await db.insert(telegramLinkTokens).values({
+      tokenHash: hashLinkToken(token),
+      clinicId,
+      dentistId,
+      expiresAt,
+      createdBy: authOf(request).userId,
+    });
+    const link: TelegramLink = {
+      url: linkUrl(telegramBot, token),
+      expiresAt: expiresAt.toISOString(),
+    };
+    return reply.status(201).send(link);
+  });
+
+  /** Отвязать Telegram: врач перестаёт получать сообщения и входить в Mini App. */
+  app.delete('/:id/telegram', { config: MANAGERS }, async (request) => {
+    const { clinicId, dentistId } = await dentistOf(request);
+    await db
+      .update(dentists)
+      .set({ telegramChatId: null, telegramLinkedAt: null, telegramBlocked: false })
+      .where(and(eq(dentists.id, dentistId), eq(dentists.clinicId, clinicId)));
+    return loadDentist(clinicId, dentistId);
   });
 
   app.put('/:id/services', { config: MANAGERS }, async (request) => {
