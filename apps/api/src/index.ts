@@ -1,16 +1,21 @@
+import { Redis } from 'ioredis';
 import { createDatabase } from '@dentbook/db';
 import { buildApp } from './app.js';
 import { loadEnv } from './env.js';
 
 const env = loadEnv();
 const { db, pool } = createDatabase(env.DATABASE_URL);
-const app = buildApp({ env, db });
+const redis = new Redis(env.REDIS_URL);
+// TODO(Шаг 6): провайдер SMS (Q5) — до него POST /v1/public/verifications отвечает 503
+const app = buildApp({ env, db, redis });
+
+redis.on('error', (err: Error) => app.log.error({ err: err.message }, 'redis connection error'));
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.once(signal, () => {
     void app
       .close()
-      .then(() => pool.end())
+      .then(() => Promise.all([pool.end(), redis.quit()]))
       .then(() => process.exit(0));
   });
 }

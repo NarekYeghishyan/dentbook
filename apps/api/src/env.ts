@@ -25,6 +25,11 @@ const envSchema = z.object({
   AUTH_RATE_LIMIT: z.coerce.number().int().positive().default(10),
   // Каталог собранной админки (vite build); не задан — /admin не раздаётся
   ADMIN_DIST_DIR: z.string().min(1).optional(),
+  // Сколько секунд держится слот после POST /holds (Q4: 10 мин)
+  HOLD_TTL_SEC: z.coerce.number().int().positive().default(600),
+  // Лимиты публичного API (Q4): запросов в минуту на ключ; холдов и SMS в минуту с IP
+  PUBLIC_KEY_RATE_LIMIT: z.coerce.number().int().positive().default(60),
+  PUBLIC_IP_RATE_LIMIT: z.coerce.number().int().positive().default(10),
 });
 
 export type Env = z.infer<typeof envSchema>;
