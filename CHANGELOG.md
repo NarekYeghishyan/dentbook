@@ -11,6 +11,32 @@ produced them (CLAUDE.md §9).
 
 ## [Unreleased]
 
+### Шаг 6 — виджет (закрыт 2026-09-18)
+
+#### Added
+
+- `feat(widget): add booking form` — `apps/widget`: форма записи без фреймворка в Shadow DOM,
+  en/ru/hy, телефон → E.164, холд с обратным отсчётом, альтернативы, отмена; 8.2 КБ gzip.
+- `feat(api): add turnstile captcha and twilio sms` — капча перед SMS-кодом, Twilio REST,
+  провайдеры по переменным окружения; `GET /v1/public/config` отдаёт site key.
+- `feat(api): serve the widget bundle` — `/widget/dentbook-widget.js`, короткий кеш,
+  `Cross-Origin-Resource-Policy: cross-origin`; сборка и проверка размера в `Dockerfile`.
+- `feat(admin): show the embed code` — готовый код встраивания на странице «Сайт».
+- `test: add browser end-to-end booking test` — Playwright + Chromium в Vitest
+  (`pnpm test:e2e`), тестовая страница клиники на отдельном origin.
+- `docs: add ADR-0009`.
+
+#### Changed
+
+- `.env.example`: `SMS_PROVIDER`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `SMS_SENDER`,
+  `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET`, `WIDGET_DIST_DIR` вместо заготовок Шага 1.
+- Разбор окружения требует ключи Twilio при `SMS_PROVIDER=twilio` и пару ключей капчи.
+
+#### Verified
+
+- 310 тестов, `pnpm lint`, `pnpm typecheck` зелёные; `pnpm test:e2e` — 5 сценариев в
+  Chromium: запись end-to-end, изоляция стилей, телефон 375 px, чужой ключ, размер бандла.
+
 ### Шаг 5 — ключи и публичный API (закрыт 2026-09-18)
 
 #### Added
