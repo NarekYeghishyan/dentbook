@@ -1,8 +1,7 @@
 /** Внешние провайдеры по переменным окружения (Q5): SMS и капча. */
+import { TwilioSmsSender, type SmsSender } from '@dentbook/shared/sms';
 import type { Env } from '../env.js';
 import { TurnstileVerifier, type CaptchaVerifier } from './captcha.js';
-import { TwilioSmsSender } from './sms-twilio.js';
-import type { SmsSender } from './sms.js';
 
 export function providersFromEnv(env: Env): { sms?: SmsSender; captcha?: CaptchaVerifier } {
   return {

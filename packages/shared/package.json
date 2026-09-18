@@ -9,7 +9,8 @@
     "./domain": "./src/domain.ts",
     "./errors": "./src/errors.ts",
     "./phone": "./src/phone.ts",
-    "./queues": "./src/queues.ts"
+    "./queues": "./src/queues.ts",
+    "./sms": "./src/sms.ts"
   },
   "scripts": {
     "build": "tsc -b",

@@ -6,11 +6,11 @@ import { expect } from 'vitest';
 import type { Database } from '@dentbook/db';
 import type { RegisterClinicInput } from '@dentbook/shared';
 import type { TelegramJob } from '@dentbook/shared/queues';
+import type { SmsSender } from '@dentbook/shared/sms';
 import { buildApp } from '../src/app.js';
 import type { Env } from '../src/env.js';
 import { SESSION_COOKIE } from '../src/plugins/session.js';
 import type { CaptchaVerifier } from '../src/services/captcha.js';
-import type { SmsSender } from '../src/services/sms.js';
 import type { TelegramConfig, TelegramOutbox } from '../src/telegram/outbox.js';
 
 export function testEnv(overrides: Partial<Env> = {}): Env {
@@ -49,8 +49,9 @@ export function testApp(
 export class TestSms implements SmsSender {
   readonly sent: { to: string; text: string }[] = [];
 
-  async send(message: { to: string; text: string }): Promise<void> {
+  async send(message: { to: string; text: string }): Promise<{ id: string }> {
     this.sent.push(message);
+    return { id: `SM${this.sent.length}` };
   }
 
   lastCode(phone: string): string {

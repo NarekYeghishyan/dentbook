@@ -20,6 +20,7 @@ import {
   type PublicService,
 } from '@dentbook/shared';
 import type { Locale } from '@dentbook/shared/domain';
+import type { SmsSender } from '@dentbook/shared/sms';
 import { ApiError, notFound, parse } from '../../lib/errors.js';
 import { idOf } from '../../lib/params.js';
 import { publicOf, registerPublicAuth } from '../../plugins/public-auth.js';
@@ -29,7 +30,6 @@ import { createHold, releaseHold } from '../../services/holds.js';
 import type { CaptchaVerifier } from '../../services/captcha.js';
 import type { Notifier } from '../../services/notifier.js';
 import type { SlotCache } from '../../services/slot-cache.js';
-import type { SmsSender } from '../../services/sms.js';
 import { createVerification } from '../../services/verification.js';
 
 export interface PublicRoutesOptions {

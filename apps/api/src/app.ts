@@ -7,6 +7,7 @@ import Fastify, {
 } from 'fastify';
 import type { Redis } from 'ioredis';
 import type { Database } from '@dentbook/db';
+import type { SmsSender } from '@dentbook/shared/sms';
 import type { Env } from './env.js';
 import { ApiError, errorHandler, sendError, serializeError } from './lib/errors.js';
 import { ADMIN_HEADERS, MINIAPP_HEADERS, spaStatic } from './plugins/spa-static.js';
@@ -18,7 +19,6 @@ import { publicRoutes } from './routes/public/index.js';
 import type { CaptchaVerifier } from './services/captcha.js';
 import { createNotifier } from './services/notifier.js';
 import { RedisSlotCache } from './services/slot-cache.js';
-import type { SmsSender } from './services/sms.js';
 import { deriveVerificationKey } from './services/verification.js';
 import type { TelegramConfig } from './telegram/outbox.js';
 import { telegramWebhook } from './telegram/webhook.js';

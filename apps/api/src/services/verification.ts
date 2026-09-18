@@ -7,9 +7,9 @@ import { and, eq, gt, isNull, lt, sql } from 'drizzle-orm';
 import { clinics, phoneVerifications, type Database, type Transaction } from '@dentbook/db';
 import type { Locale } from '@dentbook/shared/domain';
 import type { VerificationResponse } from '@dentbook/shared';
+import type { SmsSender } from '@dentbook/shared/sms';
 import { translate } from '../i18n/index.js';
 import { ApiError } from '../lib/errors.js';
-import type { SmsSender } from './sms.js';
 
 export const VERIFICATION_TTL_SEC = 5 * 60;
 export const VERIFICATION_MAX_ATTEMPTS = 3;
