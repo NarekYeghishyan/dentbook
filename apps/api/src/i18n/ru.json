@@ -6,6 +6,8 @@
   "tg.notLinked": "Здравствуйте! Чтобы получать записи здесь, откройте ссылку подключения от клиники.",
   "tg.welcomeBack": "Вы подключены к клинике {clinic}.",
   "tg.openSchedule": "📅 Открыть расписание",
+  "tg.menuButton": "Расписание",
+  "tg.cmdStart": "Подключиться или открыть расписание",
   "tg.confirm": "✅ Подтвердить",
   "tg.newBooking": "Новая запись\n{when}\n{service} · {office}\nКлиент: {client}, {phone}",
   "tg.newBookingPending": "Новая запись ждёт вашего подтверждения\n{when}\n{service} · {office}\nКлиент: {client}, {phone}",

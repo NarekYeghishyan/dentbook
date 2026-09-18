@@ -6,6 +6,8 @@
   "tg.notLinked": "Բարև։ Գրանցումներն այստեղ ստանալու համար բացեք կլինիկայից ստացած միացման հղումը։",
   "tg.welcomeBack": "Դուք միացված եք {clinic} կլինիկային։",
   "tg.openSchedule": "📅 Բացել գրաֆիկը",
+  "tg.menuButton": "Գրաֆիկ",
+  "tg.cmdStart": "Միանալ կամ բացել գրաֆիկը",
   "tg.confirm": "✅ Հաստատել",
   "tg.newBooking": "Նոր գրանցում\n{when}\n{service} · {office}\nՀաճախորդ՝ {client}, {phone}",
   "tg.newBookingPending": "Նոր գրանցումը սպասում է ձեր հաստատմանը\n{when}\n{service} · {office}\nՀաճախորդ՝ {client}, {phone}",

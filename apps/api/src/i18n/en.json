@@ -6,6 +6,8 @@
   "tg.notLinked": "Hi! To get bookings here, open the connection link from your clinic.",
   "tg.welcomeBack": "You are connected to {clinic}.",
   "tg.openSchedule": "📅 Open schedule",
+  "tg.menuButton": "Schedule",
+  "tg.cmdStart": "Connect or open the schedule",
   "tg.confirm": "✅ Confirm",
   "tg.newBooking": "New booking\n{when}\n{service} · {office}\nClient: {client}, {phone}",
   "tg.newBookingPending": "New booking awaits your confirmation\n{when}\n{service} · {office}\nClient: {client}, {phone}",
