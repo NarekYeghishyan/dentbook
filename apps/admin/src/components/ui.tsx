@@ -1,6 +1,7 @@
 /** Базовые элементы интерфейса на Tailwind. */
 import {
   useEffect,
+  useMemo,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
@@ -8,6 +9,7 @@ import {
 } from 'react';
 import { ApiError } from '../api/client';
 import { useI18n, type MessageKey } from '../i18n';
+import { timeZoneLabel, timeZones } from '../lib/time';
 
 const cx = (...classes: (string | false | undefined)[]) => classes.filter(Boolean).join(' ');
 
@@ -48,6 +50,16 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
 
 export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select className={cx(control, className)} {...props} />;
+}
+
+/** Все часовые пояса со смещением от UTC — для <Select>. Список считается один раз. */
+export function TimeZoneOptions() {
+  const zones = useMemo(() => timeZones().map((zone) => [zone, timeZoneLabel(zone)]), []);
+  return zones.map(([zone, label]) => (
+    <option key={zone} value={zone}>
+      {label}
+    </option>
+  ));
 }
 
 export function Field({

@@ -11,6 +11,14 @@ produced them (CLAUDE.md §9).
 
 ## [Unreleased]
 
+### После сдачи
+
+#### Changed
+
+- `feat(admin): show the UTC offset in time zone lists` — в списках часовых поясов
+  (регистрация, настройки клиники, офисы) к названию добавлено текущее смещение:
+  `Asia/Yerevan (GMT+4)`; летнее время учитывается.
+
 ### Шаг 10 — сдача (закрыт 2026-09-18)
 
 #### Added

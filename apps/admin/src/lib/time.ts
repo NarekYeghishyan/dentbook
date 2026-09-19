@@ -84,4 +84,17 @@ export const weekdayName = (weekday: number, locale: string) =>
 
 export const timeZones = (): string[] => Intl.supportedValuesOf('timeZone');
 
+/** Смещение пояса от UTC в момент `at`: 'GMT+4', 'GMT-5', 'GMT+5:30', 'GMT' — сам UTC. */
+export function utcOffset(timeZone: string, at: Date = new Date()): string {
+  return (
+    new Intl.DateTimeFormat('en-US', { timeZone, timeZoneName: 'shortOffset' })
+      .formatToParts(at)
+      .find((p) => p.type === 'timeZoneName')?.value ?? 'GMT'
+  );
+}
+
+/** Подпись пояса в списках: 'Asia/Yerevan (GMT+4)'. Смещение — текущее, с учётом летнего времени. */
+export const timeZoneLabel = (timeZone: string, at?: Date) =>
+  `${timeZone} (${utcOffset(timeZone, at)})`;
+
 export const browserTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;

@@ -14,9 +14,10 @@ import {
   Loading,
   PageHeader,
   Select,
+  TimeZoneOptions,
 } from '../components/ui';
 import { useI18n } from '../i18n';
-import { timeZones } from '../lib/time';
+import { timeZoneLabel } from '../lib/time';
 
 function OfficeForm({
   initial,
@@ -55,10 +56,10 @@ function OfficeForm({
         </Field>
         <Field label={t('field.timezone')}>
           <Select value={draft.timezone} onChange={(e) => set({ timezone: e.target.value })}>
-            <option value="">{t('offices.clinicTimezone', { zone: clinic.timezone })}</option>
-            {timeZones().map((zone) => (
-              <option key={zone}>{zone}</option>
-            ))}
+            <option value="">
+              {t('offices.clinicTimezone', { zone: timeZoneLabel(clinic.timezone) })}
+            </option>
+            <TimeZoneOptions />
           </Select>
         </Field>
         <Field label={t('field.address')}>

@@ -140,7 +140,7 @@
   "offices.title": "Offices",
   "offices.add": "Add an office",
   "offices.empty": "No offices yet.",
-  "offices.clinicTimezone": "Clinic time zone ({zone})",
+  "offices.clinicTimezone": "Clinic time zone: {zone}",
   "staff.title": "Staff",
   "staff.add": "Add a staff member",
   "staff.addHint": "Set a first password and give it to the person. Administrators manage all clinic data; front desk only views it.",

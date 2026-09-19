@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { atMinutes, dateIn, minutesOfDay, monthEndOf, monthStartOf, wallTimeToIso } from './time';
+import {
+  atMinutes,
+  dateIn,
+  minutesOfDay,
+  monthEndOf,
+  monthStartOf,
+  timeZoneLabel,
+  utcOffset,
+  wallTimeToIso,
+} from './time';
 
 const NY = 'America/New_York';
 
@@ -19,6 +28,22 @@ describe('journal time helpers (§2.3)', () => {
 
   it('keeps midnight at 0 minutes', () => {
     expect(minutesOfDay(atMinutes('2026-05-01', 0, NY), NY)).toBe(0);
+  });
+});
+
+describe('time zone labels', () => {
+  const winter = new Date('2026-01-15T12:00:00Z');
+  const summer = new Date('2026-07-15T12:00:00Z');
+
+  it('appends the UTC offset to the zone name', () => {
+    expect(timeZoneLabel('Asia/Yerevan', winter)).toBe('Asia/Yerevan (GMT+4)');
+    expect(timeZoneLabel('UTC', winter)).toBe('UTC (GMT)');
+  });
+
+  it('follows daylight saving time and keeps half-hour offsets', () => {
+    expect(utcOffset(NY, winter)).toBe('GMT-5');
+    expect(utcOffset(NY, summer)).toBe('GMT-4');
+    expect(utcOffset('Asia/Kolkata', winter)).toBe('GMT+5:30');
   });
 });
 

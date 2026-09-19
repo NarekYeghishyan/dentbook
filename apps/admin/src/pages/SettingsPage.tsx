@@ -12,9 +12,9 @@ import {
   Input,
   PageHeader,
   Select,
+  TimeZoneOptions,
 } from '../components/ui';
 import { LOCALE_NAMES, useI18n } from '../i18n';
-import { timeZones } from '../lib/time';
 
 export function SettingsPage() {
   const { t } = useI18n();
@@ -59,9 +59,7 @@ export function SettingsPage() {
               </Field>
               <Field label={t('field.timezone')} hint={t('hint.clinicTimezone')}>
                 <Select value={draft.timezone} onChange={(e) => set({ timezone: e.target.value })}>
-                  {timeZones().map((zone) => (
-                    <option key={zone}>{zone}</option>
-                  ))}
+                  <TimeZoneOptions />
                 </Select>
               </Field>
               <Field label={t('field.widgetLanguage')}>

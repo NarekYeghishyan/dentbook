@@ -4,9 +4,9 @@ import { Link, useNavigate } from 'react-router-dom';
 import { LOCALES, type Locale } from '@dentbook/shared/domain';
 import { useLogin, useRegister } from '../api/hooks';
 import { LanguageSelect } from '../components/Layout';
-import { Button, ErrorText, Field, Input, Select } from '../components/ui';
+import { Button, ErrorText, Field, Input, Select, TimeZoneOptions } from '../components/ui';
 import { LOCALE_NAMES, useI18n } from '../i18n';
-import { browserTimeZone, timeZones } from '../lib/time';
+import { browserTimeZone } from '../lib/time';
 
 function AuthCard({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -111,9 +111,7 @@ export function RegisterPage() {
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t('field.timezone')}>
             <Select value={form.timezone} onChange={(e) => set('timezone')(e.target.value)}>
-              {timeZones().map((zone) => (
-                <option key={zone}>{zone}</option>
-              ))}
+              <TimeZoneOptions />
             </Select>
           </Field>
           <Field label={t('field.currency')} hint={t('hint.currency')}>
