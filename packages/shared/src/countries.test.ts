@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_COUNTRY, DIAL_CODES, isCountryCode } from './countries.js';
+import { DEFAULT_COUNTRY, DIAL_CODES, NUMBER_FORMATS, isCountryCode } from './countries.js';
 
 describe('countries', () => {
   it('holds ISO alpha-2 codes and plain dial codes', () => {
@@ -19,6 +19,21 @@ describe('countries', () => {
   it('defaults to a country from the list for every locale', () => {
     for (const country of Object.values(DEFAULT_COUNTRY)) {
       expect(isCountryCode(country), country).toBe(true);
+    }
+  });
+});
+
+describe('number formats', () => {
+  const dials = new Set<string>(Object.values(DIAL_CODES));
+
+  it('are keyed by a dial code from the list', () => {
+    for (const dial of Object.keys(NUMBER_FORMATS)) expect(dials.has(dial), dial).toBe(true);
+  });
+
+  it('hold digit places and separators only', () => {
+    for (const [dial, pattern] of Object.entries(NUMBER_FORMATS)) {
+      expect(pattern, dial).toMatch(/^[#()\-., ]*#$/);
+      expect((pattern.match(/#/g) ?? []).length, dial).toBeGreaterThanOrEqual(6);
     }
   });
 });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toE164, toE164In } from './phone.js';
+import { maskNational, toE164, toE164In } from './phone.js';
 
 describe('toE164', () => {
   it.each([
@@ -41,5 +41,38 @@ describe('toE164In', () => {
     ['1', '+0 123'],
   ])('+%s rejects %j', (dial, input) => {
     expect(toE164In(dial, input)).toBeNull();
+  });
+});
+
+describe('maskNational', () => {
+  it.each([
+    // набирают по одной цифре: разделитель появляется только перед следующей цифрой
+    ['1', '2', '(2'],
+    ['1', '202', '(202'],
+    ['1', '2025', '(202) 5'],
+    ['1', '2025550123', '(202) 555-0123'],
+    // уже отформатированный номер не разъезжается
+    ['1', '(202) 555-0123', '(202) 555-0123'],
+    // ведущая единица NANP и ведущий ноль национального набора — перед номером
+    ['1', '12025550123', '1 (202) 555-0123'],
+    ['44', '07911123456', '07911 123456'],
+    ['44', '7911123456', '7911 123456'],
+    ['374', '91234567', '91 234567'],
+    ['7', '9161234567', '916 123-45-67'],
+    ['33', '612345678', '6 12 34 56 78'],
+    // цифр больше, чем в шаблоне — лишние остаются в конце
+    ['374', '9123456789', '91 23456789'],
+    ['1', '', ''],
+  ])('+%s and %j → %j', (dial, input, expected) => {
+    expect(maskNational(dial, input)).toBe(expected);
+  });
+
+  it('leaves the number as typed where there is no pattern', () => {
+    expect(maskNational('672', '3 123 456')).toBeNull();
+  });
+
+  it('keeps every digit, so the number still converts to E.164', () => {
+    const masked = maskNational('374', '91234567')!;
+    expect(toE164In('374', masked)).toBe('+37491234567');
   });
 });

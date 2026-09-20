@@ -12,9 +12,14 @@ import type {
   PublicService,
   VerificationResponse,
 } from '@dentbook/shared';
-import { DEFAULT_COUNTRY, DIAL_CODES, type CountryCode } from '@dentbook/shared/countries';
+import {
+  DEFAULT_COUNTRY,
+  DIAL_CODES,
+  NUMBER_FORMATS,
+  type CountryCode,
+} from '@dentbook/shared/countries';
 import type { Locale } from '@dentbook/shared/domain';
-import { toE164In } from '@dentbook/shared/phone';
+import { maskNational, toE164In } from '@dentbook/shared/phone';
 import { createApi, WidgetApiError } from './api';
 import { renderCaptcha, type Captcha } from './captcha';
 import { addDays, formatDateOf, formatDay, formatTime, todayIn } from './dates';
@@ -413,7 +418,7 @@ export function mountWidget(host: HTMLElement, options: WidgetOptions): void {
    * больше двухсот, в обычном select их не найти. Разметка — как у combobox с
    * listbox (ARIA), поэтому список доступен с клавиатуры и в скринридере.
    */
-  function countryPicker() {
+  function countryPicker(onPick: () => void) {
     const label = (code: CountryCode) => `+${DIAL_CODES[code]} ${nameOf(code)}`;
     const name = h('span', { class: 'cc-name' }, label(s.country));
     const button = h(
@@ -522,6 +527,7 @@ export function mountWidget(host: HTMLElement, options: WidgetOptions): void {
       s.country = code;
       name.textContent = label(code);
       close(true);
+      onPick();
     }
 
     // Ушли из поля — список закрываем (клик мимо переводит фокус наружу)
@@ -531,30 +537,55 @@ export function mountWidget(host: HTMLElement, options: WidgetOptions): void {
     return box;
   }
 
+  const numberFormat = () => NUMBER_FORMATS[DIAL_CODES[s.country]];
+
+  /**
+   * Маска номера выбранной страны. Текст перестраиваем целиком, поэтому курсор ставим
+   * заново — после той же по счёту цифры, иначе правка в середине уводит его в конец.
+   */
+  function reformat(input: HTMLInputElement) {
+    const text = maskNational(DIAL_CODES[s.country], input.value);
+    if (text !== null && text !== input.value) {
+      const caret = input.selectionStart ?? input.value.length;
+      const typed = input.value.slice(0, caret).replace(/\D/g, '').length;
+      input.value = text;
+      let at = 0;
+      for (let seen = 0; at < text.length && seen < typed; at += 1) {
+        if (text[at]! >= '0' && text[at]! <= '9') seen += 1;
+      }
+      input.setSelectionRange(at, at);
+    }
+    s.form.phone = input.value;
+  }
+
   /**
    * Телефон: код страны отдельным списком, номер — отдельным полем. Подпись связана с
    * полем номера через for/id, у списка своя (label оборачивал бы оба поля и достался
    * бы только первому).
    */
   function phoneField() {
+    const number = h('input', {
+      id: 'db-phone',
+      type: 'tel',
+      autocomplete: 'tel-national',
+      inputMode: 'tel',
+      required: true,
+      placeholder: numberFormat(),
+      value: s.form.phone,
+      oninput: () => reformat(number),
+    });
+    // Сменилась страна — меняются и подсказка, и маска
+    const picker = countryPicker(() => {
+      const pattern = numberFormat();
+      number.placeholder = pattern ?? '';
+      if (pattern === undefined) number.value = number.value.replace(/\D/g, '');
+      reformat(number);
+    });
     return h(
       'div',
       { class: 'tel-field' },
       h('label', { for: 'db-phone' }, t('details.phone')),
-      h(
-        'div',
-        { class: 'tel' },
-        countryPicker(),
-        h('input', {
-          id: 'db-phone',
-          type: 'tel',
-          autocomplete: 'tel-national',
-          inputMode: 'tel',
-          required: true,
-          value: s.form.phone,
-          oninput: (e: Event) => (s.form.phone = (e.target as HTMLInputElement).value),
-        }),
-      ),
+      h('div', { class: 'tel' }, picker, number),
     );
   }
 
