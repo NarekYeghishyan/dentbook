@@ -58,6 +58,35 @@ export function HelpPage() {
     <div className="space-y-6">
       <PageHeader title={t('help.title')} />
 
+      <Card title={t('help.eachRole.title')}>
+        <dl className="space-y-4 text-sm">
+          {ROLES.map((role) => (
+            <div key={role}>
+              <dt className="font-medium text-slate-900">{t(`role.${role}` as MessageKey)}</dt>
+              <dd className="mt-1 text-slate-600">{t(`help.role.${role}` as MessageKey)}</dd>
+            </div>
+          ))}
+        </dl>
+        <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-slate-600">
+          <li>{t('help.note.ownerProtected')}</li>
+          <li>{t('help.note.selfRole')}</li>
+          <li>{t('help.note.dentists')}</li>
+          <li>{t('help.note.operator')}</li>
+        </ul>
+      </Card>
+
+      <Card title={t('help.how.title')}>
+        <div className="space-y-5 text-sm">
+          {SECTIONS.map((section) => (
+            <section key={section.title}>
+              <h3 className="font-medium text-slate-900">{t(section.title)}</h3>
+              <p className="mt-1 text-slate-600">{t(section.text)}</p>
+              {section.extra && <p className="mt-1 text-slate-600">{t(section.extra)}</p>}
+            </section>
+          ))}
+        </div>
+      </Card>
+
       <Card title={t('help.roles.title')}>
         <p className="mb-4 text-sm text-slate-600">
           {t('help.yourRole', { role: t(`role.${user.role}` as MessageKey) })}
@@ -92,35 +121,6 @@ export function HelpPage() {
               ))}
             </tbody>
           </table>
-        </div>
-      </Card>
-
-      <Card title={t('help.eachRole.title')}>
-        <dl className="space-y-4 text-sm">
-          {ROLES.map((role) => (
-            <div key={role}>
-              <dt className="font-medium text-slate-900">{t(`role.${role}` as MessageKey)}</dt>
-              <dd className="mt-1 text-slate-600">{t(`help.role.${role}` as MessageKey)}</dd>
-            </div>
-          ))}
-        </dl>
-        <ul className="mt-4 list-disc space-y-1 pl-5 text-sm text-slate-600">
-          <li>{t('help.note.ownerProtected')}</li>
-          <li>{t('help.note.selfRole')}</li>
-          <li>{t('help.note.dentists')}</li>
-          <li>{t('help.note.operator')}</li>
-        </ul>
-      </Card>
-
-      <Card title={t('help.how.title')}>
-        <div className="space-y-5 text-sm">
-          {SECTIONS.map((section) => (
-            <section key={section.title}>
-              <h3 className="font-medium text-slate-900">{t(section.title)}</h3>
-              <p className="mt-1 text-slate-600">{t(section.text)}</p>
-              {section.extra && <p className="mt-1 text-slate-600">{t(section.extra)}</p>}
-            </section>
-          ))}
         </div>
       </Card>
     </div>
