@@ -70,12 +70,38 @@ input, select, textarea {
   font: inherit; font-weight: 400; color: inherit; background: var(--db-bg);
 }
 input:focus, select:focus, textarea:focus { border-color: var(--db-primary); outline: 2px solid color-mix(in srgb, var(--db-primary) 25%, transparent); }
-/* Телефон: список кодов стран и номер в одну строку */
-.tel-field { margin-bottom: 12px; }
+/* Телефон: выбор страны и номер в одну строку; список стран падает под поле */
+.tel-field { position: relative; margin-bottom: 12px; }
 .tel-field label { margin-bottom: 0; }
 .tel { display: flex; gap: 8px; margin-top: 4px; }
-.tel select { flex: 0 0 44%; margin-top: 0; min-width: 0; text-overflow: ellipsis; }
 .tel input { flex: 1 1 auto; margin-top: 0; min-width: 0; }
+.cc { flex: 0 0 44%; min-width: 0; }
+.cc-button {
+  display: flex; align-items: center; justify-content: space-between; gap: 6px;
+  width: 100%; padding: 10px 12px; text-align: left;
+  border: 1px solid var(--db-line); border-radius: 10px;
+  background: var(--db-bg); color: inherit; font: inherit; font-weight: 400; cursor: pointer;
+}
+.cc-button:focus-visible { border-color: var(--db-primary); outline: 2px solid color-mix(in srgb, var(--db-primary) 25%, transparent); }
+.cc-name { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cc-arrow {
+  flex: 0 0 auto; width: 0; height: 0; margin-left: 2px;
+  border-left: 4px solid transparent; border-right: 4px solid transparent;
+  border-top: 5px solid var(--db-muted);
+}
+.cc-panel {
+  position: absolute; z-index: 5; top: 100%; left: 0; right: 0; margin-top: 4px;
+  border: 1px solid var(--db-line); border-radius: 10px; background: var(--db-bg);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, .14); overflow: hidden;
+}
+.cc-panel[hidden] { display: none; }
+.cc-search { margin: 8px 8px 6px; width: calc(100% - 16px); }
+.cc-list { max-height: 240px; overflow-y: auto; }
+.cc-option { padding: 8px 12px; font-size: 14px; cursor: pointer; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cc-option[aria-selected="true"] { font-weight: 600; }
+.cc-option.on { background: var(--db-soft); }
+.cc-empty { margin: 0; padding: 4px 12px 10px; }
+.cc-empty[hidden] { display: none; }
 .code { font-size: 22px; letter-spacing: .4em; text-align: center; }
 .note { padding: 10px 12px; margin-bottom: 12px; border-radius: 10px; background: var(--db-soft); font-size: 14px; }
 .error { padding: 10px 12px; margin-bottom: 12px; border-radius: 10px; background: #fef2f2; color: #b91c1c; font-size: 14px; }

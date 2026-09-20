@@ -12,12 +12,7 @@ import type {
   PublicService,
   VerificationResponse,
 } from '@dentbook/shared';
-import {
-  DEFAULT_COUNTRY,
-  DIAL_CODES,
-  isCountryCode,
-  type CountryCode,
-} from '@dentbook/shared/countries';
+import { DEFAULT_COUNTRY, DIAL_CODES, type CountryCode } from '@dentbook/shared/countries';
 import type { Locale } from '@dentbook/shared/domain';
 import { toE164In } from '@dentbook/shared/phone';
 import { createApi, WidgetApiError } from './api';
@@ -64,6 +59,14 @@ function h<K extends keyof HTMLElementTagNameMap>(
   }
   return el;
 }
+
+/** Ключ для поиска: без регистра и диакритики — «Türkiye» находится и по «turkiye». */
+const fold = (value: string) =>
+  value
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
 
 const ERROR_TEXT: Partial<Record<string, MessageKey>> = {
   slot_taken: 'error.slot_taken',
@@ -390,25 +393,150 @@ export function mountWidget(host: HTMLElement, options: WidgetOptions): void {
     return countryList.items;
   }
 
+  const nameOf = (code: CountryCode) => countries().find((c) => c.code === code)?.name ?? code;
+
+  /** Поиск в списке стран: по названию, коду страны (US) и телефонному коду (+374). */
+  function matchCountries(query: string) {
+    const text = fold(query);
+    if (text === '') return countries();
+    const digits = query.replace(/\D/g, '');
+    return countries().filter(
+      (c) =>
+        (digits !== '' && DIAL_CODES[c.code].startsWith(digits)) ||
+        fold(c.name).includes(text) ||
+        c.code.toLowerCase().startsWith(text),
+    );
+  }
+
+  /**
+   * Выбор страны: кнопка с выбранной страной и выпадающий список с поиском — стран
+   * больше двухсот, в обычном select их не найти. Разметка — как у combobox с
+   * listbox (ARIA), поэтому список доступен с клавиатуры и в скринридере.
+   */
+  function countryPicker() {
+    const label = (code: CountryCode) => `+${DIAL_CODES[code]} ${nameOf(code)}`;
+    const name = h('span', { class: 'cc-name' }, label(s.country));
+    const button = h(
+      'button',
+      {
+        type: 'button',
+        class: 'cc-button',
+        'aria-label': t('details.country'),
+        'aria-haspopup': 'listbox',
+        'aria-expanded': 'false',
+        onclick: () => (panel.hidden ? open() : close(true)),
+      },
+      name,
+      h('span', { class: 'cc-arrow', 'aria-hidden': 'true' }),
+    );
+    const list = h('div', { class: 'cc-list', id: 'db-cc-list', role: 'listbox' });
+    const empty = h('p', { class: 'muted cc-empty', hidden: true }, t('details.countryNone'));
+    const search = h('input', {
+      class: 'cc-search',
+      type: 'text',
+      role: 'combobox',
+      autocomplete: 'off',
+      spellcheck: false,
+      placeholder: t('details.countrySearch'),
+      'aria-label': t('details.countrySearch'),
+      'aria-controls': 'db-cc-list',
+      'aria-expanded': 'true',
+      'aria-autocomplete': 'list',
+      oninput: draw,
+      onkeydown: (e: KeyboardEvent) => keys(e),
+    });
+    const panel = h('div', { class: 'cc-panel', hidden: true }, search, list, empty);
+    const box = h('div', { class: 'cc' }, button, panel);
+
+    let shown: { code: CountryCode; name: string }[] = [];
+    let active = 0;
+
+    function draw() {
+      shown = matchCountries(search.value);
+      active = Math.max(
+        0,
+        shown.findIndex((c) => c.code === s.country),
+      );
+      list.replaceChildren(
+        ...shown.map((c) =>
+          h(
+            'div',
+            {
+              class: 'cc-option',
+              id: `db-cc-${c.code}`,
+              role: 'option',
+              'aria-selected': String(c.code === s.country),
+              // mousedown не даём: фокус должен остаться в поле поиска
+              onmousedown: (e: Event) => e.preventDefault(),
+              onclick: () => pick(c.code),
+            },
+            label(c.code),
+          ),
+        ),
+      );
+      empty.hidden = shown.length > 0;
+      highlight();
+    }
+
+    function highlight() {
+      const current = shown[active];
+      for (const option of list.children) option.classList.remove('on');
+      if (!current) return search.removeAttribute('aria-activedescendant');
+      const option = list.children[active] as HTMLElement;
+      option.classList.add('on');
+      option.scrollIntoView({ block: 'nearest' });
+      search.setAttribute('aria-activedescendant', option.id);
+    }
+
+    function keys(e: KeyboardEvent) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (shown.length === 0) return;
+        active = (active + (e.key === 'ArrowDown' ? 1 : shown.length - 1)) % shown.length;
+        highlight();
+      } else if (e.key === 'Enter') {
+        e.preventDefault(); // Enter в поиске не отправляет форму
+        const current = shown[active];
+        if (current) pick(current.code);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        close(true);
+      }
+    }
+
+    function open() {
+      panel.hidden = false;
+      button.setAttribute('aria-expanded', 'true');
+      search.value = '';
+      draw();
+      search.focus();
+    }
+
+    function close(toButton: boolean) {
+      panel.hidden = true;
+      button.setAttribute('aria-expanded', 'false');
+      if (toButton) button.focus();
+    }
+
+    function pick(code: CountryCode) {
+      s.country = code;
+      name.textContent = label(code);
+      close(true);
+    }
+
+    // Ушли из поля — список закрываем (клик мимо переводит фокус наружу)
+    box.addEventListener('focusout', (e) => {
+      if (!box.contains((e as FocusEvent).relatedTarget as Node | null)) close(false);
+    });
+    return box;
+  }
+
   /**
    * Телефон: код страны отдельным списком, номер — отдельным полем. Подпись связана с
    * полем номера через for/id, у списка своя (label оборачивал бы оба поля и достался
    * бы только первому).
    */
   function phoneField() {
-    const select = h(
-      'select',
-      {
-        autocomplete: 'tel-country-code',
-        'aria-label': t('details.country'),
-        onchange: (e: Event) => {
-          const value = (e.target as HTMLSelectElement).value;
-          if (isCountryCode(value)) s.country = value;
-        },
-      },
-      ...countries().map((c) => h('option', { value: c.code }, `+${DIAL_CODES[c.code]} ${c.name}`)),
-    );
-    select.value = s.country;
     return h(
       'div',
       { class: 'tel-field' },
@@ -416,7 +544,7 @@ export function mountWidget(host: HTMLElement, options: WidgetOptions): void {
       h(
         'div',
         { class: 'tel' },
-        select,
+        countryPicker(),
         h('input', {
           id: 'db-phone',
           type: 'tel',

@@ -15,6 +15,8 @@
   "details.name": "Full name",
   "details.phone": "Mobile phone",
   "details.country": "Country code",
+  "details.countrySearch": "Search by country or code",
+  "details.countryNone": "Nothing found",
   "details.phoneHint": "We will text you a code to confirm the booking",
   "details.email": "Email (optional)",
   "details.notes": "Comment (optional)",
