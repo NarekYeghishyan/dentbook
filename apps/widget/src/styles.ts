@@ -64,12 +64,18 @@ export const css = `
 }
 .link:disabled { color: var(--db-muted); cursor: default; }
 label { display: block; margin-bottom: 12px; font-size: 14px; font-weight: 550; }
-input, textarea {
+input, select, textarea {
   display: block; width: 100%; margin-top: 4px; padding: 10px 12px;
   border: 1px solid var(--db-line); border-radius: 10px;
   font: inherit; font-weight: 400; color: inherit; background: var(--db-bg);
 }
-input:focus, textarea:focus { border-color: var(--db-primary); outline: 2px solid color-mix(in srgb, var(--db-primary) 25%, transparent); }
+input:focus, select:focus, textarea:focus { border-color: var(--db-primary); outline: 2px solid color-mix(in srgb, var(--db-primary) 25%, transparent); }
+/* Телефон: список кодов стран и номер в одну строку */
+.tel-field { margin-bottom: 12px; }
+.tel-field label { margin-bottom: 0; }
+.tel { display: flex; gap: 8px; margin-top: 4px; }
+.tel select { flex: 0 0 44%; margin-top: 0; min-width: 0; text-overflow: ellipsis; }
+.tel input { flex: 1 1 auto; margin-top: 0; min-width: 0; }
 .code { font-size: 22px; letter-spacing: .4em; text-align: center; }
 .note { padding: 10px 12px; margin-bottom: 12px; border-radius: 10px; background: var(--db-soft); font-size: 14px; }
 .error { padding: 10px 12px; margin-bottom: 12px; border-radius: 10px; background: #fef2f2; color: #b91c1c; font-size: 14px; }

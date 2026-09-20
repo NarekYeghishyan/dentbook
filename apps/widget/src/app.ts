@@ -12,8 +12,14 @@ import type {
   PublicService,
   VerificationResponse,
 } from '@dentbook/shared';
+import {
+  DEFAULT_COUNTRY,
+  DIAL_CODES,
+  isCountryCode,
+  type CountryCode,
+} from '@dentbook/shared/countries';
 import type { Locale } from '@dentbook/shared/domain';
-import { toE164 } from '@dentbook/shared/phone';
+import { toE164In } from '@dentbook/shared/phone';
 import { createApi, WidgetApiError } from './api';
 import { renderCaptcha, type Captcha } from './captcha';
 import { addDays, formatDateOf, formatDay, formatTime, todayIn } from './dates';
@@ -90,6 +96,8 @@ export function mountWidget(host: HTMLElement, options: WidgetOptions): void {
     alternatives: [] as string[],
     hold: undefined as HoldResponse | undefined,
     form: { name: '', phone: '', email: '', notes: '' },
+    /** Страна телефона: код в поле, номер клиента в form.phone — национальная часть. */
+    country: DEFAULT_COUNTRY.en as CountryCode,
     phone: '',
     verificationId: '',
     code: '',
@@ -151,6 +159,7 @@ export function mountWidget(host: HTMLElement, options: WidgetOptions): void {
         locale = config.clinic.locale;
         t = translator(locale);
       }
+      s.country = DEFAULT_COUNTRY[locale];
       const primary = config.theme.primary_color;
       if (typeof primary === 'string' && /^#[0-9a-f]{3,8}$/i.test(primary)) {
         view.style.setProperty('--db-primary', primary);
@@ -257,7 +266,7 @@ export function mountWidget(host: HTMLElement, options: WidgetOptions): void {
   }
 
   async function sendCode() {
-    const phone = toE164(s.form.phone);
+    const phone = toE164In(DIAL_CODES[s.country], s.form.phone);
     if (!s.form.name.trim()) return show('details', { error: 'error.name' });
     if (!phone) return show('details', { error: 'error.phone' });
     const captchaToken = captcha?.token();
@@ -358,6 +367,67 @@ export function mountWidget(host: HTMLElement, options: WidgetOptions): void {
       ...attrs,
     });
     return h('label', {}, label, control);
+  }
+
+  let countryList: { locale: Locale; items: { code: CountryCode; name: string }[] } | undefined;
+
+  /**
+   * Страны на языке формы: названия берём у Intl, в словарях их нет (§9). Список
+   * упорядочен по названию, а в строке первым идёт код: в узком поле на телефоне
+   * название обрезается, и код всё равно виден.
+   */
+  function countries() {
+    if (countryList?.locale !== locale) {
+      const names =
+        typeof Intl.DisplayNames === 'function'
+          ? new Intl.DisplayNames([locale], { type: 'region' })
+          : undefined;
+      const items = (Object.keys(DIAL_CODES) as CountryCode[])
+        .map((code) => ({ code, name: names?.of(code) ?? code }))
+        .sort((a, b) => a.name.localeCompare(b.name, locale));
+      countryList = { locale, items };
+    }
+    return countryList.items;
+  }
+
+  /**
+   * Телефон: код страны отдельным списком, номер — отдельным полем. Подпись связана с
+   * полем номера через for/id, у списка своя (label оборачивал бы оба поля и достался
+   * бы только первому).
+   */
+  function phoneField() {
+    const select = h(
+      'select',
+      {
+        autocomplete: 'tel-country-code',
+        'aria-label': t('details.country'),
+        onchange: (e: Event) => {
+          const value = (e.target as HTMLSelectElement).value;
+          if (isCountryCode(value)) s.country = value;
+        },
+      },
+      ...countries().map((c) => h('option', { value: c.code }, `+${DIAL_CODES[c.code]} ${c.name}`)),
+    );
+    select.value = s.country;
+    return h(
+      'div',
+      { class: 'tel-field' },
+      h('label', { for: 'db-phone' }, t('details.phone')),
+      h(
+        'div',
+        { class: 'tel' },
+        select,
+        h('input', {
+          id: 'db-phone',
+          type: 'tel',
+          autocomplete: 'tel-national',
+          inputMode: 'tel',
+          required: true,
+          value: s.form.phone,
+          oninput: (e: Event) => (s.form.phone = (e.target as HTMLInputElement).value),
+        }),
+      ),
+    );
   }
 
   function screen(): Child[] {
@@ -532,13 +602,7 @@ export function mountWidget(host: HTMLElement, options: WidgetOptions): void {
               },
             },
             field(t('details.name'), 'name', { autocomplete: 'name', required: true }),
-            field(t('details.phone'), 'phone', {
-              type: 'tel',
-              autocomplete: 'tel',
-              inputMode: 'tel',
-              placeholder: '(202) 555-0123',
-              required: true,
-            }),
+            phoneField(),
             h('p', { class: 'muted' }, t('details.phoneHint')),
             field(t('details.email'), 'email', { type: 'email', autocomplete: 'email' }),
             field(t('details.notes'), 'notes', { rows: 2 }, true),
