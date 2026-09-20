@@ -12,6 +12,7 @@ import { ClientsPage } from './pages/ClientsPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { DentistPage } from './pages/DentistPage';
 import { DentistsPage } from './pages/DentistsPage';
+import { HelpPage } from './pages/HelpPage';
 import { JournalPage } from './pages/journal/JournalPage';
 import { OfficesPage } from './pages/OfficesPage';
 import { OperatorPage } from './pages/OperatorPage';
@@ -53,6 +54,7 @@ const router = createBrowserRouter(
         { path: 'website', element: <WebsitePage /> },
         { path: 'staff', element: <StaffPage /> },
         { path: 'settings', element: <SettingsPage /> },
+        { path: 'help', element: <HelpPage /> },
         { path: '*', element: <Navigate to="/journal" replace /> },
       ],
     },

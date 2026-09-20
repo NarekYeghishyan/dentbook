@@ -17,6 +17,7 @@ const NAV: { to: string; label: MessageKey; managersOnly?: boolean }[] = [
   { to: '/website', label: 'nav.website', managersOnly: true },
   { to: '/staff', label: 'nav.staff', managersOnly: true },
   { to: '/settings', label: 'nav.settings' },
+  { to: '/help', label: 'nav.help' },
 ];
 
 export function LanguageSelect() {
