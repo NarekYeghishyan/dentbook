@@ -33,7 +33,16 @@ const ACCESS_TEXT: Record<Access, MessageKey> = {
   none: 'help.access.none',
 };
 
-const SECTIONS: { title: MessageKey; text: MessageKey; extra?: MessageKey }[] = [
+type Section = {
+  title: MessageKey;
+  text: MessageKey;
+  extra?: MessageKey;
+  /** Пошаговая инструкция: подзаголовок и шаги по порядку. */
+  steps?: { title: MessageKey; items: MessageKey[] };
+  notes?: MessageKey[];
+};
+
+const SECTIONS: Section[] = [
   { title: 'help.how.setup.title', text: 'help.how.setup.text' },
   {
     title: 'help.how.booking.title',
@@ -46,7 +55,26 @@ const SECTIONS: { title: MessageKey; text: MessageKey; extra?: MessageKey }[] = 
     extra: 'help.how.availability.settings',
   },
   { title: 'help.how.journal.title', text: 'help.how.journal.text' },
-  { title: 'help.how.telegram.title', text: 'help.how.telegram.text' },
+  {
+    title: 'help.how.telegram.title',
+    text: 'help.how.telegram.text',
+    steps: {
+      title: 'help.how.telegram.stepsTitle',
+      items: [
+        'help.how.telegram.step1',
+        'help.how.telegram.step2',
+        'help.how.telegram.step3',
+        'help.how.telegram.step4',
+      ],
+    },
+    notes: [
+      'help.how.telegram.confirm',
+      'help.how.telegram.closeTime',
+      'help.how.telegram.session',
+      'help.how.telegram.account',
+      'help.how.telegram.notConfigured',
+    ],
+  },
   { title: 'help.how.sms.title', text: 'help.how.sms.text' },
 ];
 
@@ -82,6 +110,23 @@ export function HelpPage() {
               <h3 className="font-medium text-slate-900">{t(section.title)}</h3>
               <p className="mt-1 text-slate-600">{t(section.text)}</p>
               {section.extra && <p className="mt-1 text-slate-600">{t(section.extra)}</p>}
+              {section.steps && (
+                <>
+                  <p className="mt-3 font-medium text-slate-900">{t(section.steps.title)}</p>
+                  <ol className="mt-1 list-decimal space-y-1 pl-5 text-slate-600">
+                    {section.steps.items.map((step) => (
+                      <li key={step}>{t(step)}</li>
+                    ))}
+                  </ol>
+                </>
+              )}
+              {section.notes && (
+                <ul className="mt-3 list-disc space-y-1 pl-5 text-slate-600">
+                  {section.notes.map((note) => (
+                    <li key={note}>{t(note)}</li>
+                  ))}
+                </ul>
+              )}
             </section>
           ))}
         </div>

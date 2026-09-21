@@ -317,7 +317,17 @@
   "help.how.journal.title": "Journal and confirmations",
   "help.how.journal.text": "The day view puts the dentists of one office side by side, the week view shows one dentist. Drag a visit to move it — an overlap is refused by the database. Confirm or cancel a visit and mark whether the client arrived; the client gets an SMS about a move or a cancellation.",
   "help.how.telegram.title": "Dentists in Telegram",
-  "help.how.telegram.text": "On the Dentists page create a connection link for a dentist. In Telegram they get an alert for every new visit, see their schedule, can close time and book their own clients. A dentist cannot close time that already has a visit — the front desk moves it first.",
+  "help.how.telegram.text": "Dentists do not sign in to the panel — they work in Telegram, through the platform bot. The bot alerts them about new, moved and cancelled visits, and its “Schedule” button opens their schedule: the day’s visits, closing time and booking their own clients.",
+  "help.how.telegram.stepsTitle": "How to connect a dentist (owner or administrator)",
+  "help.how.telegram.step1": "Open Dentists, choose the dentist and find the Telegram card on their page.",
+  "help.how.telegram.step2": "Press “Create connection link”. A link and a QR code appear; the link works once, for 24 hours.",
+  "help.how.telegram.step3": "Send the link to the dentist or let them scan the QR code with their phone camera. Telegram opens the bot, and the dentist presses Start.",
+  "help.how.telegram.step4": "Within a few seconds the card shows “Connected”. In the chat with the bot the dentist now has a “Schedule” button next to the message field.",
+  "help.how.telegram.confirm": "When online bookings need confirmation by the clinic, the alert has a “Confirm” button. If the visit is still waiting two hours later, the bot reminds the dentist.",
+  "help.how.telegram.closeTime": "A dentist cannot close time that already has a visit: the bot lists those visits, and the front desk moves them first. Visits the dentist books in Telegram appear in the journal with the source “Telegram”.",
+  "help.how.telegram.session": "The schedule stays open for an hour; after that the dentist opens it again with the “Schedule” button.",
+  "help.how.telegram.account": "One Telegram account can be connected to only one dentist. If the dentist changes their account, press “Disconnect” on the card and send a new link.",
+  "help.how.telegram.notConfigured": "If the card says the Telegram bot is not set up yet, the DentBook platform operator has not switched the bot on — the clinic cannot do this itself.",
   "help.how.sms.title": "Reminders and messages",
   "help.how.sms.text": "The client gets an SMS when the visit is confirmed, then reminders a day and two hours before it. Cancel or move the visit and the reminders follow. Nothing is sent between 21:00 and 08:00 in the office’s time zone."
 }
