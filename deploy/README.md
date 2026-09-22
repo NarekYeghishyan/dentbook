@@ -245,6 +245,12 @@ docker compose up -d api worker
   `telegram-setup.ts`. Mini App — `https://dentbook.mashna.am/miniapp/` (вне Telegram просит
   открыть его из бота). Новый токен (`/revoke` в @BotFather) — заменить `TELEGRAM_BOT_TOKEN`
   и повторить шаг 3 раздела «5. Бот Telegram».
+- **Бот на стенде работать не может:** сервер в Санкт-Петербурге (AS9123 Timeweb), и связь с
+  Telegram режется на уровне сети в обе стороны. Большинство соединений с `api.telegram.org`
+  — и с хоста, и из контейнеров — остаются без ответа на SYN (проверено `tcpdump`
+  2026-09-22), `getWebhookInfo` показывает `Connection timed out` при доставке обновлений.
+  Правил на самом сервере нет, это не Docker и не код. Бот проверяется на сервере вне
+  России.
 - SMS и капча на стенде выключены, пока нет ключей Twilio и Turnstile (Q5): форма доходит до
   ввода телефона и сообщает, что онлайн-запись недоступна. Ключи дописываются в
   `/opt/dentbook/.env` (`SMS_PROVIDER=twilio`, `TWILIO_*`, `SMS_SENDER`, `CAPTCHA_*`), затем
