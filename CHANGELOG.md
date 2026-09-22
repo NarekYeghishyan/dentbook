@@ -45,6 +45,10 @@ produced them (CLAUDE.md §9).
   (ссылка или QR-код в карточке врача, «Старт», кнопка «Schedule») и оговорки —
   подтверждение из уведомления, закрытие времени с визитами, час работы расписания, один
   аккаунт на врача, бот ещё не включён оператором.
+- `docs(deploy): record the telegram bot on the stand` — на стенде включён бот
+  `@Dentbook01_bot`: `TELEGRAM_*` и `PUBLIC_BASE_URL` в `.env` сервера, вебхук и кнопка
+  меню Mini App выставлены `telegram-setup.ts`; `deploy/README.md` и `docs/PROGRESS.md`
+  обновлены.
 
 ### Шаг 10 — сдача (закрыт 2026-09-18)
 

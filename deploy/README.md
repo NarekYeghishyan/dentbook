@@ -240,10 +240,11 @@ docker compose up -d api worker
   сертификат — certbot (`mashna.am`). Прежняя заглушка — в `/root/dentbook-backups/`.
 - Демо-клиника «DentBook Demo Clinic» (Нью-Йорк, офис, 3 услуги, 2 врача) — вход в панель и
   ключ формы в `/root/dentbook-demo.txt` на сервере (только root).
-- Бот Telegram на стенде выключен, пока нет токена от @BotFather: «Создать ссылку для
-  подключения» в панели отвечает, что бот не настроен. Включение — раздел «5. Бот Telegram»
-  выше; Mini App — `https://dentbook.mashna.am/miniapp/` (вне Telegram просит открыть его из
-  бота).
+- Бот Telegram на стенде — `@Dentbook01_bot`, включён 2026-09-22: `TELEGRAM_*` и
+  `PUBLIC_BASE_URL` в `/opt/dentbook/.env`, вебхук и кнопка меню «Schedule» выставлены
+  `telegram-setup.ts`. Mini App — `https://dentbook.mashna.am/miniapp/` (вне Telegram просит
+  открыть его из бота). Новый токен (`/revoke` в @BotFather) — заменить `TELEGRAM_BOT_TOKEN`
+  и повторить шаг 3 раздела «5. Бот Telegram».
 - SMS и капча на стенде выключены, пока нет ключей Twilio и Turnstile (Q5): форма доходит до
   ввода телефона и сообщает, что онлайн-запись недоступна. Ключи дописываются в
   `/opt/dentbook/.env` (`SMS_PROVIDER=twilio`, `TWILIO_*`, `SMS_SENDER`, `CAPTCHA_*`), затем
