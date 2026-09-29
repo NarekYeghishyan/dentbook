@@ -49,6 +49,10 @@ produced them (CLAUDE.md §9).
   `@Dentbook01_bot`: `TELEGRAM_*` и `PUBLIC_BASE_URL` в `.env` сервера, вебхук и кнопка
   меню Mini App выставлены `telegram-setup.ts`; `deploy/README.md` и `docs/PROGRESS.md`
   обновлены.
+- `feat(api): redirect the bare domain to the admin panel` — адрес платформы без пути
+  (`https://dentbook.dentalunivers.com/`) отвечал JSON `not_found`, и вход в панель не
+  находили. Теперь `/` ведёт на `/admin/` (302), если собранная панель раздаётся
+  (`redirectRoot` в `spaStatic`).
 
 ### Шаг 10 — сдача (закрыт 2026-09-18)
 

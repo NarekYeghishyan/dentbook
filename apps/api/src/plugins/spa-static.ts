@@ -47,11 +47,13 @@ export interface SpaStaticOptions {
   /** '/admin/' — со слешем на конце. Не `prefix`: это имя у register() занято Fastify. */
   basePath: string;
   headers: Record<string, string>;
+  /** true — корень домена ведёт сюда: адрес платформы открывают без пути и ждут вход. */
+  redirectRoot?: boolean;
 }
 
 export const spaStatic: FastifyPluginAsync<SpaStaticOptions> = async (
   app,
-  { root, basePath: prefix, headers },
+  { root, basePath: prefix, headers, redirectRoot },
 ) => {
   if (!existsSync(join(root, 'index.html'))) {
     app.log.warn({ root, prefix }, 'build not found, not served');
@@ -79,6 +81,7 @@ export const spaStatic: FastifyPluginAsync<SpaStaticOptions> = async (
   });
 
   app.get(bare, (_request, reply) => reply.redirect(prefix));
+  if (redirectRoot) app.get('/', (_request, reply) => reply.redirect(prefix));
   // Маршруты SPA (/admin/dentists/…) обрабатывает клиентский роутер
   app.get(`${prefix}*`, (_request, reply) =>
     reply.header('cache-control', 'no-cache').sendFile('index.html'),

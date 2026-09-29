@@ -168,6 +168,7 @@ export function buildApp({
       root: env.ADMIN_DIST_DIR,
       basePath: '/admin/',
       headers: ADMIN_HEADERS,
+      redirectRoot: true,
     });
   }
   if (env.MINIAPP_DIST_DIR) {

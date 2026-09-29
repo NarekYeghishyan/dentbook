@@ -57,6 +57,12 @@ describe('admin static files', () => {
     expect(res.headers.location).toBe('/admin/');
   });
 
+  it('sends the bare domain to the panel', async () => {
+    const res = await app.inject({ method: 'GET', url: '/' });
+    expect(res.statusCode).toBe(302);
+    expect(res.headers.location).toBe('/admin/');
+  });
+
   it('does not serve files outside the build', async () => {
     const res = await app.inject({ method: 'GET', url: '/admin/../package.json' });
     expect(res.body).not.toContain('"name"');
