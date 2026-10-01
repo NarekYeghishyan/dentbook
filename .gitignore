@@ -31,3 +31,4 @@ Thumbs.db
 # local data
 docker/volumes/
 tmp/
+info/
