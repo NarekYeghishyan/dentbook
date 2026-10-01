@@ -1,10 +1,13 @@
 /**
  * Обработка обновлений бота (§8): привязка врача по /start <токен>, повторный /start,
- * подтверждение записи кнопкой. Ответы — задачами в очередь, не напрямую.
- * Только личные чаты: в группах бот молчит.
+ * выбор языка по /language, подтверждение записи кнопкой. Ответы — задачами в очередь,
+ * не напрямую. Только личные чаты: в группах бот молчит.
+ *
+ * Язык сообщений — выбор врача (dentists.locale), иначе язык клиники (§9). Врач меняет
+ * его сам командой /language; тот же выбор действует в Mini App.
  */
 import { createHash } from 'node:crypto';
-import { and, eq, gt, isNull } from 'drizzle-orm';
+import { and, eq, gt, isNull, sql } from 'drizzle-orm';
 import type { Update } from 'grammy/types';
 import {
   appointments,
@@ -15,7 +18,7 @@ import {
   telegramLinkTokens,
   type Database,
 } from '@dentbook/db';
-import type { Locale } from '@dentbook/shared/domain';
+import { LOCALE_NAMES, LOCALES, type Locale } from '@dentbook/shared/domain';
 import { translate } from '../i18n/index.js';
 import type { Notifier } from '../services/notifier.js';
 import type { TelegramConfig } from './outbox.js';
@@ -25,6 +28,9 @@ export const hashLinkToken = (token: string) => createHash('sha256').update(toke
 
 /** Данные кнопки подтверждения: confirm:<appointment id>. */
 export const confirmData = (appointmentId: string) => `confirm:${appointmentId}`;
+
+/** Данные кнопки выбора языка: lang:<locale>. */
+export const languageData = (locale: Locale) => `lang:${locale}`;
 
 export function createUpdateHandler(deps: {
   db: Database;
@@ -50,7 +56,8 @@ export function createUpdateHandler(deps: {
         clinicId: dentists.clinicId,
         clinicName: clinics.name,
         clinicStatus: clinics.status,
-        locale: clinics.locale,
+        // Выбор врача важнее языка клиники (§9)
+        locale: sql<string>`coalesce(${dentists.locale}, ${clinics.locale})`,
       })
       .from(dentists)
       .innerJoin(clinics, eq(clinics.id, dentists.clinicId))
@@ -66,7 +73,7 @@ export function createUpdateHandler(deps: {
         name: dentists.fullName,
         clinicName: clinics.name,
         clinicStatus: clinics.status,
-        locale: clinics.locale,
+        locale: sql<string>`coalesce(${dentists.locale}, ${clinics.locale})`,
       })
       .from(telegramLinkTokens)
       .innerJoin(dentists, eq(dentists.id, telegramLinkTokens.dentistId))
@@ -119,6 +126,32 @@ export function createUpdateHandler(deps: {
     );
   }
 
+  /** /language — выбор языка бота и Mini App (§9). Кнопки подписаны самим языком. */
+  async function chooseLanguage(chatId: number) {
+    const dentist = await dentistByChat(chatId);
+    if (!dentist) return send(chatId, translate('en', 'tg.notLinked'));
+    return telegram.outbox.enqueue({
+      type: 'message',
+      chatId,
+      text: translate(dentist.locale, 'tg.chooseLanguage'),
+      buttons: LOCALES.map((locale) => [
+        { text: LOCALE_NAMES[locale], callbackData: languageData(locale) },
+      ]),
+    });
+  }
+
+  async function setLanguage(chatId: number, callbackQueryId: string, locale: Locale) {
+    const answer = (text: string) =>
+      telegram.outbox.enqueue({ type: 'answer', callbackQueryId, text });
+    const dentist = await dentistByChat(chatId);
+    if (!dentist) return answer(translate('en', 'tg.notLinked'));
+    await db.update(dentists).set({ locale }).where(eq(dentists.id, dentist.id));
+    // Подтверждение — уже на новом языке, вместе с кнопкой расписания
+    const text = translate(locale, 'tg.languageSet', { language: LOCALE_NAMES[locale] });
+    await answer(text);
+    return send(chatId, text, locale);
+  }
+
   async function confirm(
     chatId: number,
     callbackQueryId: string,
@@ -165,12 +198,18 @@ export function createUpdateHandler(deps: {
       if (command === '/start' && payload && /^[\w-]{20,64}$/.test(payload)) {
         return link(message.chat.id, payload, now);
       }
+      // Команда приходит и как /language, и как /language@bot в группах — здесь только личные
+      if (command?.replace(/@\w+$/, '') === '/language') {
+        return chooseLanguage(message.chat.id);
+      }
       return greet(message.chat.id);
     }
     const query = update.callback_query;
-    const data = query?.data?.match(/^confirm:([0-9a-f-]{36})$/);
-    if (query && data && query.message?.chat.type === 'private') {
-      return confirm(query.message.chat.id, query.id, data[1]!, now);
+    if (query?.message?.chat.type === 'private') {
+      const confirmed = query.data?.match(/^confirm:([0-9a-f-]{36})$/);
+      if (confirmed) return confirm(query.message.chat.id, query.id, confirmed[1]!, now);
+      const language = LOCALES.find((locale) => query.data === languageData(locale));
+      if (language) return setLanguage(query.message.chat.id, query.id, language);
     }
   };
 }

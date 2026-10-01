@@ -3,7 +3,7 @@
  * запись своих клиентов. Внутренний, как админский, — camelCase.
  */
 import { z } from 'zod';
-import type { AppointmentStatus, Locale } from './domain.js';
+import { LOCALES, type AppointmentStatus, type Locale } from './domain.js';
 import { instantSchema, localDateSchema } from './catalog.js';
 import { nameSchema, phoneSchema, uuidSchema } from './validators.js';
 
@@ -33,8 +33,13 @@ export const miniappBookingSchema = z.object({
 });
 export type MiniappBookingInput = z.input<typeof miniappBookingSchema>;
 
+/** Врач сам выбирает язык бота и Mini App (§8, §9): PATCH /v1/miniapp/me. */
+export const miniappLocaleSchema = z.object({ locale: z.enum(LOCALES) });
+export type MiniappLocaleInput = z.input<typeof miniappLocaleSchema>;
+
 export interface MiniappMe {
-  dentist: { id: string; fullName: string };
+  /** locale — выбранный врачом язык; null — не выбирал, язык берётся из Telegram или клиники. */
+  dentist: { id: string; fullName: string; locale: Locale | null };
   clinic: { name: string; locale: Locale; timezone: string };
   locations: { id: string; name: string; timeZone: string }[];
   services: { id: string; name: string; durationMin: number }[];

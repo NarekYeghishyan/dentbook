@@ -1,6 +1,6 @@
 /**
  * Настройка бота на стороне Telegram (§8): вебхук с секретом, кнопка меню → Mini App,
- * команда /start. Повторный запуск безопасен — вызовы идемпотентны.
+ * команды /start и /language. Повторный запуск безопасен — вызовы идемпотентны.
  */
 import type { Api } from 'grammy';
 import { LOCALES } from '@dentbook/shared/domain';
@@ -33,7 +33,10 @@ export async function setupBot(api: SetupApi, { publicBaseUrl, webhookSecret }: 
     },
   });
   for (const locale of LOCALES) {
-    const commands = [{ command: 'start', description: translate(locale, 'tg.cmdStart') }];
+    const commands = [
+      { command: 'start', description: translate(locale, 'tg.cmdStart') },
+      { command: 'language', description: translate(locale, 'tg.cmdLanguage') },
+    ];
     // Английский — вариант по умолчанию для всех языков без своего перевода
     await api.setMyCommands(commands, locale === 'en' ? {} : { language_code: locale });
   }

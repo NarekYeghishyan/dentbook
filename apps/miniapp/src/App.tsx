@@ -2,9 +2,10 @@
  * Mini App врача (§8, Шаг 7): расписание, закрытие времени, запись своих клиентов.
  * Открывается из бота; вне Telegram подписи initData нет — только подсказка.
  */
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import type { MiniappMe } from '@dentbook/shared';
+import { LOCALE_NAMES, LOCALES, type Locale } from '@dentbook/shared/domain';
 import { api } from './api';
 import { errorText, SessionContext, useSession, type Session } from './context';
 import { pickLocale, translate, type MessageKey } from './i18n';
@@ -33,7 +34,11 @@ export function App() {
     staleTime: Infinity,
   });
 
-  const locale = pickLocale(telegramLanguage() ?? navigator.language, me.data?.clinic.locale);
+  const locale = pickLocale(
+    me.data?.dentist.locale,
+    telegramLanguage() ?? navigator.language,
+    me.data?.clinic.locale,
+  );
   const session = useMemo<Session | null>(
     () =>
       me.data ? { me: me.data, locale, t: (key, vars) => translate(locale, key, vars) } : null,
@@ -57,6 +62,31 @@ function Screen({ children }: { children: string }) {
   return <p className="p-6 text-center text-hint">{children}</p>;
 }
 
+/** Переключатель языка (§9): тот же выбор, что и /language в боте. */
+function LanguagePicker() {
+  const { locale, t } = useSession();
+  const client = useQueryClient();
+  const change = useMutation({
+    mutationFn: (next: Locale) => api<{ locale: Locale }>('PATCH', '/me', { locale: next }),
+    onSuccess: () => client.invalidateQueries({ queryKey: ['me'] }),
+  });
+  return (
+    <select
+      aria-label={t('language.label')}
+      value={locale}
+      disabled={change.isPending}
+      onChange={(event) => change.mutate(event.target.value as Locale)}
+      className="rounded-lg border border-hint/30 bg-bg px-2 py-1 text-sm text-fg disabled:opacity-50"
+    >
+      {LOCALES.map((option) => (
+        <option key={option} value={option}>
+          {LOCALE_NAMES[option]}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 function Main() {
   const { me, t } = useSession();
   const [tab, setTab] = useState<Tab>('schedule');
@@ -75,9 +105,12 @@ function Main() {
 
   return (
     <div className="mx-auto max-w-lg space-y-4 p-4">
-      <header>
-        <div className="font-semibold">{me.dentist.fullName}</div>
-        <div className="text-sm text-hint">{me.clinic.name}</div>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <div className="font-semibold">{me.dentist.fullName}</div>
+          <div className="text-sm text-hint">{me.clinic.name}</div>
+        </div>
+        <LanguagePicker />
       </header>
       <nav className="grid grid-cols-3 gap-1 rounded-lg bg-card p-1 text-sm">
         {TABS.map(({ tab: key, label }) => (

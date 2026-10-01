@@ -23,11 +23,18 @@ describe('mini app translations (§9, Q6)', () => {
     }
   });
 
-  it('takes the language from Telegram, then the clinic, then English', () => {
-    expect(pickLocale('ru', 'hy')).toBe('ru');
-    expect(pickLocale('hy-AM', 'en')).toBe('hy');
-    expect(pickLocale('de', 'hy')).toBe('hy');
-    expect(pickLocale(undefined)).toBe('en');
+  it('takes the dentist choice, then Telegram, then the clinic, then English', () => {
+    expect(pickLocale(undefined, 'ru', 'hy')).toBe('ru');
+    expect(pickLocale(undefined, 'hy-AM', 'en')).toBe('hy');
+    expect(pickLocale(undefined, 'de', 'hy')).toBe('hy');
+    expect(pickLocale(undefined, undefined)).toBe('en');
+  });
+
+  it('prefers what the dentist chose over Telegram and the clinic (§9)', () => {
+    expect(pickLocale('hy', 'ru', 'en')).toBe('hy');
+    expect(pickLocale('en', 'ru', 'hy')).toBe('en');
+    // null — врач не выбирал: язык берётся из Telegram
+    expect(pickLocale(null, 'ru', 'hy')).toBe('ru');
   });
 
   it('fills placeholders', () => {

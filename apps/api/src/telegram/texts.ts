@@ -1,4 +1,9 @@
-/** Описание записи для сообщений врачу — в поясе офиса и на языке клиники (§2.3, §9). */
+/**
+ * Описание записи для сообщений врачу — в поясе офиса и на языке врача (§2.3, §9).
+ * `locale` — язык врача этой записи: его выбор, иначе язык клиники. Все потребители
+ * описания пишут врачу, поэтому язык здесь его, а не клиники. `clinicLocale` нужен
+ * там, где сообщение уходит другому врачу (перенос записи): его выбор, иначе клиника.
+ */
 import { and, eq, sql } from 'drizzle-orm';
 import {
   appointments,
@@ -14,7 +19,10 @@ import type { AppointmentStatus, Locale } from '@dentbook/shared/domain';
 export interface AppointmentDetails {
   id: string;
   status: AppointmentStatus;
+  /** Язык врача записи: dentists.locale, иначе clinics.locale. */
   locale: Locale;
+  /** Язык клиники — запас для сообщений другому врачу. */
+  clinicLocale: Locale;
   /** «Mon, Sep 21, 10:30 AM» в поясе офиса. */
   when: string;
   /** Пояс офиса (§2.3). */
@@ -48,7 +56,8 @@ export async function describeAppointment(
       id: appointments.id,
       status: appointments.status,
       startAt: appointments.startAt,
-      locale: clinics.locale,
+      locale: sql<string>`coalesce(${dentists.locale}, ${clinics.locale})`,
+      clinicLocale: clinics.locale,
       zone: sql<string>`coalesce(${locations.timezone}, ${clinics.timezone})`,
       service: services.name,
       office: locations.name,
@@ -67,6 +76,12 @@ export async function describeAppointment(
     .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicId, clinicId)));
   if (!row) return undefined;
   const locale = row.locale as Locale;
-  const { startAt, zone, ...rest } = row;
-  return { ...rest, locale, timeZone: zone, when: formatWhen(startAt, zone, locale) };
+  const { startAt, zone, clinicLocale, ...rest } = row;
+  return {
+    ...rest,
+    locale,
+    clinicLocale: clinicLocale as Locale,
+    timeZone: zone,
+    when: formatWhen(startAt, zone, locale),
+  };
 }

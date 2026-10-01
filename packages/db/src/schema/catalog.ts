@@ -13,7 +13,7 @@ import {
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { RESOURCE_KINDS } from '@dentbook/shared';
+import { LOCALES, RESOURCE_KINDS } from '@dentbook/shared';
 import { clinics, locations } from './clinics.js';
 import { createdAt, oneOf, timestamptz, updatedAt } from './columns.js';
 
@@ -30,6 +30,11 @@ export const dentists = pgTable(
     telegramChatId: bigint('telegram_chat_id', { mode: 'number' }),
     telegramBlocked: boolean('telegram_blocked').notNull().default(false),
     telegramLinkedAt: timestamptz('telegram_linked_at'),
+    /**
+     * Язык врача для бота и Mini App — врач выбирает его сам в Telegram (§8, §9).
+     * NULL — не выбирал: бот берёт язык клиники, Mini App — язык приложения Telegram.
+     */
+    locale: text('locale', { enum: LOCALES }),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -39,6 +44,7 @@ export const dentists = pgTable(
       columns: [t.clinicId],
       foreignColumns: [clinics.id],
     }),
+    check('dentists_locale', oneOf('locale', LOCALES)),
     unique('dentists_clinic_id_id_key').on(t.clinicId, t.id),
     unique('dentists_telegram_chat_id_key').on(t.telegramChatId),
     index('dentists_clinic_priority_idx').on(t.clinicId, t.priority),

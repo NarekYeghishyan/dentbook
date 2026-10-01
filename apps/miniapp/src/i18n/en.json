@@ -1,6 +1,7 @@
 {
   "loading": "Loading…",
   "outside": "Open the schedule from the DentBook bot in Telegram.",
+  "language.label": "Language",
   "tab.schedule": "Schedule",
   "tab.block": "Close time",
   "tab.book": "New booking",

@@ -1,6 +1,7 @@
 {
   "loading": "Загрузка…",
   "outside": "Откройте расписание из бота DentBook в Telegram.",
+  "language.label": "Язык",
   "tab.schedule": "Расписание",
   "tab.block": "Закрыть время",
   "tab.book": "Новая запись",

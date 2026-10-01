@@ -15,6 +15,13 @@ produced them (CLAUDE.md §9).
 
 #### Changed
 
+- `feat(telegram): let the dentist choose the bot and mini app language` — врач сам
+  переключает язык в Telegram: команда `/language` в боте (кнопки подписаны самим языком —
+  English, Русский, Հայերեն) и список в шапке Mini App. Выбор один на обе поверхности,
+  хранится в `dentists.locale` (миграция `0004_dentists_locale`, NULL — не выбирал). На
+  этом языке приходят и алерты о записях: `describeAppointment` отдаёт язык врача записи,
+  язык клиники остаётся в `clinicLocale` — на нём пишут прежнему врачу при переносе. Язык
+  клиники и SMS клиентам не затронуты.
 - `feat(admin): show the UTC offset in time zone lists` — в списках часовых поясов
   (регистрация, настройки клиники, офисы) к названию добавлено текущее смещение:
   `Asia/Yerevan (GMT+4)`; летнее время учитывается.

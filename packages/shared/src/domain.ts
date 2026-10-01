@@ -9,6 +9,16 @@
 export const LOCALES = ['en', 'ru', 'hy'] as const;
 export type Locale = (typeof LOCALES)[number];
 
+/**
+ * Самоназвание языка — одинаково во всех переводах, поэтому не ключ в i18n, а данные.
+ * Выбор языка врачом в боте и Mini App (§8) показывает именно их.
+ */
+export const LOCALE_NAMES: Record<Locale, string> = {
+  en: 'English',
+  ru: 'Русский',
+  hy: 'Հայերեն',
+};
+
 export const CLINIC_STATUSES = ['active', 'suspended'] as const;
 export type ClinicStatus = (typeof CLINIC_STATUSES)[number];
 

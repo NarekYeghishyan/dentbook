@@ -1,6 +1,7 @@
 {
   "loading": "Բեռնվում է…",
   "outside": "Բացեք գրաֆիկը Telegram-ում DentBook բոտից։",
+  "language.label": "Լեզու",
   "tab.schedule": "Գրաֆիկ",
   "tab.block": "Փակել ժամը",
   "tab.book": "Նոր գրանցում",

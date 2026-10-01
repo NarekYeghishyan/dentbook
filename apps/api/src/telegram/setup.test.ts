@@ -58,4 +58,20 @@ describe('setupBot (§8)', () => {
     );
     expect(new Set(descriptions).size).toBe(3);
   });
+
+  it('offers /language in every interface language (§9)', async () => {
+    const { api, calls } = fakeApi();
+    await setupBot(api, { publicBaseUrl: 'https://x.example', webhookSecret: 'secret-secret-12' });
+
+    const commands = calls.filter((c) => c.method === 'setMyCommands');
+    for (const call of commands) {
+      expect((call.args[0] as { command: string }[]).map((c) => c.command)).toEqual([
+        'start',
+        'language',
+      ]);
+    }
+    // Описание переведено, а не скопировано из английского
+    const described = commands.map((c) => (c.args[0] as { description: string }[])[1]!.description);
+    expect(new Set(described).size).toBe(3);
+  });
 });

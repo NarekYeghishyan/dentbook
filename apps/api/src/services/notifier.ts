@@ -140,18 +140,24 @@ export function createNotifier(deps: {
     if (!telegram) return;
     const details = await describeAppointment(db, clinicId, appointmentId);
     const [dentist] = await db
-      .select({ chatId: dentists.telegramChatId, blocked: dentists.telegramBlocked })
+      .select({
+        chatId: dentists.telegramChatId,
+        blocked: dentists.telegramBlocked,
+        locale: dentists.locale,
+      })
       .from(dentists)
       .where(and(eq(dentists.id, previous.dentistId), eq(dentists.clinicId, clinicId)));
     if (!details || !dentist || dentist.chatId === null || dentist.blocked) return;
-    const when = formatWhen(previous.startAt, details.timeZone, details.locale);
+    // Письмо уходит прежнему врачу — его язык, не язык врача, которому досталась запись
+    const locale = dentist.locale ?? details.clinicLocale;
+    const when = formatWhen(previous.startAt, details.timeZone, locale);
     await toDentist(clinicId, appointmentId, previous.dentistId, 'appointment_rescheduled', {
       chatId: dentist.chatId,
-      text: translate(details.locale, 'tg.movedAway', varsOf(details, when)),
+      text: translate(locale, 'tg.movedAway', varsOf(details, when)),
       buttons: [
         [
           {
-            text: translate(details.locale, 'tg.openSchedule'),
+            text: translate(locale, 'tg.openSchedule'),
             webAppUrl: telegram.miniAppUrl,
           },
         ],

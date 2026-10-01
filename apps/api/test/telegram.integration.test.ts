@@ -16,6 +16,7 @@ import {
   type TestRedis,
 } from '@dentbook/db/testing';
 import type { ConfirmedAppointment, Dentist, HoldResponse, TelegramLink } from '@dentbook/shared';
+import { describeAppointment } from '../src/telegram/texts.js';
 import {
   TestOutbox,
   TestSms,
@@ -104,6 +105,14 @@ async function issueLink(session: Session, dentistId: string): Promise<string> {
 async function linkDentist(session: Session, dentistId: string, chatId: number) {
   const token = await issueLink(session, dentistId);
   expect((await webhook(message(chatId, `/start ${token}`))).statusCode).toBe(200);
+}
+
+async function localeOf(dentistId: string): Promise<string | null> {
+  const [row] = await database.db
+    .select({ locale: dentists.locale })
+    .from(dentists)
+    .where(eq(dentists.id, dentistId));
+  return row!.locale ?? null;
 }
 
 function mini(chatId: number, options: InjectOptions) {
@@ -513,6 +522,19 @@ describe('Mini App isolation (§2.2)', () => {
       const res = await mini(BORIS_CHAT, { method: 'GET', url: '/v1/miniapp/me' });
       expect(res.json().dentist.id).toBe(boris);
     },
+    'PATCH /v1/miniapp/me': async () => {
+      const before = await localeOf(data.dentistId);
+      const res = await mini(BORIS_CHAT, {
+        method: 'PATCH',
+        url: '/v1/miniapp/me',
+        payload: { locale: 'hy' },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(await localeOf(boris)).toBe('hy');
+      // Язык чужого врача не тронут
+      expect(await localeOf(data.dentistId)).toBe(before);
+      await database.db.update(dentists).set({ locale: null }).where(eq(dentists.id, boris));
+    },
     'GET /v1/miniapp/schedule': async () => {
       const from = upcoming(1);
       const to = addDays(from, 20);
@@ -604,5 +626,97 @@ describe('Mini App isolation (§2.2)', () => {
       url: `/v1/admin/dentists/${otherData.dentistId}/telegram`,
     });
     expect((await mini(OTHER_CHAT, { method: 'GET', url: '/v1/miniapp/me' })).statusCode).toBe(403);
+  });
+});
+
+describe('the dentist chooses the language in Telegram (§9)', () => {
+  const lastTo = (chatId: number) => outbox.messagesTo(chatId).at(-1)!;
+  const answers = () =>
+    outbox.jobs.filter((j) => j.job.type === 'answer').map((j) => j.job) as {
+      type: 'answer';
+      text?: string;
+    }[];
+
+  afterAll(async () => {
+    // Остальные блоки ждут английский: возвращаем врача к языку клиники
+    await database.db.update(dentists).set({ locale: null }).where(eq(dentists.id, data.dentistId));
+  });
+
+  it('/language offers every supported language, named in itself', async () => {
+    expect((await webhook(message(ANNA_CHAT, '/language'))).statusCode).toBe(200);
+    const prompt = lastTo(ANNA_CHAT);
+    expect(prompt.text).toBe('Choose the language for the bot and the schedule:');
+    expect(prompt.buttons).toEqual([
+      [{ text: 'English', callbackData: 'lang:en' }],
+      [{ text: 'Русский', callbackData: 'lang:ru' }],
+      [{ text: 'Հայերեն', callbackData: 'lang:hy' }],
+    ]);
+  });
+
+  it('stores the choice and answers in the new language', async () => {
+    expect((await webhook(callback(ANNA_CHAT, 'lang:hy'))).statusCode).toBe(200);
+    expect(await localeOf(data.dentistId)).toBe('hy');
+    expect(answers().at(-1)!.text).toContain('Հայերեն');
+    const confirmation = lastTo(ANNA_CHAT);
+    expect(confirmation.text).toContain('Հայերեն');
+    // Кнопка расписания — тоже на новом языке
+    expect(confirmation.buttons).toEqual([
+      [{ text: '📅 Բացել գրաֆիկը', webAppUrl: telegram.miniAppUrl }],
+    ]);
+  });
+
+  it('keeps speaking the chosen language, not the clinic one', async () => {
+    await webhook(message(ANNA_CHAT, '/start'));
+    expect(lastTo(ANNA_CHAT).text).toBe('Դուք միացված եք Smile Dental կլինիկային։');
+    // /language тоже спрашивает уже по-армянски
+    await webhook(message(ANNA_CHAT, '/language'));
+    expect(lastTo(ANNA_CHAT).text).toBe('Ընտրեք բոտի և գրաֆիկի լեզուն՝');
+  });
+
+  it('describes appointments to the dentist in the chosen language (§2.3)', async () => {
+    const [row] = await database.db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(eq(appointments.dentistId, data.dentistId));
+    const details = await describeAppointment(database.db, owner.clinicId, row!.id);
+    expect(details!.locale).toBe('hy');
+    // Язык клиники остаётся для сообщений другим врачам
+    expect(details!.clinicLocale).toBe('en');
+  });
+
+  it('the Mini App reports the choice and changes it, one preference for both', async () => {
+    const before = await mini(ANNA_CHAT, { method: 'GET', url: '/v1/miniapp/me' });
+    expect(before.json().dentist.locale).toBe('hy');
+
+    const patched = await mini(ANNA_CHAT, {
+      method: 'PATCH',
+      url: '/v1/miniapp/me',
+      payload: { locale: 'ru' },
+    });
+    expect(patched.statusCode).toBe(200);
+    expect(
+      (await mini(ANNA_CHAT, { method: 'GET', url: '/v1/miniapp/me' })).json().dentist.locale,
+    ).toBe('ru');
+    // Выбор в Mini App слышит и бот
+    await webhook(message(ANNA_CHAT, '/start'));
+    expect(lastTo(ANNA_CHAT).text).toBe('Вы подключены к клинике Smile Dental.');
+  });
+
+  it('refuses a language the platform does not have', async () => {
+    const res = await mini(ANNA_CHAT, {
+      method: 'PATCH',
+      url: '/v1/miniapp/me',
+      payload: { locale: 'de' },
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error.code).toBe('validation_failed');
+    expect(await localeOf(data.dentistId)).toBe('ru');
+  });
+
+  it('ignores a language button from a stranger', async () => {
+    const before = outbox.jobs.length;
+    await webhook(callback(9999, 'lang:hy'));
+    const added = outbox.jobs.slice(before).map((j) => j.job);
+    expect(added.every((j) => j.type !== 'message')).toBe(true);
   });
 });

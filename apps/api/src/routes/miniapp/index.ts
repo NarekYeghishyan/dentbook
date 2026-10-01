@@ -25,6 +25,7 @@ import {
   AVAILABILITY_MAX_DAYS,
   miniappBlockSchema,
   miniappBookingSchema,
+  miniappLocaleSchema,
   miniappSlotsQuerySchema,
   scheduleQuerySchema,
   type MiniappMe,
@@ -106,6 +107,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
       .select({
         id: dentists.id,
         fullName: dentists.fullName,
+        dentistLocale: dentists.locale,
         clinicName: clinics.name,
         locale: clinics.locale,
         timezone: clinics.timezone,
@@ -129,11 +131,25 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
       .where(and(eq(services.clinicId, clinicId), eq(services.isActive, true)))
       .orderBy(asc(services.sortOrder), asc(services.name));
     return {
-      dentist: { id: me!.id, fullName: me!.fullName },
+      dentist: { id: me!.id, fullName: me!.fullName, locale: me!.dentistLocale ?? null },
       clinic: { name: me!.clinicName, locale: me!.locale as Locale, timezone: me!.timezone },
       locations: offices,
       services: own,
     };
+  });
+
+  /**
+   * Язык врача (§9): тот же выбор, что и у команды /language в боте. Врач меняет только
+   * свой — dentistId берётся из подписи initData, не из запроса (§2.2).
+   */
+  app.patch('/me', async (request) => {
+    const { dentistId, clinicId } = dentistOf(request);
+    const { locale } = parse(miniappLocaleSchema, request.body);
+    await db
+      .update(dentists)
+      .set({ locale })
+      .where(and(eq(dentists.id, dentistId), eq(dentists.clinicId, clinicId)));
+    return { locale };
   });
 
   app.get('/schedule', async (request): Promise<MiniappSchedule> => {

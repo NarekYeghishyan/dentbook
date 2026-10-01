@@ -150,9 +150,13 @@ CREATE TABLE dentists (
   telegram_chat_id    bigint,
   telegram_blocked    boolean     NOT NULL DEFAULT false,
   telegram_linked_at  timestamptz,
+  -- Язык врача для бота и Mini App, врач выбирает его сам в Telegram (§8, §9).
+  -- NULL — не выбирал: бот берёт язык клиники, Mini App — язык приложения Telegram.
+  locale              text,
   created_at          timestamptz NOT NULL DEFAULT now(),
   updated_at          timestamptz NOT NULL DEFAULT now(),
 
+  CONSTRAINT dentists_locale CHECK (locale IN ('en', 'ru', 'hy')),
   CONSTRAINT dentists_clinic_id_id_key UNIQUE (clinic_id, id),
   -- TODO: один Telegram-аккаунт = один врач на платформе. Врачу, работающему
   -- в двух клиниках, понадобится выбор клиники в боте (Q9).
