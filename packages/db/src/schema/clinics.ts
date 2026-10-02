@@ -12,7 +12,7 @@ import {
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { CLINIC_STATUSES, USER_ROLES } from '@dentbook/shared';
+import { CLINIC_STATUSES, EMBED_MODES, USER_ROLES } from '@dentbook/shared';
 import { citext, createdAt, oneOf, timestamptz, updatedAt } from './columns.js';
 
 // Имена таблиц, колонок и ограничений совпадают со schema.sql (CLAUDE.md §5).
@@ -114,6 +114,8 @@ export const apiKeys = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'`),
+    /** Форма на странице или во всплывающем окне — какой код встраивания показать. */
+    embedMode: text('embed_mode', { enum: EMBED_MODES }).notNull().default('inline'),
     lastUsedAt: timestamptz('last_used_at'),
     revokedAt: timestamptz('revoked_at'),
     createdBy: uuid('created_by'),
@@ -132,6 +134,7 @@ export const apiKeys = pgTable(
     }),
     unique('api_keys_token_key').on(t.token),
     check('api_keys_token_prefix', sql`token LIKE 'pk\\_%'`),
+    check('api_keys_embed_mode', oneOf('embed_mode', EMBED_MODES)),
     index('api_keys_clinic_idx').on(t.clinicId),
   ],
 );

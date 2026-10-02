@@ -50,6 +50,13 @@
       "when": 1790943554889,
       "tag": "0006_appointment_events_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790962113494,
+      "tag": "0007_api_keys_embed_mode",
+      "breakpoints": true
     }
   ]
 }

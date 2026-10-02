@@ -2,7 +2,14 @@
  * Контракт админского API /v1/admin: схемы входа и формы ответов.
  */
 import { z } from 'zod';
-import { LOCALES, STAFF_ROLES, type Locale, type UserRole } from './domain.js';
+import {
+  EMBED_MODES,
+  LOCALES,
+  STAFF_ROLES,
+  type EmbedMode,
+  type Locale,
+  type UserRole,
+} from './domain.js';
 import {
   currencySchema,
   emailSchema,
@@ -119,6 +126,9 @@ export const originSchema = z
 export const createApiKeySchema = z.object({
   name: nameSchema,
   allowedOrigins: z.array(originSchema).min(1).max(20),
+  // Без default: в updateApiKeySchema (partial) zod подставил бы его и в PATCH без поля,
+  // и правка сайтов сбрасывала бы окно обратно в форму на странице. По умолчанию — БД.
+  embedMode: z.enum(EMBED_MODES).optional(),
 });
 export type CreateApiKeyInput = z.input<typeof createApiKeySchema>;
 
@@ -131,6 +141,8 @@ export interface ApiKey {
   /** pk_… — публичный по природе: лежит в HTML сайта клиники. */
   token: string;
   allowedOrigins: string[];
+  /** Какой код встраивания показывает панель; сама форма берёт режим из кода (data-mode). */
+  embedMode: EmbedMode;
   lastUsedAt: string | null;
   revokedAt: string | null;
   createdAt: string;

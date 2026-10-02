@@ -123,13 +123,18 @@ CREATE TABLE api_keys (
   token            text        NOT NULL,
   -- Пустой массив — запрещены все Origin (§2.5: нет совпадения → 403)
   allowed_origins  text[]      NOT NULL DEFAULT '{}',
+  -- Как форма стоит на сайте: inline — на странице, popup — во всплывающем окне по
+  -- клику на кнопки сайта. По нему панель показывает нужный код встраивания; сама
+  -- форма режим берёт из кода (data-mode), поэтому смена здесь сайт не меняет.
+  embed_mode       text        NOT NULL DEFAULT 'inline',
   last_used_at     timestamptz,
   revoked_at       timestamptz,
   created_by       uuid        REFERENCES users (id),
   created_at       timestamptz NOT NULL DEFAULT now(),
 
   CONSTRAINT api_keys_token_key     UNIQUE (token),
-  CONSTRAINT api_keys_token_prefix  CHECK (token LIKE 'pk\_%')
+  CONSTRAINT api_keys_token_prefix  CHECK (token LIKE 'pk\_%'),
+  CONSTRAINT api_keys_embed_mode    CHECK (embed_mode IN ('inline', 'popup'))
 );
 
 CREATE INDEX api_keys_clinic_idx ON api_keys (clinic_id);

@@ -1,6 +1,8 @@
 {
   "loading": "Загрузка…",
   "back": "Назад",
+  "close": "Закрыть",
+  "popup.title": "Онлайн-запись",
   "service.title": "Выберите услугу",
   "service.minutes": "{min} мин",
   "office.title": "Выберите офис",

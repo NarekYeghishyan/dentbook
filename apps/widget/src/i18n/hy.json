@@ -1,6 +1,8 @@
 {
   "loading": "Բեռնվում է…",
   "back": "Հետ",
+  "close": "Փակել",
+  "popup.title": "Առցանց գրանցում",
   "service.title": "Ընտրեք ծառայությունը",
   "service.minutes": "{min} րոպե",
   "office.title": "Ընտրեք գրասենյակը",

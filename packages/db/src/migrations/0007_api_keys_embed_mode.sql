@@ -1,0 +1,2 @@
+ALTER TABLE "api_keys" ADD COLUMN "embed_mode" text DEFAULT 'inline' NOT NULL;--> statement-breakpoint
+ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_embed_mode" CHECK (embed_mode IN ('inline', 'popup'));

@@ -17,6 +17,7 @@ const columns = {
   name: apiKeys.name,
   token: apiKeys.token,
   allowedOrigins: apiKeys.allowedOrigins,
+  embedMode: apiKeys.embedMode,
   lastUsedAt: apiKeys.lastUsedAt,
   revokedAt: apiKeys.revokedAt,
   createdAt: apiKeys.createdAt,
@@ -56,6 +57,7 @@ export const apiKeyRoutes: FastifyPluginAsync<{ db: Database }> = async (app, { 
         clinicId,
         name: input.name,
         allowedOrigins: [...new Set(input.allowedOrigins)],
+        embedMode: input.embedMode,
         token: newPublishableKey(),
         createdBy: userId,
       })
@@ -69,6 +71,7 @@ export const apiKeyRoutes: FastifyPluginAsync<{ db: Database }> = async (app, { 
     const changes = {
       ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.allowedOrigins ? { allowedOrigins: [...new Set(input.allowedOrigins)] } : {}),
+      ...(input.embedMode !== undefined ? { embedMode: input.embedMode } : {}),
     };
     const where = scoped(clinicId, idOf(request));
     const [row] =

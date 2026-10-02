@@ -25,6 +25,7 @@ import type {
 } from '@dentbook/shared';
 import {
   TestSms,
+  as,
   call,
   createClinicData,
   registerClinic,
@@ -251,6 +252,39 @@ describe('publishable key and Origin (§2.5)', () => {
     });
     expect(preflight.statusCode).toBe(204);
     expect(preflight.headers['access-control-allow-headers']).toContain('authorization');
+  });
+
+  it('remembers whether the form sits on the page or opens in a popup', async () => {
+    expect((await issueKey(owner)).embedMode).toBe('inline');
+    const popup = await call<ApiKey>(
+      app,
+      owner,
+      {
+        method: 'POST',
+        url: '/v1/admin/api-keys',
+        payload: { name: 'Buttons', allowedOrigins: [ORIGIN], embedMode: 'popup' },
+      },
+      201,
+    );
+    expect(popup.embedMode).toBe('popup');
+
+    // Правка сайтов режим не сбрасывает, а смена режима сайты не трогает
+    const patch = (payload: object) =>
+      call<ApiKey>(app, owner, { method: 'PATCH', url: `/v1/admin/api-keys/${popup.id}`, payload });
+    expect((await patch({ allowedOrigins: ['https://other.example'] })).embedMode).toBe('popup');
+    const inline = await patch({ embedMode: 'inline' });
+    expect(inline).toMatchObject({
+      embedMode: 'inline',
+      allowedOrigins: ['https://other.example'],
+    });
+
+    const wrong = await as(app, owner, {
+      method: 'PATCH',
+      url: `/v1/admin/api-keys/${popup.id}`,
+      payload: { embedMode: 'sidebar' },
+    });
+    expect(wrong.statusCode).toBe(400);
+    expect(wrong.json().error.code).toBe('validation_failed');
   });
 });
 

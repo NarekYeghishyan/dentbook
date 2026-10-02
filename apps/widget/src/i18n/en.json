@@ -1,6 +1,8 @@
 {
   "loading": "Loading…",
   "back": "Back",
+  "close": "Close",
+  "popup.title": "Online booking",
   "service.title": "Choose a service",
   "service.minutes": "{min} min",
   "office.title": "Choose an office",

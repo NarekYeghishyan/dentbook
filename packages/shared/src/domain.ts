@@ -29,6 +29,16 @@ export type UserRole = (typeof USER_ROLES)[number];
 export const STAFF_ROLES = ['admin', 'registrar'] as const satisfies readonly UserRole[];
 export type StaffRole = (typeof STAFF_ROLES)[number];
 
+/**
+ * Как форма записи стоит на сайте: inline — прямо на странице, popup — во всплывающем
+ * окне по клику на кнопки сайта. Выбирается у ключа (api_keys.embed_mode).
+ */
+export const EMBED_MODES = ['inline', 'popup'] as const;
+export type EmbedMode = (typeof EMBED_MODES)[number];
+
+/** Класс кнопок сайта, открывающих форму во всплывающем окне (если в коде нет data-trigger). */
+export const POPUP_TRIGGER_CLASS = 'dentbook-open';
+
 export const RESOURCE_KINDS = ['room', 'chair', 'equipment'] as const;
 export type ResourceKind = (typeof RESOURCE_KINDS)[number];
 

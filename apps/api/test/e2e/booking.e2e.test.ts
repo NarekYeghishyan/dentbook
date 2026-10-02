@@ -31,10 +31,13 @@ import {
 } from '../helpers.js';
 
 const WIDGET_DIST = fileURLToPath(new URL('../../../widget/dist', import.meta.url));
-const TEST_PAGE = readFileSync(
-  new URL('../../../widget/test-page/index.html', import.meta.url),
-  'utf8',
-);
+const testPage = (name: string) =>
+  readFileSync(new URL(`../../../widget/test-page/${name}`, import.meta.url), 'utf8');
+/** Страницы «сайта клиники»: форма на странице и форма во всплывающем окне. */
+const TEST_PAGES: Record<string, string> = {
+  '/': testPage('index.html'),
+  '/popup': testPage('popup.html'),
+};
 
 let database: TestDatabase;
 let redisServer: TestRedis;
@@ -66,13 +69,13 @@ beforeAll(async () => {
   apiUrl = `http://localhost:${port(api.server)}`;
 
   site = createServer((request, response) => {
-    const pageKey = new URL(request.url ?? '/', 'http://x').searchParams.get('key') ?? key;
+    const url = new URL(request.url ?? '/', 'http://x');
+    const page = TEST_PAGES[url.pathname] ?? TEST_PAGES['/']!;
     response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
     response.end(
-      TEST_PAGE.replaceAll('%WIDGET_SRC%', `${apiUrl}/widget/dentbook-widget.js`).replaceAll(
-        '%KEY%',
-        pageKey,
-      ),
+      page
+        .replaceAll('%WIDGET_SRC%', `${apiUrl}/widget/dentbook-widget.js`)
+        .replaceAll('%KEY%', url.searchParams.get('key') ?? key),
     );
   });
   await new Promise<void>((resolve) => site.listen(0, '127.0.0.1', resolve));
@@ -113,12 +116,12 @@ async function shot(page: Page, name: string) {
   if (dir) await page.screenshot({ path: `${dir}/${name}.png`, fullPage: true });
 }
 
-async function openPage(width = 1024): Promise<Page> {
+async function openPage(width = 1024, path = '/'): Promise<Page> {
   const page = await browser.newPage({ viewport: { width, height: 900 } });
   page.on('pageerror', (error) => {
     throw error;
   });
-  await page.goto(siteUrl);
+  await page.goto(`${siteUrl}${path}`);
   return page;
 }
 
@@ -241,5 +244,90 @@ describe('booking form on a clinic website (Step 6)', () => {
     const { gzipSync } = await import('node:zlib');
     const size = gzipSync(Buffer.from(await res.arrayBuffer())).length;
     expect(size).toBeLessThan(50 * 1024);
+  });
+});
+
+describe('booking form in a popup on a clinic website', () => {
+  it('stays closed and quiet until a site button opens it, then books a visit', async () => {
+    const page = await browser.newPage({ viewport: { width: 1024, height: 900 } });
+    page.on('pageerror', (error) => {
+      throw error;
+    });
+    const calls: string[] = [];
+    page.on('request', (request) => {
+      if (request.url().includes('/v1/public/')) calls.push(request.url());
+    });
+    await page.goto(`${siteUrl}/popup`);
+    const dialog = page.getByRole('dialog', { name: 'Online booking' });
+    expect(await dialog.isVisible()).toBe(false);
+    // Окно не ходит в API, пока его не открыли: кнопки записи стоят на многих страницах
+    expect(calls).toEqual([]);
+
+    await page.getByRole('button', { name: 'Book a visit', exact: true }).click();
+    await dialog.getByRole('button', { name: /Checkup/ }).click();
+    await shot(page, '7-popup-time');
+    expect(await page.evaluate(() => document.documentElement.style.overflow)).toBe('hidden');
+    await dialog.locator('button.slot').first().click();
+
+    await dialog.getByText(/The time is held for you/).waitFor();
+    await dialog.getByLabel('Full name').fill('Pat Popup');
+    // Escape в списке стран закрывает список, а не окно
+    await dialog.getByRole('button', { name: 'Country code' }).click();
+    await page.keyboard.press('Escape');
+    expect(await dialog.isVisible()).toBe(true);
+    await dialog.getByLabel('Mobile phone').fill('(202) 555-0133');
+    await dialog.getByRole('button', { name: 'Send code' }).click();
+    await dialog.getByText('We texted a 6-digit code to +12025550133.').waitFor();
+    await dialog.getByLabel('Code', { exact: true }).fill(sms.lastCode('+12025550133'));
+    await dialog.getByRole('button', { name: 'Book', exact: true }).click();
+    await dialog.getByText('You are booked!').waitFor();
+    await shot(page, '8-popup-done');
+
+    // Крестик закрывает окно и возвращает прокрутку; ссылка открывает его на том же шаге
+    await dialog.getByRole('button', { name: 'Close' }).click();
+    await dialog.waitFor({ state: 'hidden' });
+    expect(await page.evaluate(() => document.documentElement.style.overflow)).toBe('');
+    await page.getByRole('link', { name: 'Book online' }).click();
+    await dialog.getByText('You are booked!').waitFor();
+
+    const [booked] = await database.db
+      .select({ status: appointments.status })
+      .from(appointments)
+      .innerJoin(patients, eq(patients.id, appointments.patientId))
+      .where(and(eq(appointments.clinicId, owner.clinicId), eq(patients.phone, '+12025550133')));
+    expect(booked).toEqual({ status: 'confirmed' });
+    await page.close();
+  });
+
+  it('closes on Escape and on a click outside; buttons added later open it too', async () => {
+    const page = await openPage(1024, '/popup');
+    const dialog = page.getByRole('dialog', { name: 'Online booking' });
+    await page.evaluate(() => {
+      const button = document.createElement('button');
+      button.className = 'dentbook-open';
+      button.textContent = 'Added later';
+      document.querySelector('main')!.append(button);
+    });
+    await page.getByRole('button', { name: 'Added later' }).click();
+    await dialog.getByRole('button', { name: /Checkup/ }).waitFor();
+    await page.keyboard.press('Escape');
+    await dialog.waitFor({ state: 'hidden' });
+
+    await page.getByRole('button', { name: 'Book a visit', exact: true }).click();
+    await dialog.waitFor();
+    await page.mouse.click(8, 8); // затемнение вокруг окна
+    await dialog.waitFor({ state: 'hidden' });
+    await page.close();
+  });
+
+  it('takes the whole screen on a phone', async () => {
+    const page = await openPage(375, '/popup');
+    await page.getByRole('button', { name: 'Book a visit', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Online booking' });
+    await dialog.getByRole('button', { name: /Checkup/ }).click();
+    await dialog.locator('button.slot').first().waitFor();
+    await shot(page, '9-popup-phone');
+    expect(await dialog.boundingBox()).toEqual({ x: 0, y: 0, width: 375, height: 900 });
+    await page.close();
   });
 });

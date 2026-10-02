@@ -109,4 +109,26 @@ input:focus, select:focus, textarea:focus { border-color: var(--db-primary); out
 .done .mark { width: 48px; height: 48px; margin: 4px auto 12px; border-radius: 50%; background: var(--db-primary); color: #fff; font-size: 26px; line-height: 48px; }
 .captcha { min-height: 65px; margin-bottom: 12px; }
 @media (max-width: 420px) { .db { padding: 14px; border-radius: 0; border-left: 0; border-right: 0; } }
+/* Всплывающее окно (data-mode="popup"): карточка по центру, на телефоне — весь экран */
+.pop {
+  width: min(560px, calc(100% - 32px)); max-width: none; max-height: calc(100% - 32px);
+  padding: 0; border: 0; border-radius: 12px; background: transparent; overflow: auto;
+  box-shadow: 0 24px 64px rgba(15, 23, 42, .32);
+}
+.pop::backdrop { background: rgba(15, 23, 42, .55); }
+.pop .db { max-width: none; min-height: 100%; border: 0; border-radius: 0; }
+/* Крестик остаётся на виду, когда длинная форма прокручена; клики мимо него проходят к форме */
+.top {
+  position: sticky; top: 0; z-index: 6; display: flex; justify-content: flex-end;
+  margin: -10px -10px 0 0; pointer-events: none;
+}
+.close {
+  width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%;
+  background: var(--db-bg); color: var(--db-muted); font: 26px/1 system-ui, sans-serif;
+  cursor: pointer; pointer-events: auto;
+}
+.close:hover, .close:focus-visible { background: var(--db-soft); color: var(--db-text); outline: none; }
+@media (max-width: 560px) {
+  .pop { width: 100%; height: 100%; max-height: none; margin: 0; border-radius: 0; }
+}
 `;

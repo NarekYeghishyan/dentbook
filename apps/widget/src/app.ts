@@ -24,6 +24,7 @@ import { createApi, WidgetApiError } from './api';
 import { renderCaptcha, type Captcha } from './captcha';
 import { addDays, formatDateOf, formatDay, formatTime, todayIn } from './dates';
 import { translator, type MessageKey } from './i18n';
+import { createPopup } from './popup';
 import { css } from './styles';
 
 export interface WidgetOptions {
@@ -32,6 +33,13 @@ export interface WidgetOptions {
   apiBase: string;
   /** Язык формы; по умолчанию — язык из настроек клиники. */
   locale?: Locale | undefined;
+  /** Всплывающее окно вместо формы на странице: появляется по open(). */
+  popup?: boolean | undefined;
+}
+
+/** Форма на сайте. open() открывает всплывающее окно; форме на странице он не нужен. */
+export interface Widget {
+  open(): void;
 }
 
 type Step = 'loading' | 'unavailable' | 'service' | 'office' | 'time' | 'details' | 'code' | 'done';
@@ -83,14 +91,19 @@ const ERROR_TEXT: Partial<Record<string, MessageKey>> = {
   origin_not_allowed: 'error.unavailable',
 };
 
-export function mountWidget(host: HTMLElement, options: WidgetOptions): void {
+export function mountWidget(host: HTMLElement, options: WidgetOptions): Widget {
   const shadow = host.shadowRoot ?? host.attachShadow({ mode: 'open' });
   const view = h('div', { class: 'db', part: 'form' });
-  shadow.replaceChildren(h('style', {}, css), view);
+  const popup = options.popup ? createPopup(view) : undefined;
+  // Куда рисуются экраны. В окне над ними крестик — он не перерисовывается с экранами,
+  // и фокус, который ставит на него showModal(), не теряется
+  const screens = popup ? view.appendChild(h('div')) : view;
+  shadow.replaceChildren(h('style', {}, css), popup?.dialog ?? view);
   const api = createApi(options.apiBase, options.key);
 
   let locale: Locale = options.locale ?? 'en';
   let t = translator(locale);
+  popup?.label(t('popup.title'), t('close'));
 
   const s = {
     step: 'loading' as Step,
@@ -166,6 +179,7 @@ export function mountWidget(host: HTMLElement, options: WidgetOptions): void {
       if (!options.locale) {
         locale = config.clinic.locale;
         t = translator(locale);
+        popup?.label(t('popup.title'), t('close'));
       }
       s.country = DEFAULT_COUNTRY[locale];
       const primary = config.theme.primary_color;
@@ -861,9 +875,21 @@ export function mountWidget(host: HTMLElement, options: WidgetOptions): void {
 
   function render() {
     stopCountdown();
-    view.replaceChildren(...screen().filter((c): c is Node | string => Boolean(c)));
+    screens.replaceChildren(...screen().filter((c): c is Node | string => Boolean(c)));
+  }
+
+  let started = false;
+  function open() {
+    if (!started) {
+      started = true;
+      void start();
+    }
+    popup?.open();
   }
 
   render();
-  void start();
+  // Окно не ходит в API, пока его не открыли: кнопки записи стоят на многих страницах
+  // сайта, а нажимают их редко. Закрытое и открытое снова, оно продолжает с того же шага
+  if (!popup) open();
+  return { open };
 }
