@@ -8,7 +8,7 @@ import type { FastifyInstance, HTTPMethods, InjectOptions } from 'fastify';
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { addDays, isoWeekday, localDateOf, zonedTimeToUtc } from '@dentbook/core';
-import { appointments, dentists, notifications, telegramLinkTokens } from '@dentbook/db';
+import { appointments, dentists, notifications, patients, telegramLinkTokens } from '@dentbook/db';
 import {
   startTestDatabase,
   startTestRedis,
@@ -498,6 +498,122 @@ describe('Mini App (§8)', () => {
     });
     expect(res.json()).toEqual({ id: own!.id, status: 'confirmed' });
   });
+
+  it('edits the client and the comment of any own booking', async () => {
+    const [own] = await database.db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(and(eq(appointments.dentistId, data.dentistId), eq(appointments.source, 'telegram')));
+    const edit = (id: string, payload: object) =>
+      mini(ANNA_CHAT, { method: 'PATCH', url: `/v1/miniapp/appointments/${id}`, payload });
+    const scheduleOf = async (day: string) =>
+      (
+        await mini(ANNA_CHAT, { method: 'GET', url: `/v1/miniapp/schedule?from=${day}&to=${day}` })
+      ).json().appointments as { id: string }[];
+
+    const res = await edit(own!.id, {
+      client: { fullName: 'Own Client Junior', phone: '+12025559002' },
+      notes: 'Allergic to latex',
+    });
+    expect(res.statusCode, res.body).toBe(204);
+    expect(await scheduleOf(upcoming(5))).toContainEqual(
+      expect.objectContaining({
+        id: own!.id,
+        serviceId: data.serviceId,
+        locationId: data.locationId,
+        client: { fullName: 'Own Client Junior', phone: '+12025559002' },
+        notes: 'Allergic to latex',
+      }),
+    );
+
+    // Пустой комментарий убирает его; клиент без поля client не меняется
+    expect((await edit(own!.id, { notes: '' })).statusCode).toBe(204);
+    const [row] = await database.db
+      .select({ notes: appointments.notes, phone: patients.phone })
+      .from(appointments)
+      .innerJoin(patients, eq(patients.id, appointments.patientId))
+      .where(eq(appointments.id, own!.id));
+    expect(row).toEqual({ notes: null, phone: '+12025559002' });
+    expect((await edit(own!.id, {})).statusCode).toBe(400);
+
+    // Запись с сайта врач правит так же
+    const [website] = await scheduleOf(upcoming(1));
+    expect((await edit(website!.id, { notes: 'Call before the visit' })).statusCode).toBe(204);
+    expect(await scheduleOf(upcoming(1))).toContainEqual(
+      expect.objectContaining({ id: website!.id, notes: 'Call before the visit' }),
+    );
+  });
+
+  it('moves and cancels an own booking without alerting the dentist', async () => {
+    const day = upcoming(5);
+    const [own] = await database.db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(and(eq(appointments.dentistId, data.dentistId), eq(appointments.source, 'telegram')));
+    await bookFromWebsite(at(day, '14:00'));
+    const slots = async (extra = '') =>
+      (
+        await mini(ANNA_CHAT, {
+          method: 'GET',
+          url: `/v1/miniapp/slots?serviceId=${data.serviceId}&locationId=${data.locationId}&date=${day}${extra}`,
+        })
+      ).json().slots as string[];
+    const move = (startAt: string) =>
+      mini(ANNA_CHAT, {
+        method: 'POST',
+        url: `/v1/miniapp/appointments/${own!.id}/move`,
+        payload: { startAt },
+      });
+    const cancel = () =>
+      mini(ANNA_CHAT, { method: 'POST', url: `/v1/miniapp/appointments/${own!.id}/cancel` });
+    const stored = async () =>
+      (
+        await database.db
+          .select({
+            startAt: appointments.startAt,
+            endAt: appointments.endAt,
+            status: appointments.status,
+            cancelledBy: appointments.cancelledBy,
+          })
+          .from(appointments)
+          .where(eq(appointments.id, own!.id))
+      )[0]!;
+    const alerts = outbox.messagesTo(ANNA_CHAT).length;
+
+    // Своё время записи свободно только для её переноса
+    expect(await slots()).not.toContain(at(day, '11:00'));
+    expect(await slots(`&appointmentId=${own!.id}`)).toContain(at(day, '11:00'));
+
+    // Перенос на 15 минут: новое время задевает старое, запись сама себе не мешает
+    const moved = await move(at(day, '11:15'));
+    expect(moved.statusCode, moved.body).toBe(204);
+    expect(await stored()).toMatchObject({
+      startAt: new Date(at(day, '11:15')),
+      endAt: new Date(at(day, '11:45')),
+      status: 'confirmed',
+    });
+
+    // На чужую запись не переносится — это держит EXCLUDE (§2.1)
+    const taken = await move(at(day, '14:00'));
+    expect(taken.statusCode).toBe(409);
+    expect(taken.json().error.code).toBe('slot_taken');
+
+    expect((await cancel()).statusCode).toBe(204);
+    expect(await stored()).toMatchObject({ status: 'cancelled', cancelledBy: 'dentist' });
+    expect(await slots()).toContain(at(day, '11:15'));
+    // Отменённую не отменить, не перенести и не поправить
+    expect((await cancel()).statusCode).toBe(409);
+    expect((await move(at(day, '16:00'))).statusCode).toBe(409);
+    const edited = await mini(ANNA_CHAT, {
+      method: 'PATCH',
+      url: `/v1/miniapp/appointments/${own!.id}`,
+      payload: { notes: 'Too late' },
+    });
+    expect(edited.statusCode).toBe(404);
+
+    // Всё это сделал сам врач — сообщать ему не о чем
+    expect(outbox.messagesTo(ANNA_CHAT)).toHaveLength(alerts);
+  });
 });
 
 describe('Mini App isolation (§2.2)', () => {
@@ -612,6 +728,59 @@ describe('Mini App isolation (§2.2)', () => {
           .set({ status: 'confirmed' })
           .where(eq(appointments.id, annaAppointment));
       }
+    },
+    'PATCH /v1/miniapp/appointments/:id': async () => {
+      for (const chat of [BORIS_CHAT, OTHER_CHAT]) {
+        const res = await mini(chat, {
+          method: 'PATCH',
+          url: `/v1/miniapp/appointments/${annaAppointment}`,
+          payload: {
+            client: { fullName: 'Intruder', phone: '+12025559111' },
+            notes: 'Hijacked',
+          },
+        });
+        expect(res.statusCode).toBe(404);
+      }
+      const [row] = await database.db
+        .select({ notes: appointments.notes, name: patients.fullName })
+        .from(appointments)
+        .innerJoin(patients, eq(patients.id, appointments.patientId))
+        .where(eq(appointments.id, annaAppointment));
+      expect(row!.notes).not.toBe('Hijacked');
+      expect(row!.name).not.toBe('Intruder');
+    },
+    'POST /v1/miniapp/appointments/:id/move': async () => {
+      const startAt = async () =>
+        (
+          await database.db
+            .select({ startAt: appointments.startAt })
+            .from(appointments)
+            .where(eq(appointments.id, annaAppointment))
+        )[0]!.startAt;
+      const before = await startAt();
+      for (const chat of [BORIS_CHAT, OTHER_CHAT]) {
+        const res = await mini(chat, {
+          method: 'POST',
+          url: `/v1/miniapp/appointments/${annaAppointment}/move`,
+          payload: { startAt: at(upcoming(3), '15:00') },
+        });
+        expect(res.statusCode).toBe(404);
+      }
+      expect(await startAt()).toEqual(before);
+    },
+    'POST /v1/miniapp/appointments/:id/cancel': async () => {
+      for (const chat of [BORIS_CHAT, OTHER_CHAT]) {
+        const res = await mini(chat, {
+          method: 'POST',
+          url: `/v1/miniapp/appointments/${annaAppointment}/cancel`,
+        });
+        expect(res.statusCode).toBe(404);
+      }
+      const [row] = await database.db
+        .select({ status: appointments.status })
+        .from(appointments)
+        .where(eq(appointments.id, annaAppointment));
+      expect(row!.status).toBe('confirmed');
     },
   };
 

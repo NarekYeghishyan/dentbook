@@ -268,4 +268,66 @@ describe('dentist mini app (Step 7)', () => {
     await page.getByText('Closed', { exact: true }).waitFor({ state: 'detached' });
     await page.close();
   });
+
+  it('a dentist edits, moves and cancels their own booking', async () => {
+    const day = upcomingWeekday();
+    const page = await openMiniApp(signInitData(ANNA_CHAT));
+    await page.getByText('Dr. Anna').waitFor();
+    let shown = localDateOf(new Date(), ZONE);
+    while (shown < day) {
+      await page.getByRole('button', { name: 'Next day' }).click();
+      shown = addDays(shown, 1);
+    }
+    const edit = async (client: string) =>
+      page.locator('li', { hasText: client }).getByRole('button', { name: 'Edit' }).click();
+
+    // Имя и комментарий
+    await edit('Bob Walk-in');
+    await page.getByLabel('Client name', { exact: true }).fill('Bob Walker');
+    // Текст textarea входит в текст её label, поэтому — по началу подписи
+    await page.getByLabel(/^Comment \(optional\)/).fill('Prefers afternoons');
+    await shot(page, '5-edit');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByText('Changes saved.').waitFor();
+    await page.getByText('Prefers afternoons').waitFor();
+
+    // Перенос на другое свободное время того же дня
+    await edit('Bob Walker');
+    await page.getByRole('button', { name: /^4:00\sPM$/ }).click();
+    await page.getByRole('button', { name: 'Move', exact: true }).click();
+    await page.getByText(/^Moved to /).waitFor();
+    await page
+      .locator('li', { hasText: 'Bob Walker' })
+      .getByText(/^4:00\sPM/)
+      .waitFor();
+
+    // Отмена — запись уходит из расписания
+    await edit('Bob Walker');
+    await page.getByRole('button', { name: 'Cancel booking' }).click();
+    await page.getByText('Booking cancelled.').waitFor();
+    await page.getByText('Bob Walker').waitFor({ state: 'detached' });
+    await shot(page, '6-cancelled');
+
+    const rows = await database.db
+      .select({
+        status: appointments.status,
+        cancelledBy: appointments.cancelledBy,
+        startAt: appointments.startAt,
+        notes: appointments.notes,
+        name: patients.fullName,
+      })
+      .from(appointments)
+      .innerJoin(patients, eq(patients.id, appointments.patientId))
+      .where(and(eq(appointments.clinicId, owner.clinicId), eq(patients.phone, '+12025550199')));
+    expect(rows).toEqual([
+      {
+        status: 'cancelled',
+        cancelledBy: 'dentist',
+        startAt: new Date(at(day, '16:00')),
+        notes: 'Prefers afternoons',
+        name: 'Bob Walker',
+      },
+    ]);
+    await page.close();
+  });
 });

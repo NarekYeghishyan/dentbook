@@ -1,6 +1,6 @@
 /**
  * Контракт API Mini App врача /v1/miniapp (§8, Шаг 7): расписание, закрытие времени,
- * запись своих клиентов. Внутренний, как админский, — camelCase.
+ * запись своих клиентов и правка своих записей. Внутренний, как админский, — camelCase.
  */
 import { z } from 'zod';
 import { LOCALES, type AppointmentStatus, type Locale } from './domain.js';
@@ -22,6 +22,8 @@ export const miniappSlotsQuerySchema = z.object({
   serviceId: uuidSchema,
   locationId: uuidSchema,
   date: localDateSchema,
+  /** Время для переноса этой записи: её собственное время свободным не мешает. */
+  appointmentId: uuidSchema.optional(),
 });
 
 export const miniappBookingSchema = z.object({
@@ -32,6 +34,21 @@ export const miniappBookingSchema = z.object({
   notes: z.string().trim().max(1000).optional(),
 });
 export type MiniappBookingInput = z.input<typeof miniappBookingSchema>;
+
+/** Врач правит свою запись: клиента и комментарий. notes: null или '' — убрать. */
+export const miniappAppointmentUpdateSchema = z
+  .object({
+    client: z.object({ fullName: nameSchema, phone: phoneSchema }).optional(),
+    notes: z.string().trim().max(1000).nullable().optional(),
+  })
+  .refine((v) => v.client !== undefined || v.notes !== undefined, {
+    message: 'Nothing to change',
+  });
+export type MiniappAppointmentUpdateInput = z.input<typeof miniappAppointmentUpdateSchema>;
+
+/** Перенос своей записи на другое свободное время — врач тот же. */
+export const miniappMoveSchema = z.object({ startAt: instantSchema });
+export type MiniappMoveInput = z.input<typeof miniappMoveSchema>;
 
 /** Врач сам выбирает язык бота и Mini App (§8, §9): PATCH /v1/miniapp/me. */
 export const miniappLocaleSchema = z.object({ locale: z.enum(LOCALES) });
@@ -52,7 +69,9 @@ export interface MiniappAppointment {
   endAt: string;
   /** Пояс офиса — в нём показывать время (§2.3). */
   timeZone: string;
+  serviceId: string;
   service: string;
+  locationId: string;
   office: string;
   client: { fullName: string; phone: string } | null;
   notes: string | null;

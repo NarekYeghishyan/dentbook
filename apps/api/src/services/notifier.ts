@@ -36,21 +36,24 @@ export interface Notifier {
   appointmentConfirmed(clinicId: string, appointmentId: string): Promise<void>;
   /**
    * Запись отменена: алерт врачу, напоминания сняты. Отменила клиника — клиенту SMS;
-   * отменил клиент — он и так знает.
+   * отменил клиент — он и так знает. Отменил сам врач в Mini App — SMS клиенту, как от
+   * клиники, а алерта врачу нет.
    */
   appointmentCancelled(
     clinicId: string,
     appointmentId: string,
-    by?: 'client' | 'clinic',
+    by?: 'client' | 'clinic' | 'dentist',
   ): Promise<void>;
   /**
    * Регистратура перенесла запись (Шаг 9): алерт врачу (и прежнему, если врач сменился);
-   * если сменилось время — клиенту SMS и напоминания на новое время.
+   * если сменилось время — клиенту SMS и напоминания на новое время. alertDentist: false —
+   * перенёс сам врач в Mini App.
    */
   appointmentRescheduled(
     clinicId: string,
     appointmentId: string,
     previous: { dentistId: string; startAt: Date },
+    options?: { alertDentist?: boolean },
   ): Promise<void>;
 }
 
@@ -255,24 +258,28 @@ export function createNotifier(deps: {
       );
     },
     async appointmentCancelled(clinicId, appointmentId, by = 'client') {
-      await safely('telegram_cancelled', appointmentId, () =>
-        alert(
-          clinicId,
-          appointmentId,
-          'appointment_cancelled',
-          by === 'clinic' ? 'tg.cancelledByClinic' : 'tg.cancelled',
-        ),
-      );
+      if (by !== 'dentist') {
+        await safely('telegram_cancelled', appointmentId, () =>
+          alert(
+            clinicId,
+            appointmentId,
+            'appointment_cancelled',
+            by === 'clinic' ? 'tg.cancelledByClinic' : 'tg.cancelled',
+          ),
+        );
+      }
       await safely('sms_cancel', appointmentId, async () => {
         await cancelSms(clinicId, appointmentId);
-        if (by === 'clinic') {
+        if (by !== 'client') {
           await queueSms(clinicId, appointmentId, 'appointment_cancelled', new Date());
         }
       });
     },
-    async appointmentRescheduled(clinicId, appointmentId, previous) {
+    async appointmentRescheduled(clinicId, appointmentId, previous, options = {}) {
       await safely('telegram_rescheduled', appointmentId, async () => {
-        await alert(clinicId, appointmentId, 'appointment_rescheduled', 'tg.rescheduled');
+        if (options.alertDentist !== false) {
+          await alert(clinicId, appointmentId, 'appointment_rescheduled', 'tg.rescheduled');
+        }
         const [row] = await db
           .select({ dentistId: appointments.dentistId })
           .from(appointments)

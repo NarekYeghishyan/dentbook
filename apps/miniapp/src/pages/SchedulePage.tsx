@@ -1,14 +1,25 @@
-/** Расписание врача на день: записи (с подтверждением ожидающих) и закрытое время. */
+/**
+ * Расписание врача на день: записи (с подтверждением ожидающих) и закрытое время.
+ * «Изменить» открывает запись: клиент, комментарий, перенос, отмена.
+ */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import type { MiniappSchedule } from '@dentbook/shared';
+import type { MiniappAppointment, MiniappSchedule } from '@dentbook/shared';
 import { api } from '../api';
 import { errorText, useSession } from '../context';
 import { confirmAction } from '../telegram';
 import { addDays, dateIn, formatDate, formatDateTime, formatTime, todayIn } from '../time';
 import { Button, Notice } from '../ui';
 
-export function SchedulePage({ date, onDate }: { date: string; onDate(date: string): void }) {
+export function SchedulePage({
+  date,
+  onDate,
+  onEdit,
+}: {
+  date: string;
+  onDate(date: string): void;
+  onEdit(appointment: MiniappAppointment): void;
+}) {
   const { me, locale, t } = useSession();
   const client = useQueryClient();
   const [error, setError] = useState<string | null>(null);
@@ -101,14 +112,21 @@ export function SchedulePage({ date, onDate }: { date: string; onDate(date: stri
               {item.a.notes && (
                 <div className="whitespace-pre-line text-sm text-hint">{item.a.notes}</div>
               )}
-              {item.a.status === 'pending' && (
-                <div className="flex items-center justify-between gap-2 pt-1">
-                  <span className="text-sm text-danger">{t('schedule.pending')}</span>
-                  <Button disabled={confirm.isPending} onClick={() => confirm.mutate(item.a.id)}>
-                    {t('schedule.confirm')}
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <span className="text-sm text-danger">
+                  {item.a.status === 'pending' && t('schedule.pending')}
+                </span>
+                <div className="flex gap-2">
+                  <Button variant="secondary" onClick={() => onEdit(item.a)}>
+                    {t('schedule.edit')}
                   </Button>
+                  {item.a.status === 'pending' && (
+                    <Button disabled={confirm.isPending} onClick={() => confirm.mutate(item.a.id)}>
+                      {t('schedule.confirm')}
+                    </Button>
+                  )}
                 </div>
-              )}
+              </div>
             </li>
           ) : (
             <li

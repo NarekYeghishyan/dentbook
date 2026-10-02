@@ -1,14 +1,16 @@
 /**
- * Mini App врача (§8, Шаг 7): расписание, закрытие времени, запись своих клиентов.
+ * Mini App врача (§8, Шаг 7): расписание, закрытие времени, запись своих клиентов и правка
+ * своих записей.
  * Открывается из бота; вне Telegram подписи initData нет — только подсказка.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
-import type { MiniappMe } from '@dentbook/shared';
+import type { MiniappAppointment, MiniappMe } from '@dentbook/shared';
 import { LOCALE_NAMES, LOCALES, type Locale } from '@dentbook/shared/domain';
 import { api } from './api';
 import { errorText, SessionContext, useSession, type Session } from './context';
 import { pickLocale, translate, type MessageKey } from './i18n';
+import { AppointmentPage } from './pages/AppointmentPage';
 import { BlockPage } from './pages/BlockPage';
 import { BookPage } from './pages/BookPage';
 import { SchedulePage } from './pages/SchedulePage';
@@ -92,15 +94,24 @@ function Main() {
   const [tab, setTab] = useState<Tab>('schedule');
   const [date, setDate] = useState(() => todayIn(me.clinic.timezone));
   const [flash, setFlash] = useState<string | null>(null);
+  /** Открытая запись из расписания — поверх вкладок. */
+  const [editing, setEditing] = useState<MiniappAppointment | null>(null);
 
   const open = (next: Tab) => {
     setTab(next);
+    setEditing(null);
     setFlash(null);
   };
   const done = (day: string, message: string) => {
     setDate(day);
     setTab('schedule');
+    setEditing(null);
     setFlash(message);
+  };
+  const edit = (appointment: MiniappAppointment) => {
+    setEditing(appointment);
+    setFlash(null);
+    window.scrollTo(0, 0);
   };
 
   return (
@@ -126,17 +137,26 @@ function Main() {
         ))}
       </nav>
       {flash && <Notice tone="success">{flash}</Notice>}
-      {tab === 'schedule' && (
+      {editing && (
+        <AppointmentPage
+          key={editing.id}
+          appointment={editing}
+          onBack={() => setEditing(null)}
+          onDone={done}
+        />
+      )}
+      {!editing && tab === 'schedule' && (
         <SchedulePage
           date={date}
           onDate={(day) => {
             setDate(day);
             setFlash(null);
           }}
+          onEdit={edit}
         />
       )}
-      {tab === 'block' && <BlockPage date={date} onDone={done} />}
-      {tab === 'book' && <BookPage date={date} onDone={done} />}
+      {!editing && tab === 'block' && <BlockPage date={date} onDone={done} />}
+      {!editing && tab === 'book' && <BookPage date={date} onDone={done} />}
     </div>
   );
 }

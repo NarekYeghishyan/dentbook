@@ -1,6 +1,7 @@
 /**
  * Журнал регистратуры (Шаг 9, Q17): записи офиса по датам, запись клиента сотрудником,
- * перенос мышью, подтверждение, отмена клиникой, отметки после визита.
+ * перенос мышью, подтверждение, отмена клиникой, отметки после визита. Перенос и отмену
+ * своих записей делает и врач в Mini App — параметр byDentistId.
  * Пересечения исключает EXCLUDE (§2.1). Проверка в коде нужна только для понятной ошибки,
  * гонку закрывает БД. Закрытое время (block) проверяется под advisory-lock врача — тем же,
  * что берёт закрытие времени.
@@ -51,11 +52,18 @@ export const outsideWorkingHours = () =>
 
 const notMovable = (message: string) => new ApiError(409, 'validation_failed', message);
 
-/** Запись этой клиники или 404: чужая неотличима от несуществующей (§2.2). */
-async function assertExists(db: Database, clinicId: string, id: string) {
+/**
+ * Запись этой клиники (и этого врача, если задан) или 404: чужая неотличима от
+ * несуществующей (§2.2).
+ */
+async function assertExists(db: Database, clinicId: string, id: string, dentistId?: string) {
   const found = await db.$count(
     appointments,
-    and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)),
+    and(
+      eq(appointments.id, id),
+      eq(appointments.clinicId, clinicId),
+      dentistId ? eq(appointments.dentistId, dentistId) : undefined,
+    ),
   );
   if (found === 0) throw notFound();
 }
@@ -358,13 +366,23 @@ export async function createStaffBooking(
  * Перенос мышью: новое время и, возможно, другой врач того же офиса. Длительность и буфер —
  * записи. Пересечение с другой записью отклоняет EXCLUDE (23P01 → 409): «перенос не
  * создаёт пересечений» (Шаг 9) держит БД, а не этот код.
+ *
+ * byDentistId — переносит сам врач в Mini App: только свою запись, алерта ему нет.
  */
 export async function rescheduleAppointment(
   db: Database,
   deps: { cache: SlotCache | undefined; notifier: Notifier },
-  params: { clinicId: string; id: string; startAt: Date; dentistId?: string; now: Date },
+  params: {
+    clinicId: string;
+    id: string;
+    startAt: Date;
+    dentistId?: string;
+    byDentistId?: string;
+    now: Date;
+  },
 ): Promise<void> {
-  const { clinicId, id, startAt, now } = params;
+  const { clinicId, id, startAt, now, byDentistId } = params;
+  const own = byDentistId ? eq(appointments.dentistId, byDentistId) : undefined;
   const [current] = await db
     .select({
       status: appointments.status,
@@ -376,7 +394,7 @@ export async function rescheduleAppointment(
       locationId: appointments.locationId,
     })
     .from(appointments)
-    .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)));
+    .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId), own));
   if (!current) throw notFound();
   if (current.status !== 'pending' && current.status !== 'confirmed') {
     throw notMovable('Only an upcoming booking can be moved');
@@ -412,6 +430,7 @@ export async function rescheduleAppointment(
           and(
             eq(appointments.id, id),
             eq(appointments.clinicId, clinicId),
+            own,
             inArray(appointments.status, ['pending', 'confirmed']),
           ),
         )
@@ -424,10 +443,12 @@ export async function rescheduleAppointment(
   }
   await deps.cache?.invalidateDentist(clinicId, current.dentistId);
   if (dentistId !== current.dentistId) await deps.cache?.invalidateDentist(clinicId, dentistId);
-  await deps.notifier.appointmentRescheduled(clinicId, id, {
-    dentistId: current.dentistId,
-    startAt: current.startAt,
-  });
+  await deps.notifier.appointmentRescheduled(
+    clinicId,
+    id,
+    { dentistId: current.dentistId, startAt: current.startAt },
+    { alertDentist: !byDentistId },
+  );
 }
 
 /** Регистратура подтверждает ожидающую запись: клиенту SMS (Q12). */
@@ -453,20 +474,30 @@ export async function confirmByStaff(
   await deps.notifier.appointmentConfirmed(params.clinicId, params.id);
 }
 
-/** Отмена от имени клиники: время освобождается, клиенту SMS, напоминания снимаются. */
+/**
+ * Отмена от имени клиники: время освобождается, клиенту SMS, напоминания снимаются.
+ * byDentistId — отменяет сам врач в Mini App: только свою запись, cancelled_by = 'dentist',
+ * алерта ему нет.
+ */
 export async function cancelByClinic(
   db: Database,
   deps: { cache: SlotCache | undefined; notifier: Notifier },
-  params: { clinicId: string; id: string; now: Date },
+  params: { clinicId: string; id: string; byDentistId?: string; now: Date },
 ): Promise<void> {
-  await assertExists(db, params.clinicId, params.id);
+  const { byDentistId } = params;
+  await assertExists(db, params.clinicId, params.id, byDentistId);
   const [row] = await db
     .update(appointments)
-    .set({ status: 'cancelled', cancelledAt: params.now, cancelledBy: 'clinic' })
+    .set({
+      status: 'cancelled',
+      cancelledAt: params.now,
+      cancelledBy: byDentistId ? 'dentist' : 'clinic',
+    })
     .where(
       and(
         eq(appointments.id, params.id),
         eq(appointments.clinicId, params.clinicId),
+        byDentistId ? eq(appointments.dentistId, byDentistId) : undefined,
         inArray(appointments.status, ['pending', 'confirmed']),
         gt(appointments.startAt, params.now),
       ),
@@ -474,7 +505,11 @@ export async function cancelByClinic(
     .returning({ dentistId: appointments.dentistId });
   if (!row) throw notMovable('Only an upcoming booking can be cancelled');
   await deps.cache?.invalidateDentist(params.clinicId, row.dentistId);
-  await deps.notifier.appointmentCancelled(params.clinicId, params.id, 'clinic');
+  await deps.notifier.appointmentCancelled(
+    params.clinicId,
+    params.id,
+    byDentistId ? 'dentist' : 'clinic',
+  );
 }
 
 /** «Пришёл» / «не пришёл» — после начала визита; отметку можно поменять. */

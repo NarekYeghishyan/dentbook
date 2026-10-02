@@ -317,7 +317,7 @@
   "help.how.journal.title": "Journal and confirmations",
   "help.how.journal.text": "The day view puts the dentists of one office side by side, the week view shows one dentist. Drag a visit to move it — an overlap is refused by the database. Confirm or cancel a visit and mark whether the client arrived; the client gets an SMS about a move or a cancellation.",
   "help.how.telegram.title": "Dentists in Telegram",
-  "help.how.telegram.text": "Dentists do not sign in to the panel — they work in Telegram, through the platform bot. The bot alerts them about new, moved and cancelled visits, and its “Schedule” button opens their schedule: the day’s visits, closing time and booking their own clients.",
+  "help.how.telegram.text": "Dentists do not sign in to the panel — they work in Telegram, through the platform bot. The bot alerts them about new, moved and cancelled visits, and its “Schedule” button opens their schedule: the day’s visits, closing time and booking their own clients. A dentist can also fix a visit’s client and comment, move it to another free time or cancel it; the client gets an SMS about a move or a cancellation, just as from the front desk.",
   "help.how.telegram.stepsTitle": "How to connect a dentist (owner or administrator)",
   "help.how.telegram.step1": "Open Dentists, choose the dentist and find the Telegram card on their page.",
   "help.how.telegram.step2": "Press “Create connection link”. A link and a QR code appear; the link works once, for 24 hours.",

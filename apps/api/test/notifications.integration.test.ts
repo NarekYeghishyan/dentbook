@@ -9,7 +9,7 @@ import { Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { addDays, isoWeekday, localDateOf, zonedTimeToUtc } from '@dentbook/core';
-import { notifications } from '@dentbook/db';
+import { appointments, notifications, patients } from '@dentbook/db';
 import {
   startTestDatabase,
   startTestRedis,
@@ -112,7 +112,7 @@ const smsOf = (appointmentId: string) =>
     .where(and(eq(notifications.appointmentId, appointmentId), eq(notifications.channel, 'sms')))
     .orderBy(asc(notifications.scheduledFor));
 
-const mini = (path: string, method: 'GET' | 'POST' = 'GET', payload?: object) =>
+const mini = (path: string, method: 'GET' | 'POST' | 'PATCH' = 'GET', payload?: object) =>
   app.inject({
     method,
     url: `/v1/miniapp${path}`,
@@ -273,6 +273,53 @@ describe('client SMS notifications (Step 8)', () => {
     expect(res.statusCode, res.body).toBe(201);
     const kinds = (await smsOf(res.json<{ id: string }>().id)).map((r) => r.kind);
     expect(kinds).toEqual(['reminder_24h', 'reminder_2h']);
+    expect(outbox.messagesTo(ANNA_CHAT)).toHaveLength(alertsBefore);
+  });
+
+  it("the dentist's changes in the Mini App reach the client, not the dentist", async () => {
+    const day = upcoming(1);
+    const created = await mini('/appointments', 'POST', {
+      serviceId: data.serviceId,
+      locationId: data.locationId,
+      startAt: at(day, '15:00'),
+      client: { fullName: 'Carl Walk-in', phone: '+12025559010' },
+    });
+    expect(created.statusCode, created.body).toBe(201);
+    const id = created.json<{ id: string }>().id;
+    const alertsBefore = outbox.messagesTo(ANNA_CHAT).length;
+    const scheduled = async () =>
+      (await smsOf(id)).filter((r) => r.status === 'scheduled').map((r) => r.kind);
+
+    // Новый телефон: напоминания уходят на него, а не на прежний номер
+    const edited = await mini(`/appointments/${id}`, 'PATCH', {
+      client: { fullName: 'Carl Walk-in', phone: '+12025559011' },
+    });
+    expect(edited.statusCode, edited.body).toBe(204);
+    const [patient] = await database.db
+      .select({ id: patients.id })
+      .from(patients)
+      .innerJoin(appointments, eq(appointments.patientId, patients.id))
+      .where(and(eq(appointments.id, id), eq(patients.phone, '+12025559011')));
+    expect(patient).toBeDefined();
+    const reminders = await smsOf(id);
+    expect(reminders.map((r) => r.patientId)).toEqual([patient!.id, patient!.id]);
+
+    // Перенос: клиенту SMS, напоминания — на новое время
+    expect(
+      (await mini(`/appointments/${id}/move`, 'POST', { startAt: at(day, '16:00') })).statusCode,
+    ).toBe(204);
+    expect(await scheduled()).toEqual(
+      expect.arrayContaining(['appointment_rescheduled', 'reminder_24h', 'reminder_2h']),
+    );
+    expect(smsOutbox.removed).toEqual(expect.arrayContaining(reminders.map((r) => r.id)));
+
+    // Отмена: клиенту SMS, напоминания сняты
+    expect((await mini(`/appointments/${id}/cancel`, 'POST')).statusCode).toBe(204);
+    const rows = await smsOf(id);
+    expect(rows.filter((r) => r.kind === 'appointment_cancelled')).toHaveLength(1);
+    expect(rows.filter((r) => r.kind.startsWith('reminder_') && r.status === 'scheduled')).toEqual(
+      [],
+    );
     expect(outbox.messagesTo(ANNA_CHAT)).toHaveLength(alertsBefore);
   });
 });

@@ -3,13 +3,13 @@
  * и необязательный комментарий (appointments.notes).
  * Без SMS-кода, запись сразу подтверждена (§1, Шаг 7).
  */
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
-import type { MiniappSlots } from '@dentbook/shared';
 import { toE164 } from '@dentbook/shared/phone';
 import { api, ApiError } from '../api';
 import { errorText, useSession } from '../context';
-import { dateIn, formatDateTime, formatTime } from '../time';
+import { SlotPicker } from '../SlotPicker';
+import { dateIn, formatDateTime } from '../time';
 import { Button, Field, Input, Notice, Select, Textarea } from '../ui';
 
 export function BookPage({
@@ -29,17 +29,6 @@ export function BookPage({
   const [phone, setPhone] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
-
-  const slots = useQuery({
-    queryKey: ['slots', serviceId, locationId, day],
-    queryFn: () =>
-      api<MiniappSlots>(
-        'GET',
-        `/slots?${new URLSearchParams({ serviceId, locationId, date: day }).toString()}`,
-      ),
-    enabled: Boolean(serviceId && locationId && day),
-    staleTime: 0,
-  });
 
   const book = useMutation({
     mutationFn: (input: { startAt: string; phone: string }) =>
@@ -62,7 +51,7 @@ export function BookPage({
       setError(errorText(locale, err));
       if (err instanceof ApiError && err.code === 'slot_taken') {
         setStartAt(null);
-        void slots.refetch();
+        void client.invalidateQueries({ queryKey: ['slots'] });
       }
     },
   });
@@ -130,28 +119,13 @@ export function BookPage({
         />
       </Field>
 
-      <fieldset className="space-y-1">
-        <legend className="text-sm text-hint">{t('book.time')}</legend>
-        {slots.isFetching && <p className="text-hint">{t('loading')}</p>}
-        {slots.isError && <Notice tone="error">{errorText(locale, slots.error)}</Notice>}
-        {slots.data && !slots.isFetching && slots.data.slots.length === 0 && (
-          <p className="text-hint">{t('book.noSlots')}</p>
-        )}
-        {slots.data && !slots.isFetching && (
-          <div className="grid grid-cols-4 gap-2">
-            {slots.data.slots.map((slot) => (
-              <Button
-                key={slot}
-                variant={slot === startAt ? 'primary' : 'secondary'}
-                aria-pressed={slot === startAt}
-                onClick={() => setStartAt(slot)}
-              >
-                {formatTime(slot, slots.data.timeZone, locale)}
-              </Button>
-            ))}
-          </div>
-        )}
-      </fieldset>
+      <SlotPicker
+        serviceId={serviceId}
+        locationId={locationId}
+        date={day}
+        value={startAt}
+        onChange={setStartAt}
+      />
 
       {startAt && (
         <>

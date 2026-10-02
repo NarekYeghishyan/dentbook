@@ -16,6 +16,7 @@ import {
   isExclusionViolation,
   locations,
   lockDentist,
+  notifications,
   patients,
   scheduleExceptions,
   services,
@@ -23,9 +24,11 @@ import {
 } from '@dentbook/db';
 import {
   AVAILABILITY_MAX_DAYS,
+  miniappAppointmentUpdateSchema,
   miniappBlockSchema,
   miniappBookingSchema,
   miniappLocaleSchema,
+  miniappMoveSchema,
   miniappSlotsQuerySchema,
   scheduleQuerySchema,
   type MiniappMe,
@@ -38,6 +41,7 @@ import { idOf } from '../../lib/params.js';
 import { computeAvailability } from '../../services/availability.js';
 import type { Notifier } from '../../services/notifier.js';
 import { slotTaken } from '../../services/holds.js';
+import { cancelByClinic, rescheduleAppointment } from '../../services/journal.js';
 import { findConflictingAppointments, timeHasAppointments } from '../../services/schedule.js';
 import type { SlotCache } from '../../services/slot-cache.js';
 import { InitDataError, verifyInitData } from '../../telegram/verify-init-data.js';
@@ -53,6 +57,9 @@ declare module 'fastify' {
     dentist: DentistContext | null;
   }
 }
+
+/** Записи, которые врач видит в расписании и может править. */
+const SCHEDULE_STATUSES = ['pending', 'confirmed', 'completed', 'no_show'] as const;
 
 const dentistOf = (request: FastifyRequest): DentistContext => {
   if (!request.dentist) throw unauthorized();
@@ -167,7 +174,9 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
         startAt: appointments.startAt,
         endAt: appointments.endAt,
         timeZone: zone,
+        serviceId: appointments.serviceId,
         service: services.name,
+        locationId: appointments.locationId,
         office: locations.name,
         clientName: patients.fullName,
         clientPhone: patients.phone,
@@ -183,7 +192,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
         and(
           eq(appointments.clinicId, clinicId),
           eq(appointments.dentistId, dentistId),
-          inArray(appointments.status, ['pending', 'confirmed', 'completed', 'no_show']),
+          inArray(appointments.status, SCHEDULE_STATUSES),
           lt(appointments.startAt, end),
           gt(appointments.endAt, start),
         ),
@@ -273,12 +282,17 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
     return reply.status(204).send();
   });
 
-  /** Свободное время врача на дату — для записи своего клиента, без минимального запаса. */
+  /**
+   * Свободное время врача на дату — для записи своего клиента, без минимального запаса.
+   * excludeAppointmentId — для переноса: время самой записи не считается занятым. Записи
+   * другого врача в расчёт и так не попадают, поэтому чужой id ничего не открывает.
+   */
   async function freeSlots(
     ctx: DentistContext,
     serviceId: string,
     locationId: string,
     date: string,
+    excludeAppointmentId?: string,
   ) {
     const result = await computeAvailability(db, {
       clinicId: ctx.clinicId,
@@ -290,13 +304,20 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
       now: new Date(),
       includeHidden: true,
       ignoreLeadTime: true,
+      ...(excludeAppointmentId ? { excludeAppointmentId } : {}),
     });
     return { timeZone: result.timeZone, slots: result.days[0]?.slots.map((s) => s.start) ?? [] };
   }
 
   app.get('/slots', async (request): Promise<MiniappSlots> => {
     const query = parse(miniappSlotsQuerySchema, request.query);
-    return freeSlots(dentistOf(request), query.serviceId, query.locationId, query.date);
+    return freeSlots(
+      dentistOf(request),
+      query.serviceId,
+      query.locationId,
+      query.date,
+      query.appointmentId,
+    );
   });
 
   /** Врач записывает своего клиента: без SMS-кода, запись сразу подтверждена. */
@@ -370,6 +391,86 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
         throw slotTaken(slots.filter((s) => s !== startIso).slice(0, 6));
       throw err;
     }
+  });
+
+  /**
+   * Врач правит свою запись: клиента и комментарий. Клиент в клинике определяется
+   * телефоном (Q9): новое имя меняет карточку клиента, новый телефон переводит запись на
+   * клиента с этим номером.
+   */
+  app.patch('/appointments/:id', async (request, reply) => {
+    const { dentistId, clinicId } = dentistOf(request);
+    const input = parse(miniappAppointmentUpdateSchema, request.body);
+    const id = idOf(request);
+    await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({ patientId: appointments.patientId })
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.id, id),
+            eq(appointments.clinicId, clinicId),
+            eq(appointments.dentistId, dentistId),
+            inArray(appointments.status, SCHEDULE_STATUSES),
+          ),
+        )
+        .for('update');
+      if (!current) throw notFound();
+      let patientId = current.patientId;
+      if (input.client) {
+        const [patient] = await tx
+          .insert(patients)
+          .values({ clinicId, fullName: input.client.fullName, phone: input.client.phone })
+          .onConflictDoUpdate({
+            target: [patients.clinicId, patients.phone],
+            set: { fullName: sql`excluded.full_name` },
+          })
+          .returning({ id: patients.id });
+        patientId = patient!.id;
+      }
+      await tx
+        .update(appointments)
+        .set({ patientId, ...(input.notes !== undefined ? { notes: input.notes || null } : {}) })
+        .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)));
+      if (patientId !== current.patientId) {
+        // Напоминание уходит на телефон клиента из notifications.patient_id — на новый номер
+        await tx
+          .update(notifications)
+          .set({ patientId })
+          .where(
+            and(
+              eq(notifications.clinicId, clinicId),
+              eq(notifications.appointmentId, id),
+              eq(notifications.channel, 'sms'),
+              eq(notifications.status, 'scheduled'),
+            ),
+          );
+      }
+    });
+    return reply.status(204).send();
+  });
+
+  /** Перенос своей записи на другое свободное время: проверки и SMS клиенту — как в журнале. */
+  app.post('/appointments/:id/move', async (request, reply) => {
+    const { dentistId, clinicId } = dentistOf(request);
+    const { startAt } = parse(miniappMoveSchema, request.body);
+    await rescheduleAppointment(
+      db,
+      { cache, notifier },
+      { clinicId, id: idOf(request), startAt, byDentistId: dentistId, now: new Date() },
+    );
+    return reply.status(204).send();
+  });
+
+  /** Отмена своей записи: время освобождается, клиенту SMS, напоминания снимаются. */
+  app.post('/appointments/:id/cancel', async (request, reply) => {
+    const { dentistId, clinicId } = dentistOf(request);
+    await cancelByClinic(
+      db,
+      { cache, notifier },
+      { clinicId, id: idOf(request), byDentistId: dentistId, now: new Date() },
+    );
+    return reply.status(204).send();
   });
 
   app.post('/appointments/:id/confirm', async (request) => {
