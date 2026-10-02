@@ -3,6 +3,7 @@ import type {
   InputHTMLAttributes,
   ReactNode,
   SelectHTMLAttributes,
+  TextareaHTMLAttributes,
 } from 'react';
 
 export function Button({
@@ -41,6 +42,10 @@ export const Input = (props: InputHTMLAttributes<HTMLInputElement>) => (
 
 export const Select = (props: SelectHTMLAttributes<HTMLSelectElement>) => (
   <select className={control} {...props} />
+);
+
+export const Textarea = (props: TextareaHTMLAttributes<HTMLTextAreaElement>) => (
+  <textarea className={control} {...props} />
 );
 
 export function Notice({ tone, children }: { tone: 'error' | 'success'; children: ReactNode }) {

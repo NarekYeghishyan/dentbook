@@ -464,14 +464,19 @@ describe('Mini App (§8)', () => {
       locationId: data.locationId,
       startAt: at(day, '11:00'),
       client: { fullName: 'Own Client', phone: '+12025559000' },
+      notes: 'Bring the X-ray',
     };
     const res = await mini(ANNA_CHAT, { method: 'POST', url: '/v1/miniapp/appointments', payload });
     expect(res.statusCode, res.body).toBe(201);
     const [row] = await database.db
-      .select({ status: appointments.status, source: appointments.source })
+      .select({
+        status: appointments.status,
+        source: appointments.source,
+        notes: appointments.notes,
+      })
       .from(appointments)
       .where(eq(appointments.id, res.json().id));
-    expect(row).toEqual({ status: 'confirmed', source: 'telegram' });
+    expect(row).toEqual({ status: 'confirmed', source: 'telegram', notes: 'Bring the X-ray' });
     const again = await mini(ANNA_CHAT, {
       method: 'POST',
       url: '/v1/miniapp/appointments',

@@ -1,5 +1,6 @@
 /**
- * Врач записывает своего клиента: услуга, офис, день → свободное время → имя и телефон.
+ * Врач записывает своего клиента: услуга, офис, день → свободное время → имя, телефон
+ * и необязательный комментарий (appointments.notes).
  * Без SMS-кода, запись сразу подтверждена (§1, Шаг 7).
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -9,7 +10,7 @@ import { toE164 } from '@dentbook/shared/phone';
 import { api, ApiError } from '../api';
 import { errorText, useSession } from '../context';
 import { dateIn, formatDateTime, formatTime } from '../time';
-import { Button, Field, Input, Notice, Select } from '../ui';
+import { Button, Field, Input, Notice, Select, Textarea } from '../ui';
 
 export function BookPage({
   date,
@@ -26,6 +27,7 @@ export function BookPage({
   const [startAt, setStartAt] = useState<string | null>(null);
   const [fullName, setFullName] = useState('');
   const [phone, setPhone] = useState('');
+  const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const slots = useQuery({
@@ -46,6 +48,7 @@ export function BookPage({
         locationId,
         startAt: input.startAt,
         client: { fullName: fullName.trim(), phone: input.phone },
+        ...(notes.trim() ? { notes: notes.trim() } : {}),
       }),
     onSuccess: (result) => {
       void client.invalidateQueries({ queryKey: ['schedule'] });
@@ -168,6 +171,15 @@ export function BookPage({
               autoComplete="off"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+            />
+          </Field>
+          <Field label={t('book.comment')}>
+            <Textarea
+              rows={3}
+              maxLength={1000}
+              autoComplete="off"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
             />
           </Field>
         </>

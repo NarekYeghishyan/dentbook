@@ -242,18 +242,26 @@ describe('dentist mini app (Step 7)', () => {
     await page.getByRole('button', { name: /^3:00\sPM$/ }).click();
     await page.getByLabel('Client name', { exact: true }).fill('Bob Walk-in');
     await page.getByLabel('Client phone', { exact: true }).fill('(202) 555-0199');
+    await page.getByLabel('Comment (optional)', { exact: true }).fill('Wants a morning call');
     await shot(page, '3-book');
     await page.getByRole('button', { name: 'Book', exact: true }).click();
     await page.getByText(/^Booked: /).waitFor();
     await page.getByText('Bob Walk-in').waitFor();
+    await page.getByText('Wants a morning call').waitFor();
     await shot(page, '4-done');
 
     const rows = await database.db
-      .select({ status: appointments.status, source: appointments.source })
+      .select({
+        status: appointments.status,
+        source: appointments.source,
+        notes: appointments.notes,
+      })
       .from(appointments)
       .innerJoin(patients, eq(patients.id, appointments.patientId))
       .where(and(eq(appointments.clinicId, owner.clinicId), eq(patients.phone, '+12025550199')));
-    expect(rows).toEqual([{ status: 'confirmed', source: 'telegram' }]);
+    expect(rows).toEqual([
+      { status: 'confirmed', source: 'telegram', notes: 'Wants a morning call' },
+    ]);
 
     // Закрытое время открывается обратно
     await page.getByRole('button', { name: 'Reopen' }).click();

@@ -30,6 +30,7 @@
   "book.noSlots": "No free time on this day.",
   "book.name": "Client name",
   "book.phone": "Client phone",
+  "book.comment": "Comment (optional)",
   "book.submit": "Book",
   "book.done": "Booked: {when}.",
   "book.unavailable": "Ask the clinic admin to assign you services and an office.",

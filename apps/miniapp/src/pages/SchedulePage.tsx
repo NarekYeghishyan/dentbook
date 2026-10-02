@@ -98,7 +98,9 @@ export function SchedulePage({ date, onDate }: { date: string; onDate(date: stri
                   </a>
                 </div>
               )}
-              {item.a.notes && <div className="text-sm text-hint">{item.a.notes}</div>}
+              {item.a.notes && (
+                <div className="whitespace-pre-line text-sm text-hint">{item.a.notes}</div>
+              )}
               {item.a.status === 'pending' && (
                 <div className="flex items-center justify-between gap-2 pt-1">
                   <span className="text-sm text-danger">{t('schedule.pending')}</span>

@@ -15,6 +15,11 @@ produced them (CLAUDE.md §9).
 
 #### Changed
 
+- `feat(miniapp): add a comment field to the dentist booking form` — в «Новой записи»
+  Mini App после имени и телефона клиента — необязательный «Комментарий» (до 1000
+  символов, многострочный). Сохраняется в `appointments.notes`: API и схема
+  `miniappBookingSchema` его уже принимали, не хватало поля в форме. Комментарий виден в
+  расписании врача (переводы строк сохраняются) и в карточке записи журнала админки.
 - `feat(telegram): let the dentist choose the bot and mini app language` — врач сам
   переключает язык в Telegram: команда `/language` в боте (кнопки подписаны самим языком —
   English, Русский, Հայերեն) и список в шапке Mini App. Выбор один на обе поверхности,
