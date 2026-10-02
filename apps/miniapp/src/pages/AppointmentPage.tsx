@@ -1,7 +1,7 @@
 /**
  * Запись из расписания врача. Клиента и комментарий можно поправить всегда; предстоящую
  * запись — ещё перенести на другое свободное время или отменить. Клиенту о переносе и
- * отмене уходит SMS, как при действиях регистратуры.
+ * отмене уходит SMS, как при действиях регистратуры. «История» — кто и что менял.
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
@@ -13,6 +13,7 @@ import { SlotPicker } from '../SlotPicker';
 import { confirmAction } from '../telegram';
 import { dateIn, formatDateTime } from '../time';
 import { Button, Field, Input, Notice, Textarea } from '../ui';
+import { HistoryList } from './HistoryList';
 
 type Part = 'details' | 'move' | 'cancel';
 
@@ -33,6 +34,7 @@ export function AppointmentPage({
   const [notes, setNotes] = useState(a.notes ?? '');
   const [day, setDay] = useState(date);
   const [moveTo, setMoveTo] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
   /** Ошибка показывается у той части страницы, где её вызвали. */
   const [error, setError] = useState<{ part: Part; text: string } | null>(null);
 
@@ -41,6 +43,7 @@ export function AppointmentPage({
   const finish = (target: string, message: string) => {
     void client.invalidateQueries({ queryKey: ['schedule'] });
     void client.invalidateQueries({ queryKey: ['slots'] });
+    void client.invalidateQueries({ queryKey: ['history', a.id] });
     onDone(target, message);
   };
   const failed = (part: Part) => (err: unknown) => setError({ part, text: errorText(locale, err) });
@@ -88,14 +91,24 @@ export function AppointmentPage({
 
   return (
     <div className="space-y-4">
-      <Button variant="secondary" onClick={onBack}>
-        {t('edit.back')}
-      </Button>
+      <div className="flex justify-between gap-2">
+        <Button variant="secondary" onClick={onBack}>
+          {t('edit.back')}
+        </Button>
+        <Button
+          variant="secondary"
+          aria-expanded={showHistory}
+          onClick={() => setShowHistory(!showHistory)}
+        >
+          {t(showHistory ? 'edit.hideHistory' : 'edit.history')}
+        </Button>
+      </div>
       <div className="space-y-1 rounded-lg bg-card p-3">
         <div className="font-medium">{formatDateTime(a.startAt, a.timeZone, locale)}</div>
         <div>{a.service}</div>
         <div className="text-sm text-hint">{a.office}</div>
       </div>
+      {showHistory && <HistoryList appointmentId={a.id} />}
 
       <form className="space-y-3" onSubmit={submit}>
         <Field label={t('book.name')}>

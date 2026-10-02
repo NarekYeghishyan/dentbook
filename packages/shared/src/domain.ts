@@ -59,6 +59,22 @@ export type AppointmentSource = (typeof APPOINTMENT_SOURCES)[number];
 export const CANCELLED_BY = ['client', 'clinic', 'dentist', 'system'] as const;
 export type CancelledBy = (typeof CANCELLED_BY)[number];
 
+/** История записи (appointment_events): что произошло. */
+export const APPOINTMENT_EVENT_TYPES = [
+  'created',
+  'confirmed',
+  'updated',
+  'moved',
+  'cancelled',
+  'completed',
+  'no_show',
+] as const;
+export type AppointmentEventType = (typeof APPOINTMENT_EVENT_TYPES)[number];
+
+/** Кто изменил запись: клиент на сайте, врач в Telegram, сотрудник в панели, система. */
+export const APPOINTMENT_ACTORS = ['client', 'dentist', 'staff', 'system'] as const;
+export type AppointmentActor = (typeof APPOINTMENT_ACTORS)[number];
+
 export const NOTIFICATION_CHANNELS = ['sms', 'telegram'] as const;
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 

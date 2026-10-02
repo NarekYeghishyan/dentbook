@@ -504,6 +504,9 @@ const attacks: Record<string, () => Promise<void>> = {
     expect(card.appointments.map((x) => x.status)).toEqual(['confirmed']);
   },
 
+  'GET /v1/admin/appointments/:id/history': () =>
+    expectNotFound({ method: 'GET', url: `/v1/admin/appointments/${aAppointmentId}/history` }),
+
   'POST /v1/admin/appointments/:id/outcome': () =>
     expectNotFound({
       method: 'POST',

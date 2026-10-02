@@ -20,6 +20,7 @@ import {
 } from '@dentbook/db';
 import { LOCALE_NAMES, LOCALES, type Locale } from '@dentbook/shared/domain';
 import { translate } from '../i18n/index.js';
+import { recordEvent } from '../services/history.js';
 import type { Notifier } from '../services/notifier.js';
 import type { TelegramConfig } from './outbox.js';
 import { describeAppointment } from './texts.js';
@@ -166,19 +167,30 @@ export function createUpdateHandler(deps: {
       return answer(translate(dentist.locale, 'tg.clinicSuspended'));
     }
 
-    const [confirmed] = await db
-      .update(appointments)
-      .set({ status: 'confirmed' })
-      .where(
-        and(
-          eq(appointments.id, appointmentId),
-          eq(appointments.clinicId, dentist.clinicId),
-          eq(appointments.dentistId, dentist.id),
-          eq(appointments.status, 'pending'),
-          gt(appointments.startAt, now),
-        ),
-      )
-      .returning({ id: appointments.id });
+    const confirmed = await db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(appointments)
+        .set({ status: 'confirmed' })
+        .where(
+          and(
+            eq(appointments.id, appointmentId),
+            eq(appointments.clinicId, dentist.clinicId),
+            eq(appointments.dentistId, dentist.id),
+            eq(appointments.status, 'pending'),
+            gt(appointments.startAt, now),
+          ),
+        )
+        .returning({ id: appointments.id });
+      if (row) {
+        await recordEvent(tx, {
+          clinicId: dentist.clinicId,
+          appointmentId,
+          type: 'confirmed',
+          actor: { kind: 'dentist', dentistId: dentist.id },
+        });
+      }
+      return row;
+    });
     if (!confirmed) return answer(translate(dentist.locale, 'tg.alreadyHandled'));
 
     await notifier.appointmentConfirmed(dentist.clinicId, appointmentId);

@@ -239,6 +239,11 @@ describe('dentist mini app (Step 7)', () => {
     // Занятое и закрытое время в списке не предлагается
     expect(times).not.toContain('10:00 AM');
     expect(times).not.toContain('2:00 PM');
+    // …но занятое видно рядом: запись — красной клеткой, закрытое время — серой
+    const busy = (await page.locator('fieldset [data-busy]').allTextContents()).map((t) =>
+      t.replace(/\s/g, ' '),
+    );
+    expect(busy).toEqual(['10:00 AM, Booked', '2:00 PM, Closed']);
     await page.getByRole('button', { name: /^3:00\sPM$/ }).click();
     await page.getByLabel('Client name', { exact: true }).fill('Bob Walk-in');
     await page.getByLabel('Client phone', { exact: true }).fill('(202) 555-0199');
@@ -301,12 +306,24 @@ describe('dentist mini app (Step 7)', () => {
       .getByText(/^4:00\sPM/)
       .waitFor();
 
-    // Отмена — запись уходит из расписания
+    // История: что, кем и когда менялось
     await edit('Bob Walker');
+    await page.getByRole('button', { name: 'History' }).click();
+    const history = page.getByRole('list');
+    await history.getByText('Moved', { exact: true }).waitFor();
+    await history.getByText(/^Time: .*3:00\sPM → .*4:00\sPM$/).waitFor();
+    await history
+      .getByText('Client: Bob Walk-in, +12025550199 → Bob Walker, +12025550199')
+      .waitFor();
+    await history.getByText('Comment: Wants a morning call → Prefers afternoons').waitFor();
+    await history.getByText('Dentist · Dr. Anna').first().waitFor();
+    await shot(page, '6-history');
+
+    // Отмена — запись уходит из расписания
     await page.getByRole('button', { name: 'Cancel booking' }).click();
     await page.getByText('Booking cancelled.').waitFor();
     await page.getByText('Bob Walker').waitFor({ state: 'detached' });
-    await shot(page, '6-cancelled');
+    await shot(page, '7-cancelled');
 
     const rows = await database.db
       .select({

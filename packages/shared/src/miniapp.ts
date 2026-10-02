@@ -91,7 +91,18 @@ export interface MiniappSchedule {
   blocks: MiniappBlock[];
 }
 
+/**
+ * Занятое время в сетке: запись — одной клеткой на время начала (booked), закрытое
+ * врачом время — тоже одной (closed).
+ */
+export interface MiniappBusyTime {
+  startAt: string;
+  kind: 'booked' | 'closed';
+}
+
 export interface MiniappSlots {
   timeZone: string;
+  /** Свободное время — его можно выбрать. */
   slots: string[];
+  busy: MiniappBusyTime[];
 }

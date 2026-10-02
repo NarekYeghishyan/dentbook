@@ -4,12 +4,20 @@ import {
   foreignKey,
   index,
   integer,
+  jsonb,
   pgTable,
   text,
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { APPOINTMENT_SOURCES, APPOINTMENT_STATUSES, CANCELLED_BY } from '@dentbook/shared';
+import {
+  APPOINTMENT_ACTORS,
+  APPOINTMENT_EVENT_TYPES,
+  APPOINTMENT_SOURCES,
+  APPOINTMENT_STATUSES,
+  CANCELLED_BY,
+  type AppointmentChanges,
+} from '@dentbook/shared';
 import { dentists, services } from './catalog.js';
 import { clinics, locations, users } from './clinics.js';
 import { citext, createdAt, e164, oneOf, timestamptz, updatedAt } from './columns.js';
@@ -173,5 +181,54 @@ export const phoneVerifications = pgTable(
       t.phone,
       t.createdAt.desc().nullsFirst(),
     ),
+  ],
+);
+
+/**
+ * История записи: что, кем и когда изменено (врач в Mini App, регистратура в журнале).
+ * changes — прежнее и новое значение; там бывают имя и телефон клиента и комментарий. Это
+ * данные клиники, как patients, — в логи и трекеры они не попадают (§2.6).
+ */
+export const appointmentEvents = pgTable(
+  'appointment_events',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clinicId: uuid('clinic_id').notNull(),
+    appointmentId: uuid('appointment_id').notNull(),
+    type: text('type', { enum: APPOINTMENT_EVENT_TYPES }).notNull(),
+    actor: text('actor', { enum: APPOINTMENT_ACTORS }).notNull(),
+    /** Сотрудник (actor = 'staff'); NULL — неизвестен, например у записей до истории. */
+    userId: uuid('user_id'),
+    /** Врач (actor = 'dentist'). */
+    dentistId: uuid('dentist_id'),
+    changes: jsonb('changes').$type<AppointmentChanges>(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({
+      name: 'appointment_events_clinic_id_fkey',
+      columns: [t.clinicId],
+      foreignColumns: [clinics.id],
+    }),
+    foreignKey({
+      name: 'appointment_events_user_id_fkey',
+      columns: [t.userId],
+      foreignColumns: [users.id],
+    }),
+    foreignKey({
+      name: 'appointment_events_appointment_fk',
+      columns: [t.clinicId, t.appointmentId],
+      foreignColumns: [appointments.clinicId, appointments.id],
+    }),
+    foreignKey({
+      name: 'appointment_events_dentist_fk',
+      columns: [t.clinicId, t.dentistId],
+      foreignColumns: [dentists.clinicId, dentists.id],
+    }),
+    check('appointment_events_type', oneOf('type', APPOINTMENT_EVENT_TYPES)),
+    check('appointment_events_actor', oneOf('actor', APPOINTMENT_ACTORS)),
+    check('appointment_events_user_is_staff', sql`user_id IS NULL OR actor = 'staff'`),
+    check('appointment_events_dentist_acts', sql`dentist_id IS NULL OR actor = 'dentist'`),
+    index('appointment_events_appointment_idx').on(t.appointmentId, t.createdAt),
   ],
 );

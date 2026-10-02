@@ -417,6 +417,42 @@ CREATE INDEX appointments_hold_expiry_idx   ON appointments (hold_expires_at) WH
 
 
 -- -----------------------------------------------------------------------------
+-- appointment_events — история записи: что, кем и когда изменено. Её видят врач
+-- в Mini App и регистратура в журнале. Холдов здесь нет: история начинается с
+-- подтверждённой записи.
+-- changes — прежнее и новое значение (время, врач, клиент, комментарий). Имя и
+-- телефон клиента в нём — данные клиники, как patients; в логи не попадают (§2.6).
+-- -----------------------------------------------------------------------------
+CREATE TABLE appointment_events (
+  id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  clinic_id       uuid        NOT NULL REFERENCES clinics (id),
+  appointment_id  uuid        NOT NULL,
+  type            text        NOT NULL,
+  -- client — на сайте, dentist — в Telegram, staff — в панели, system — платформа
+  actor           text        NOT NULL,
+  -- Сотрудник; NULL — неизвестен (например, у записей, сделанных до истории)
+  user_id         uuid        REFERENCES users (id),
+  dentist_id      uuid,
+  changes         jsonb,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+
+  CONSTRAINT appointment_events_type   CHECK (type IN (
+    'created', 'confirmed', 'updated', 'moved', 'cancelled', 'completed', 'no_show'
+  )),
+  CONSTRAINT appointment_events_actor  CHECK (actor IN ('client', 'dentist', 'staff', 'system')),
+  CONSTRAINT appointment_events_user_is_staff  CHECK (user_id IS NULL OR actor = 'staff'),
+  CONSTRAINT appointment_events_dentist_acts   CHECK (dentist_id IS NULL OR actor = 'dentist'),
+
+  CONSTRAINT appointment_events_appointment_fk FOREIGN KEY (clinic_id, appointment_id)
+    REFERENCES appointments (clinic_id, id),
+  CONSTRAINT appointment_events_dentist_fk     FOREIGN KEY (clinic_id, dentist_id)
+    REFERENCES dentists (clinic_id, id)
+);
+
+CREATE INDEX appointment_events_appointment_idx ON appointment_events (appointment_id, created_at);
+
+
+-- -----------------------------------------------------------------------------
 -- notifications — журнал исходящих уведомлений (§8, Шаг 8).
 -- Текст сообщения не хранится — в нём ПДн. Хранится вид шаблона (kind);
 -- шаблон рендерится в момент отправки.

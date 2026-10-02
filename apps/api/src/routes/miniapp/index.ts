@@ -4,7 +4,7 @@
  * dentists.telegram_chat_id. Врач видит и меняет только своё: clinicId и dentistId берутся
  * из подписи, не из запроса (§2.2).
  */
-import { and, asc, eq, gt, inArray, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, gte, inArray, lt, ne, sql } from 'drizzle-orm';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { addDays, dayBounds, localDateOf } from '@dentbook/core';
 import {
@@ -31,6 +31,9 @@ import {
   miniappMoveSchema,
   miniappSlotsQuerySchema,
   scheduleQuerySchema,
+  type AppointmentChanges,
+  type AppointmentHistory,
+  type MiniappBusyTime,
   type MiniappMe,
   type MiniappSchedule,
   type MiniappSlots,
@@ -39,10 +42,15 @@ import type { Locale } from '@dentbook/shared/domain';
 import { ApiError, forbidden, notFound, parse, unauthorized } from '../../lib/errors.js';
 import { idOf } from '../../lib/params.js';
 import { computeAvailability } from '../../services/availability.js';
+import { loadHistory, recordEvent } from '../../services/history.js';
 import type { Notifier } from '../../services/notifier.js';
 import { slotTaken } from '../../services/holds.js';
 import { cancelByClinic, rescheduleAppointment } from '../../services/journal.js';
-import { findConflictingAppointments, timeHasAppointments } from '../../services/schedule.js';
+import {
+  findConflictingAppointments,
+  takesDentistTime,
+  timeHasAppointments,
+} from '../../services/schedule.js';
 import type { SlotCache } from '../../services/slot-cache.js';
 import { InitDataError, verifyInitData } from '../../telegram/verify-init-data.js';
 
@@ -309,15 +317,70 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
     return { timeZone: result.timeZone, slots: result.days[0]?.slots.map((s) => s.start) ?? [] };
   }
 
+  /**
+   * Занятое время врача на дату — чтобы сетка показала его рядом со свободным: запись —
+   * одной клеткой на время начала, закрытое время — тоже (с начала дня, если началось
+   * раньше). Прошедшее не показывается; запись, которую переносят, — тоже.
+   */
+  async function busyTimes(
+    ctx: DentistContext,
+    date: string,
+    timeZone: string,
+    excludeAppointmentId?: string,
+  ): Promise<MiniappBusyTime[]> {
+    const { start, end } = dayBounds(date, timeZone);
+    const now = new Date();
+    const [booked, closed] = await Promise.all([
+      db
+        .select({ startAt: appointments.startAt })
+        .from(appointments)
+        .where(
+          and(
+            eq(appointments.clinicId, ctx.clinicId),
+            eq(appointments.dentistId, ctx.dentistId),
+            takesDentistTime(now),
+            gte(appointments.startAt, start),
+            lt(appointments.startAt, end),
+            gt(appointments.blockedUntil, now),
+            excludeAppointmentId ? ne(appointments.id, excludeAppointmentId) : undefined,
+          ),
+        ),
+      db
+        .select({ startAt: scheduleExceptions.startAt })
+        .from(scheduleExceptions)
+        .where(
+          and(
+            eq(scheduleExceptions.clinicId, ctx.clinicId),
+            eq(scheduleExceptions.dentistId, ctx.dentistId),
+            eq(scheduleExceptions.type, 'block'),
+            lt(scheduleExceptions.startAt, end),
+            gt(scheduleExceptions.endAt, start > now ? start : now),
+          ),
+        ),
+    ]);
+    return [
+      ...booked.map((b) => ({ startAt: b.startAt, kind: 'booked' as const })),
+      ...closed.map((c) => ({
+        startAt: c.startAt < start ? start : c.startAt,
+        kind: 'closed' as const,
+      })),
+    ]
+      .sort((a, b) => a.startAt.getTime() - b.startAt.getTime())
+      .map((b) => ({ startAt: b.startAt.toISOString(), kind: b.kind }));
+  }
+
   app.get('/slots', async (request): Promise<MiniappSlots> => {
+    const ctx = dentistOf(request);
     const query = parse(miniappSlotsQuerySchema, request.query);
-    return freeSlots(
-      dentistOf(request),
+    const free = await freeSlots(
+      ctx,
       query.serviceId,
       query.locationId,
       query.date,
       query.appointmentId,
     );
+    const busy = await busyTimes(ctx, query.date, free.timeZone, query.appointmentId);
+    return { ...free, busy };
   });
 
   /** Врач записывает своего клиента: без SMS-кода, запись сразу подтверждена. */
@@ -379,6 +442,13 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
             notes: input.notes ?? null,
           })
           .returning({ id: appointments.id });
+        await recordEvent(tx, {
+          clinicId: ctx.clinicId,
+          appointmentId: row!.id,
+          type: 'created',
+          actor: { kind: 'dentist', dentistId: ctx.dentistId },
+          changes: { startAt: { from: null, to: startIso } },
+        });
         return row!.id;
       });
       await cache?.invalidateDentist(ctx.clinicId, ctx.dentistId);
@@ -396,7 +466,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
   /**
    * Врач правит свою запись: клиента и комментарий. Клиент в клинике определяется
    * телефоном (Q9): новое имя меняет карточку клиента, новый телефон переводит запись на
-   * клиента с этим номером.
+   * клиента с этим номером. В историю пишется только то, что действительно изменилось.
    */
   app.patch('/appointments/:id', async (request, reply) => {
     const { dentistId, clinicId } = dentistOf(request);
@@ -404,8 +474,14 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
     const id = idOf(request);
     await db.transaction(async (tx) => {
       const [current] = await tx
-        .select({ patientId: appointments.patientId })
+        .select({
+          patientId: appointments.patientId,
+          notes: appointments.notes,
+          fullName: patients.fullName,
+          phone: patients.phone,
+        })
         .from(appointments)
+        .leftJoin(patients, eq(patients.id, appointments.patientId))
         .where(
           and(
             eq(appointments.id, id),
@@ -414,13 +490,28 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
             inArray(appointments.status, SCHEDULE_STATUSES),
           ),
         )
-        .for('update');
+        .for('update', { of: appointments });
       if (!current) throw notFound();
+
+      const before =
+        current.fullName !== null && current.phone !== null
+          ? { fullName: current.fullName, phone: current.phone }
+          : null;
+      const notes = input.notes === undefined ? current.notes : input.notes || null;
+      const changes: AppointmentChanges = {};
+      if (
+        input.client &&
+        (input.client.fullName !== before?.fullName || input.client.phone !== before?.phone)
+      ) {
+        changes.client = { from: before, to: input.client };
+      }
+      if (notes !== current.notes) changes.notes = { from: current.notes, to: notes };
+
       let patientId = current.patientId;
-      if (input.client) {
+      if (changes.client) {
         const [patient] = await tx
           .insert(patients)
-          .values({ clinicId, fullName: input.client.fullName, phone: input.client.phone })
+          .values({ clinicId, ...changes.client.to })
           .onConflictDoUpdate({
             target: [patients.clinicId, patients.phone],
             set: { fullName: sql`excluded.full_name` },
@@ -430,7 +521,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
       }
       await tx
         .update(appointments)
-        .set({ patientId, ...(input.notes !== undefined ? { notes: input.notes || null } : {}) })
+        .set({ patientId, notes })
         .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)));
       if (patientId !== current.patientId) {
         // Напоминание уходит на телефон клиента из notifications.patient_id — на новый номер
@@ -446,6 +537,15 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
             ),
           );
       }
+      if (changes.client || changes.notes) {
+        await recordEvent(tx, {
+          clinicId,
+          appointmentId: id,
+          type: 'updated',
+          actor: { kind: 'dentist', dentistId },
+          changes,
+        });
+      }
     });
     return reply.status(204).send();
   });
@@ -457,7 +557,13 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
     await rescheduleAppointment(
       db,
       { cache, notifier },
-      { clinicId, id: idOf(request), startAt, byDentistId: dentistId, now: new Date() },
+      {
+        clinicId,
+        id: idOf(request),
+        startAt,
+        actor: { kind: 'dentist', dentistId },
+        now: new Date(),
+      },
     );
     return reply.status(204).send();
   });
@@ -468,28 +574,43 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
     await cancelByClinic(
       db,
       { cache, notifier },
-      { clinicId, id: idOf(request), byDentistId: dentistId, now: new Date() },
+      { clinicId, id: idOf(request), actor: { kind: 'dentist', dentistId }, now: new Date() },
     );
     return reply.status(204).send();
   });
 
   app.post('/appointments/:id/confirm', async (request) => {
     const { dentistId, clinicId } = dentistOf(request);
-    const [row] = await db
-      .update(appointments)
-      .set({ status: 'confirmed' })
-      .where(
-        and(
-          eq(appointments.id, idOf(request)),
-          eq(appointments.clinicId, clinicId),
-          eq(appointments.dentistId, dentistId),
-          eq(appointments.status, 'pending'),
-        ),
-      )
-      .returning({ id: appointments.id, status: appointments.status });
-    if (!row) throw notFound();
+    const row = await db.transaction(async (tx) => {
+      const [confirmed] = await tx
+        .update(appointments)
+        .set({ status: 'confirmed' })
+        .where(
+          and(
+            eq(appointments.id, idOf(request)),
+            eq(appointments.clinicId, clinicId),
+            eq(appointments.dentistId, dentistId),
+            eq(appointments.status, 'pending'),
+          ),
+        )
+        .returning({ id: appointments.id, status: appointments.status });
+      if (!confirmed) throw notFound();
+      await recordEvent(tx, {
+        clinicId,
+        appointmentId: confirmed.id,
+        type: 'confirmed',
+        actor: { kind: 'dentist', dentistId },
+      });
+      return confirmed;
+    });
     await notifier.appointmentConfirmed(clinicId, row.id);
     return row;
+  });
+
+  /** История своей записи: что, кем и когда изменено. Чужая запись — 404 (§2.2). */
+  app.get('/appointments/:id/history', async (request): Promise<AppointmentHistory> => {
+    const { dentistId, clinicId } = dentistOf(request);
+    return loadHistory(db, { clinicId, appointmentId: idOf(request), dentistId });
   });
 
   async function officeZone(ctx: DentistContext, locationId: string) {

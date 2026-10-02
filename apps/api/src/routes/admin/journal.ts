@@ -1,10 +1,10 @@
 /**
  * Журнал регистратуры, записи, клиенты и отчёты (Шаг 9, Q17). Всё — в области clinicScope:
  * clinicId только из сессии (§2.2). Записывать, переносить, подтверждать, отменять и
- * отмечать визиты может любой сотрудник, включая регистратуру; выгрузка с телефонами
- * клиентов — только владелец и администратор.
+ * отмечать визиты и смотреть их историю может любой сотрудник, включая регистратуру;
+ * выгрузка с телефонами клиентов — только владелец и администратор.
  */
-import type { FastifyPluginAsync, FastifyReply } from 'fastify';
+import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { addDays } from '@dentbook/core';
 import type { Database } from '@dentbook/db';
 import {
@@ -22,6 +22,7 @@ import { ApiError, parse } from '../../lib/errors.js';
 import { idOf } from '../../lib/params.js';
 import { authOf, MANAGERS } from '../../plugins/session.js';
 import { loadClientCard, searchClients, updateClient } from '../../services/clients.js';
+import { loadHistory } from '../../services/history.js';
 import {
   cancelByClinic,
   confirmByStaff,
@@ -54,6 +55,8 @@ export const journalRoutes: FastifyPluginAsync<JournalRoutesOptions> = async (
   { db, notifier, cache },
 ) => {
   const deps = { cache, notifier };
+  const staff = (request: FastifyRequest) =>
+    ({ kind: 'staff', userId: authOf(request).userId }) as const;
 
   app.get('/journal', async (request) => {
     const query = parse(journalQuerySchema, request.query);
@@ -68,6 +71,7 @@ export const journalRoutes: FastifyPluginAsync<JournalRoutesOptions> = async (
     const created = await createStaffBooking(db, deps, {
       clinicId: authOf(request).clinicId,
       input,
+      userId: authOf(request).userId,
       now: new Date(),
     });
     return reply.status(201).send(created);
@@ -80,6 +84,7 @@ export const journalRoutes: FastifyPluginAsync<JournalRoutesOptions> = async (
       id: idOf(request),
       startAt: input.startAt,
       ...(input.dentistId ? { dentistId: input.dentistId } : {}),
+      actor: staff(request),
       now: new Date(),
     });
     return noContent(reply);
@@ -89,6 +94,7 @@ export const journalRoutes: FastifyPluginAsync<JournalRoutesOptions> = async (
     await confirmByStaff(db, deps, {
       clinicId: authOf(request).clinicId,
       id: idOf(request),
+      userId: authOf(request).userId,
       now: new Date(),
     });
     return noContent(reply);
@@ -98,6 +104,7 @@ export const journalRoutes: FastifyPluginAsync<JournalRoutesOptions> = async (
     await cancelByClinic(db, deps, {
       clinicId: authOf(request).clinicId,
       id: idOf(request),
+      actor: staff(request),
       now: new Date(),
     });
     return noContent(reply);
@@ -109,10 +116,16 @@ export const journalRoutes: FastifyPluginAsync<JournalRoutesOptions> = async (
       clinicId: authOf(request).clinicId,
       id: idOf(request),
       outcome: status,
+      userId: authOf(request).userId,
       now: new Date(),
     });
     return noContent(reply);
   });
+
+  /** История записи: что, кем и когда изменено. */
+  app.get('/appointments/:id/history', async (request) =>
+    loadHistory(db, { clinicId: authOf(request).clinicId, appointmentId: idOf(request) }),
+  );
 
   /** Выгрузка записей периода: в ней телефоны и email клиентов — только руководителям. */
   app.get('/appointments/export', { config: MANAGERS }, async (request, reply) => {

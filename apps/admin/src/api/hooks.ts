@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/react-query';
 import type {
   ApiKey,
+  AppointmentHistory,
   AvailabilityQuery,
   AvailabilityResponse,
   ClientCard,
@@ -321,6 +322,13 @@ export const useAppointmentAction = () =>
       api<void>('POST', `/appointments/${id}/${action}`, action === 'outcome' ? body : undefined),
     BOOKING_KEYS,
   );
+
+/** История записи; ключ внутри journal — перечитывается после любого действия с записью. */
+export const useAppointmentHistory = (id: string) =>
+  useQuery({
+    queryKey: [...keys.journal, 'history', id],
+    queryFn: () => api<AppointmentHistory>('GET', `/appointments/${id}/history`),
+  });
 
 export const useClients = (q: string, enabled = true) =>
   useQuery({

@@ -1,10 +1,12 @@
-/** Запись в журнале: данные и действия регистратуры (Q17). */
+/** Запись в журнале: данные, действия регистратуры (Q17) и история изменений. */
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { JournalAppointment } from '@dentbook/shared';
 import { useAppointmentAction } from '../../api/hooks';
 import { Badge, Button, Modal } from '../../components/ui';
 import { useI18n, type MessageKey } from '../../i18n';
 import { formatDateTime, formatTime } from '../../lib/time';
+import { AppointmentHistory } from './AppointmentHistory';
 import { useJournalError } from './errors';
 
 const STATUS_TONE = {
@@ -31,6 +33,7 @@ export function AppointmentDialog({
   const { t, locale } = useI18n();
   const action = useAppointmentAction();
   const errorText = useJournalError();
+  const [showHistory, setShowHistory] = useState(false);
   const started = Date.parse(appointment.startAt) <= Date.now();
   const upcoming = !started && ['pending', 'confirmed'].includes(appointment.status);
   const canMark = started && appointment.status !== 'cancelled';
@@ -125,6 +128,13 @@ export function AppointmentDialog({
               </Button>
             </>
           )}
+          <Button
+            variant="secondary"
+            aria-expanded={showHistory}
+            onClick={() => setShowHistory(!showHistory)}
+          >
+            {t(showHistory ? 'appointment.hideHistory' : 'appointment.history')}
+          </Button>
           {appointment.client && (
             <Link
               to={`/clients/${appointment.client.id}`}
@@ -134,6 +144,8 @@ export function AppointmentDialog({
             </Link>
           )}
         </div>
+
+        {showHistory && <AppointmentHistory appointmentId={appointment.id} />}
       </div>
     </Modal>
   );

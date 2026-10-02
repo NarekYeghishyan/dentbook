@@ -10,6 +10,7 @@ import { addDays, isoWeekday, localDateOf, zonedTimeToUtc } from '@dentbook/core
 import { appointments, blockedUntil, notifications } from '@dentbook/db';
 import { startTestDatabase, type TestDatabase } from '@dentbook/db/testing';
 import type {
+  AppointmentHistory,
   ClientCard,
   ClientSummary,
   DashboardResponse,
@@ -101,6 +102,11 @@ const smsKinds = async (appointmentId: string) =>
   ).map((r) => `${r.kind}:${r.status}`);
 
 const lastMessageTo = (chatId: number) => outbox.messagesTo(chatId).at(-1)?.text ?? '';
+const historyOf = async (id: string) =>
+  call<AppointmentHistory>(app, owner, {
+    method: 'GET',
+    url: `/v1/admin/appointments/${id}/history`,
+  });
 
 async function linkDentist(dentistId: string, chatId: number, updateId: number) {
   const link = await call<TelegramLink>(
@@ -410,6 +416,48 @@ describe('journal (Step 9)', () => {
       .from(appointments)
       .where(eq(appointments.id, past!.id));
     expect(row!.status).toBe('completed');
+    // Повторная та же отметка в историю не попадает
+    expect((await outcome(past!.id, 'completed')).statusCode).toBe(204);
+    expect((await historyOf(past!.id)).events.map((e) => e.type)).toEqual(['no_show', 'completed']);
+  });
+
+  it('keeps the history of a booking: what changed, who did it and when', async () => {
+    const day = addDays(upcoming(5), 14);
+    const id = await booked(day, '10:00');
+    await database.db
+      .update(appointments)
+      .set({ status: 'pending' })
+      .where(eq(appointments.id, id));
+    expect((await post(`/v1/admin/appointments/${id}/confirm`)).statusCode).toBe(204);
+    expect((await move(id, { startAt: at(day, '11:00') })).statusCode).toBe(204);
+    expect((await move(id, { startAt: at(day, '11:00'), dentistId: boris })).statusCode).toBe(204);
+    // Перенос туда же, где запись уже стоит, ничего не меняет — в истории его нет
+    expect((await move(id, { startAt: at(day, '11:00'), dentistId: boris })).statusCode).toBe(204);
+    expect((await post(`/v1/admin/appointments/${id}/cancel`)).statusCode).toBe(204);
+
+    const history = await historyOf(id);
+    expect(history.timeZone).toBe(ZONE);
+    const staff = { actor: 'staff', actorName: 'Olivia Owner' };
+    expect(
+      history.events.map(({ type, actor, actorName, changes }) => ({
+        type,
+        actor,
+        actorName,
+        changes,
+      })),
+    ).toEqual([
+      { type: 'created', ...staff, changes: { startAt: { from: null, to: at(day, '10:00') } } },
+      { type: 'confirmed', ...staff, changes: null },
+      {
+        type: 'moved',
+        ...staff,
+        changes: { startAt: { from: at(day, '10:00'), to: at(day, '11:00') } },
+      },
+      { type: 'moved', ...staff, changes: { dentist: { from: 'Dr. Anna', to: 'Dr. Boris' } } },
+      { type: 'cancelled', ...staff, changes: null },
+    ]);
+    const times = history.events.map((e) => Date.parse(e.at));
+    expect(times).toEqual([...times].sort((a, b) => a - b));
   });
 });
 

@@ -36,6 +36,20 @@
       "when": 1790866844939,
       "tag": "0004_dentists_locale",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790943536974,
+      "tag": "0005_appointment_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790943554889,
+      "tag": "0006_appointment_events_backfill",
+      "breakpoints": true
     }
   ]
 }

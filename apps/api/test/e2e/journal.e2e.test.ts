@@ -194,6 +194,16 @@ describe('front desk journal (Step 9)', () => {
     expect(await positionOf(jane)).toEqual({ dentistId: boris, startAt: at(day, '13:00') });
     await shot(page, '3-moved');
 
+    // История записи: оба переноса — что изменилось и кто это сделал
+    await page.getByRole('button', { name: /^1:00\sPM Jane Client$/ }).click();
+    const dialog = page.getByRole('dialog', { name: 'Booking' });
+    await dialog.getByRole('button', { name: 'History' }).click();
+    await dialog.getByText(/^Time: .*10:00\sAM → .*11:00\sAM$/).waitFor();
+    await dialog.getByText(/^Time: .*11:00\sAM → .*1:00\sPM$/).waitFor();
+    await dialog.getByText('Dentist: Dr. Anna → Dr. Boris').waitFor();
+    expect(await dialog.getByText('Front desk · Olivia Owner').count()).toBeGreaterThanOrEqual(2);
+    await shot(page, '3-history');
+
     const busy = await database.db
       .select({ startAt: appointments.startAt, dentistId: appointments.dentistId })
       .from(appointments)

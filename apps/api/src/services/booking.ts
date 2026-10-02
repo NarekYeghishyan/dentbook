@@ -18,6 +18,7 @@ import type {
   PublicAppointment,
 } from '@dentbook/shared';
 import { ApiError, notFound } from '../lib/errors.js';
+import { recordEvent } from './history.js';
 import type { Notifier } from './notifier.js';
 import type { SlotCache } from './slot-cache.js';
 import { checkCode, consumeVerification } from './verification.js';
@@ -133,9 +134,17 @@ export async function confirmAppointment(
           gt(appointments.holdExpiresAt, now),
         ),
       )
-      .returning({ id: appointments.id });
+      .returning({ id: appointments.id, startAt: appointments.startAt });
     // Холд истёк или его уже подтвердили: откат, код не расходуется
     if (!appointment) throw holdExpired();
+    // История записи начинается здесь: холд ещё не запись
+    await recordEvent(tx, {
+      clinicId,
+      appointmentId: appointment.id,
+      type: 'created',
+      actor: { kind: 'client' },
+      changes: { startAt: { from: null, to: appointment.startAt.toISOString() } },
+    });
     return appointment.id;
   });
   await params.notifier.appointmentCreated(clinicId, id);
@@ -158,19 +167,30 @@ export async function cancelAppointment(
   params: { clinicId: string; id: string; token: string; now: Date; notifier: Notifier },
 ): Promise<PublicAppointment> {
   const { clinicId, id, token, now } = params;
-  const [row] = await db
-    .update(appointments)
-    .set({ status: 'cancelled', cancelledAt: now, cancelledBy: 'client' })
-    .where(
-      and(
-        eq(appointments.id, id),
-        eq(appointments.clinicId, clinicId),
-        eq(appointments.publicToken, token),
-        inArray(appointments.status, ['pending', 'confirmed']),
-        gt(appointments.startAt, now),
-      ),
-    )
-    .returning({ dentistId: appointments.dentistId });
+  const row = await db.transaction(async (tx) => {
+    const [cancelled] = await tx
+      .update(appointments)
+      .set({ status: 'cancelled', cancelledAt: now, cancelledBy: 'client' })
+      .where(
+        and(
+          eq(appointments.id, id),
+          eq(appointments.clinicId, clinicId),
+          eq(appointments.publicToken, token),
+          inArray(appointments.status, ['pending', 'confirmed']),
+          gt(appointments.startAt, now),
+        ),
+      )
+      .returning({ dentistId: appointments.dentistId });
+    if (cancelled) {
+      await recordEvent(tx, {
+        clinicId,
+        appointmentId: id,
+        type: 'cancelled',
+        actor: { kind: 'client' },
+      });
+    }
+    return cancelled;
+  });
   if (row) {
     await cache?.invalidateDentist(clinicId, row.dentistId);
     await params.notifier.appointmentCancelled(clinicId, id);

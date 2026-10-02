@@ -15,7 +15,13 @@ import {
   type TestDatabase,
   type TestRedis,
 } from '@dentbook/db/testing';
-import type { ConfirmedAppointment, Dentist, HoldResponse, TelegramLink } from '@dentbook/shared';
+import type {
+  AppointmentHistory,
+  ConfirmedAppointment,
+  Dentist,
+  HoldResponse,
+  TelegramLink,
+} from '@dentbook/shared';
 import { describeAppointment } from '../src/telegram/texts.js';
 import {
   TestOutbox,
@@ -61,6 +67,15 @@ const at = (date: string, time: string) => {
   const [h, m] = time.split(':').map(Number);
   return zonedTimeToUtc(date, h! * 60 + m!, ZONE).toISOString();
 };
+
+/** История записи глазами врача в Mini App: тип, кто и что изменил. */
+async function historyOf(chatId: number, id: string) {
+  const res = await mini(chatId, { method: 'GET', url: `/v1/miniapp/appointments/${id}/history` });
+  expect(res.statusCode, res.body).toBe(200);
+  return res
+    .json<AppointmentHistory>()
+    .events.map(({ type, actor, actorName, changes }) => ({ type, actor, actorName, changes }));
+}
 
 let updateId = 5000;
 function webhook(update: object, secret = telegram.webhookSecret) {
@@ -336,6 +351,10 @@ describe('alerts to dentists', () => {
         .from(appointments)
         .where(eq(appointments.id, booked.id));
       expect(row!.status).toBe('confirmed');
+      expect((await historyOf(ANNA_CHAT, booked.id)).map((e) => [e.type, e.actor])).toEqual([
+        ['created', 'client'],
+        ['confirmed', 'dentist'],
+      ]);
       const answer = outbox.jobs.find(
         (j) => j.job.type === 'answer' && j.job.text?.startsWith('Confirmed'),
       );
@@ -370,6 +389,15 @@ describe('alerts to dentists', () => {
       payload: { token: booked.token },
     });
     expect(outbox.messagesTo(ANNA_CHAT).at(-1)!.text).toMatch(/^Booking cancelled by the client/);
+    expect(await historyOf(ANNA_CHAT, booked.id)).toEqual([
+      {
+        type: 'created',
+        actor: 'client',
+        actorName: null,
+        changes: { startAt: { from: null, to: booked.start_at } },
+      },
+      { type: 'cancelled', actor: 'client', actorName: null, changes: null },
+    ]);
   });
 });
 
@@ -450,6 +478,8 @@ describe('Mini App (§8)', () => {
       url: `/v1/miniapp/slots?serviceId=${data.serviceId}&locationId=${data.locationId}&date=${day}`,
     });
     expect(slots.json().slots).not.toContain(at(day, '13:00'));
+    // Закрытое время — одной серой клеткой на время начала
+    expect(slots.json().busy).toContainEqual({ startAt: at(day, '13:00'), kind: 'closed' });
     const removed = await mini(ANNA_CHAT, {
       method: 'DELETE',
       url: `/v1/miniapp/blocks/${created.json().id}`,
@@ -583,6 +613,21 @@ describe('Mini App (§8)', () => {
     // Своё время записи свободно только для её переноса
     expect(await slots()).not.toContain(at(day, '11:00'));
     expect(await slots(`&appointmentId=${own!.id}`)).toContain(at(day, '11:00'));
+    // Занятое время — одной клеткой на время начала записи, не на каждый шаг сетки
+    const busy = async (extra = '') =>
+      (
+        await mini(ANNA_CHAT, {
+          method: 'GET',
+          url: `/v1/miniapp/slots?serviceId=${data.serviceId}&locationId=${data.locationId}&date=${day}${extra}`,
+        })
+      ).json().busy as { startAt: string; kind: string }[];
+    expect(await busy()).toEqual([
+      { startAt: at(day, '11:00'), kind: 'booked' },
+      { startAt: at(day, '14:00'), kind: 'booked' },
+    ]);
+    expect(await busy(`&appointmentId=${own!.id}`)).toEqual([
+      { startAt: at(day, '14:00'), kind: 'booked' },
+    ]);
 
     // Перенос на 15 минут: новое время задевает старое, запись сама себе не мешает
     const moved = await move(at(day, '11:15'));
@@ -613,6 +658,54 @@ describe('Mini App (§8)', () => {
 
     // Всё это сделал сам врач — сообщать ему не о чем
     expect(outbox.messagesTo(ANNA_CHAT)).toHaveLength(alerts);
+  });
+
+  it('shows the dentist the whole history of the own booking', async () => {
+    const day = upcoming(5);
+    const [own] = await database.db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(and(eq(appointments.dentistId, data.dentistId), eq(appointments.source, 'telegram')));
+    const anna = { actor: 'dentist', actorName: 'Dr. Anna' };
+    // Отклонённые попытки (занятое время, пустая правка, повторная отмена) следов не оставили
+    expect(await historyOf(ANNA_CHAT, own!.id)).toEqual([
+      { type: 'created', ...anna, changes: { startAt: { from: null, to: at(day, '11:00') } } },
+      { type: 'confirmed', ...anna, changes: null },
+      {
+        type: 'updated',
+        ...anna,
+        changes: {
+          client: {
+            from: { fullName: 'Own Client', phone: '+12025559000' },
+            to: { fullName: 'Own Client Junior', phone: '+12025559002' },
+          },
+          notes: { from: 'Bring the X-ray', to: 'Allergic to latex' },
+        },
+      },
+      {
+        type: 'updated',
+        ...anna,
+        changes: { notes: { from: 'Allergic to latex', to: null } },
+      },
+      {
+        type: 'moved',
+        ...anna,
+        changes: { startAt: { from: at(day, '11:00'), to: at(day, '11:15') } },
+      },
+      { type: 'cancelled', ...anna, changes: null },
+    ]);
+
+    // Запись с сайта: создал клиент, комментарий добавил врач
+    const [website] = (
+      await mini(ANNA_CHAT, {
+        method: 'GET',
+        url: `/v1/miniapp/schedule?from=${upcoming(1)}&to=${upcoming(1)}`,
+      })
+    ).json().appointments as { id: string }[];
+    expect((await historyOf(ANNA_CHAT, website!.id)).map((e) => [e.type, e.actor])).toEqual([
+      ['created', 'client'],
+      ['updated', 'dentist'],
+    ]);
   });
 });
 
@@ -767,6 +860,15 @@ describe('Mini App isolation (§2.2)', () => {
         expect(res.statusCode).toBe(404);
       }
       expect(await startAt()).toEqual(before);
+    },
+    'GET /v1/miniapp/appointments/:id/history': async () => {
+      for (const chat of [BORIS_CHAT, OTHER_CHAT]) {
+        const res = await mini(chat, {
+          method: 'GET',
+          url: `/v1/miniapp/appointments/${annaAppointment}/history`,
+        });
+        expect(res.statusCode).toBe(404);
+      }
     },
     'POST /v1/miniapp/appointments/:id/cancel': async () => {
       for (const chat of [BORIS_CHAT, OTHER_CHAT]) {
