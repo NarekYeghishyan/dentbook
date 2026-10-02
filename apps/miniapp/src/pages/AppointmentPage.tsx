@@ -2,6 +2,7 @@
  * Запись из расписания врача. Клиента и комментарий можно поправить всегда; предстоящую
  * запись — ещё перенести на другое свободное время или отменить. Клиенту о переносе и
  * отмене уходит SMS, как при действиях регистратуры. «История» — кто и что менял.
+ * Отменённая запись — только для просмотра: кто отменил, и история открыта сразу.
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
@@ -14,6 +15,7 @@ import { confirmAction } from '../telegram';
 import { dateIn, formatDateTime } from '../time';
 import { Button, Field, Input, Notice, Textarea } from '../ui';
 import { HistoryList } from './HistoryList';
+import { cancelledLabel } from './SchedulePage';
 
 type Part = 'details' | 'move' | 'cancel';
 
@@ -34,7 +36,8 @@ export function AppointmentPage({
   const [notes, setNotes] = useState(a.notes ?? '');
   const [day, setDay] = useState(date);
   const [moveTo, setMoveTo] = useState<string | null>(null);
-  const [showHistory, setShowHistory] = useState(false);
+  const cancelled = a.status === 'cancelled';
+  const [showHistory, setShowHistory] = useState(cancelled);
   /** Ошибка показывается у той части страницы, где её вызвали. */
   const [error, setError] = useState<{ part: Part; text: string } | null>(null);
 
@@ -107,42 +110,45 @@ export function AppointmentPage({
         <div className="font-medium">{formatDateTime(a.startAt, a.timeZone, locale)}</div>
         <div>{a.service}</div>
         <div className="text-sm text-hint">{a.office}</div>
+        {cancelled && <div className="text-sm text-danger">{t(cancelledLabel(a.cancelledBy))}</div>}
       </div>
       {showHistory && <HistoryList appointmentId={a.id} />}
 
-      <form className="space-y-3" onSubmit={submit}>
-        <Field label={t('book.name')}>
-          <Input
-            required
-            maxLength={200}
-            autoComplete="off"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-          />
-        </Field>
-        <Field label={t('book.phone')}>
-          <Input
-            type="tel"
-            required
-            autoComplete="off"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-          />
-        </Field>
-        <Field label={t('book.comment')}>
-          <Textarea
-            rows={3}
-            maxLength={1000}
-            autoComplete="off"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </Field>
-        {errorAt('details')}
-        <Button type="submit" className="w-full" disabled={busy}>
-          {t('edit.save')}
-        </Button>
-      </form>
+      {!cancelled && (
+        <form className="space-y-3" onSubmit={submit}>
+          <Field label={t('book.name')}>
+            <Input
+              required
+              maxLength={200}
+              autoComplete="off"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+            />
+          </Field>
+          <Field label={t('book.phone')}>
+            <Input
+              type="tel"
+              required
+              autoComplete="off"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+            />
+          </Field>
+          <Field label={t('book.comment')}>
+            <Textarea
+              rows={3}
+              maxLength={1000}
+              autoComplete="off"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+          </Field>
+          {errorAt('details')}
+          <Button type="submit" className="w-full" disabled={busy}>
+            {t('edit.save')}
+          </Button>
+        </form>
+      )}
 
       {upcoming && (
         <section className="space-y-3">

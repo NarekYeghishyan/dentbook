@@ -660,6 +660,34 @@ describe('Mini App (§8)', () => {
     expect(outbox.messagesTo(ANNA_CHAT)).toHaveLength(alerts);
   });
 
+  it('shows cancelled bookings in the schedule only when asked, with who cancelled', async () => {
+    const day = upcoming(5);
+    const schedule = (extra = '') =>
+      mini(ANNA_CHAT, {
+        method: 'GET',
+        url: `/v1/miniapp/schedule?from=${day}&to=${day}${extra}`,
+      });
+    const appointmentsOf = async (extra = '') =>
+      (await schedule(extra)).json().appointments as {
+        status: string;
+        cancelledBy: string | null;
+      }[];
+
+    // Без флажка — как раньше: отменённых нет
+    expect((await appointmentsOf()).map((a) => [a.status, a.cancelledBy])).toEqual([
+      ['confirmed', null],
+    ]);
+    // С флажком — и отменённые, по времени начала, с тем, кто отменил
+    expect((await appointmentsOf('&cancelled=true')).map((a) => [a.status, a.cancelledBy])).toEqual(
+      [
+        ['cancelled', 'dentist'],
+        ['confirmed', null],
+      ],
+    );
+    expect((await appointmentsOf('&cancelled=false')).map((a) => a.status)).toEqual(['confirmed']);
+    expect((await schedule('&cancelled=yes')).statusCode).toBe(400);
+  });
+
   it('shows the dentist the whole history of the own booking', async () => {
     const day = upcoming(5);
     const [own] = await database.db
@@ -752,13 +780,25 @@ describe('Mini App isolation (§2.2)', () => {
     'GET /v1/miniapp/schedule': async () => {
       const from = upcoming(1);
       const to = addDays(from, 20);
+      // Отменённые записи Anna тоже не видны чужому врачу — и с флажком
+      const annaCancelled = await database.db
+        .select({ id: appointments.id })
+        .from(appointments)
+        .where(
+          and(eq(appointments.dentistId, data.dentistId), eq(appointments.status, 'cancelled')),
+        );
+      expect(annaCancelled.length).toBeGreaterThan(0);
       for (const chat of [BORIS_CHAT, OTHER_CHAT]) {
-        const res = await mini(chat, {
-          method: 'GET',
-          url: `/v1/miniapp/schedule?from=${from}&to=${to}`,
-        });
-        expect(res.body).not.toContain(annaAppointment);
-        expect(res.body).not.toContain('Jane Client');
+        for (const extra of ['', '&cancelled=true']) {
+          const res = await mini(chat, {
+            method: 'GET',
+            url: `/v1/miniapp/schedule?from=${from}&to=${to}${extra}`,
+          });
+          expect(res.statusCode).toBe(200);
+          expect(res.body).not.toContain(annaAppointment);
+          expect(res.body).not.toContain('Jane Client');
+          for (const { id } of annaCancelled) expect(res.body).not.toContain(id);
+        }
       }
     },
     'POST /v1/miniapp/blocks': async () => {

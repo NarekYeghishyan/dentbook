@@ -3,11 +3,19 @@
  * запись своих клиентов и правка своих записей. Внутренний, как админский, — camelCase.
  */
 import { z } from 'zod';
-import { LOCALES, type AppointmentStatus, type Locale } from './domain.js';
+import { LOCALES, type AppointmentStatus, type CancelledBy, type Locale } from './domain.js';
 import { instantSchema, localDateSchema } from './catalog.js';
 import { nameSchema, phoneSchema, uuidSchema } from './validators.js';
 
-export const scheduleQuerySchema = z.object({ from: localDateSchema, to: localDateSchema });
+export const scheduleQuerySchema = z.object({
+  from: localDateSchema,
+  to: localDateSchema,
+  /** true — и отменённые записи: флажок «Показывать отменённые» в Mini App. */
+  cancelled: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+});
 
 export const miniappBlockSchema = z
   .object({
@@ -76,6 +84,8 @@ export interface MiniappAppointment {
   client: { fullName: string; phone: string } | null;
   notes: string | null;
   source: string;
+  /** Кто отменил — только у отменённой записи. */
+  cancelledBy: CancelledBy | null;
 }
 
 export interface MiniappBlock {

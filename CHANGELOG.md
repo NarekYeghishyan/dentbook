@@ -15,6 +15,15 @@ produced them (CLAUDE.md §9).
 
 #### Changed
 
+- `feat(miniapp): show cancelled bookings on request` — в расписании Mini App флажок
+  «Показывать отменённые записи». Отменённая запись — серым, время зачёркнуто, подпись
+  «Отменил клиент» / «Отменила клиника» / «Отменили вы»; вместо «Изменить» — «История»:
+  запись открывается только для просмотра, история сразу раскрыта. Флажок помнится на
+  устройстве (`localStorage`), по умолчанию снят — расписание как раньше.
+  - API: `GET /v1/miniapp/schedule` принимает `cancelled=true|false` (по умолчанию
+    `false`), в `MiniappAppointment` добавлено `cancelledBy`. Чужие отменённые записи не
+    видны и с флажком — тест изоляции дополнен.
+  - Справка админки о Telegram дополнена.
 - `feat: keep the history of every booking and show busy time in the mini app grid` —
   ADR-0014.
   - **История записи.** Новая таблица `appointment_events` (миграции

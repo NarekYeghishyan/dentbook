@@ -27,6 +27,26 @@ const TABS: { tab: Tab; label: MessageKey }[] = [
 
 const telegramLanguage = () => webApp()?.initDataUnsafe.user?.language_code;
 
+/**
+ * Флажок «Показывать отменённые» помнится на этом устройстве. Хранилище может быть
+ * недоступно — тогда флажок снят при каждом открытии.
+ */
+const SHOW_CANCELLED_KEY = 'dentbook.showCancelled';
+function rememberedShowCancelled(): boolean {
+  try {
+    return localStorage.getItem(SHOW_CANCELLED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+function rememberShowCancelled(show: boolean) {
+  try {
+    localStorage.setItem(SHOW_CANCELLED_KEY, show ? '1' : '0');
+  } catch {
+    // Не запомнилось — флажок действует до закрытия Mini App
+  }
+}
+
 export function App() {
   const signed = initData() !== '';
   const me = useQuery({
@@ -96,6 +116,7 @@ function Main() {
   const [flash, setFlash] = useState<string | null>(null);
   /** Открытая запись из расписания — поверх вкладок. */
   const [editing, setEditing] = useState<MiniappAppointment | null>(null);
+  const [showCancelled, setShowCancelled] = useState(rememberedShowCancelled);
 
   const open = (next: Tab) => {
     setTab(next);
@@ -153,6 +174,11 @@ function Main() {
             setFlash(null);
           }}
           onEdit={edit}
+          showCancelled={showCancelled}
+          onShowCancelled={(show) => {
+            setShowCancelled(show);
+            rememberShowCancelled(show);
+          }}
         />
       )}
       {!editing && tab === 'block' && <BlockPage date={date} onDone={done} />}

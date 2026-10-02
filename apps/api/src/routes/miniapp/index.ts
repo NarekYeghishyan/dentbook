@@ -68,6 +68,8 @@ declare module 'fastify' {
 
 /** Записи, которые врач видит в расписании и может править. */
 const SCHEDULE_STATUSES = ['pending', 'confirmed', 'completed', 'no_show'] as const;
+/** С флажком «Показывать отменённые» — ещё и отменённые, только для просмотра. */
+const SCHEDULE_WITH_CANCELLED = [...SCHEDULE_STATUSES, 'cancelled'] as const;
 
 const dentistOf = (request: FastifyRequest): DentistContext => {
   if (!request.dentist) throw unauthorized();
@@ -169,7 +171,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
 
   app.get('/schedule', async (request): Promise<MiniappSchedule> => {
     const { dentistId, clinicId, timeZone } = dentistOf(request);
-    const { from, to } = parse(scheduleQuerySchema, request.query);
+    const { from, to, cancelled } = parse(scheduleQuerySchema, request.query);
     if (to < from || addDays(from, AVAILABILITY_MAX_DAYS - 1) < to) {
       throw new ApiError(400, 'validation_failed', 'Invalid fields: to');
     }
@@ -190,6 +192,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
         clientPhone: patients.phone,
         notes: appointments.notes,
         source: appointments.source,
+        cancelledBy: appointments.cancelledBy,
       })
       .from(appointments)
       .innerJoin(clinics, eq(clinics.id, appointments.clinicId))
@@ -200,7 +203,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
         and(
           eq(appointments.clinicId, clinicId),
           eq(appointments.dentistId, dentistId),
-          inArray(appointments.status, SCHEDULE_STATUSES),
+          inArray(appointments.status, cancelled ? SCHEDULE_WITH_CANCELLED : SCHEDULE_STATUSES),
           lt(appointments.startAt, end),
           gt(appointments.endAt, start),
         ),

@@ -1,24 +1,42 @@
 /**
  * Расписание врача на день: записи (с подтверждением ожидающих) и закрытое время.
- * «Изменить» открывает запись: клиент, комментарий, перенос, отмена.
+ * «Изменить» открывает запись: клиент, комментарий, перенос, отмена. С флажком
+ * «Показывать отменённые» — и отменённые записи: серым, с тем, кто отменил, и историей.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { MiniappAppointment, MiniappSchedule } from '@dentbook/shared';
+import type { CancelledBy } from '@dentbook/shared/domain';
 import { api } from '../api';
 import { errorText, useSession } from '../context';
+import type { MessageKey } from '../i18n';
 import { confirmAction } from '../telegram';
 import { addDays, dateIn, formatDate, formatDateTime, formatTime, todayIn } from '../time';
 import { Button, Notice } from '../ui';
+
+const CANCELLED_BY: Record<CancelledBy, MessageKey> = {
+  client: 'schedule.cancelledByClient',
+  clinic: 'schedule.cancelledByClinic',
+  dentist: 'schedule.cancelledByYou',
+  system: 'schedule.cancelled',
+};
+
+/** Подпись отменённой записи: кто отменил, если известно. */
+export const cancelledLabel = (by: CancelledBy | null): MessageKey =>
+  by ? CANCELLED_BY[by] : 'schedule.cancelled';
 
 export function SchedulePage({
   date,
   onDate,
   onEdit,
+  showCancelled,
+  onShowCancelled,
 }: {
   date: string;
   onDate(date: string): void;
   onEdit(appointment: MiniappAppointment): void;
+  showCancelled: boolean;
+  onShowCancelled(show: boolean): void;
 }) {
   const { me, locale, t } = useSession();
   const client = useQueryClient();
@@ -26,8 +44,12 @@ export function SchedulePage({
   const today = todayIn(me.clinic.timezone);
 
   const schedule = useQuery({
-    queryKey: ['schedule', date],
-    queryFn: () => api<MiniappSchedule>('GET', `/schedule?from=${date}&to=${date}`),
+    queryKey: ['schedule', date, showCancelled],
+    queryFn: () =>
+      api<MiniappSchedule>(
+        'GET',
+        `/schedule?from=${date}&to=${date}${showCancelled ? '&cancelled=true' : ''}`,
+      ),
   });
   const refresh = () => client.invalidateQueries({ queryKey: ['schedule'] });
   const onError = (err: unknown) => setError(errorText(locale, err));
@@ -50,6 +72,7 @@ export function SchedulePage({
     return `${format(startAt, timeZone, locale)} – ${format(endAt, timeZone, locale)}`;
   };
 
+  const cancelled = (a: MiniappAppointment) => a.status === 'cancelled';
   const data = schedule.data;
   const items = data
     ? [
@@ -84,6 +107,15 @@ export function SchedulePage({
           ›
         </Button>
       </div>
+      <label className="flex items-center gap-2 text-sm text-hint">
+        <input
+          type="checkbox"
+          className="size-4 accent-accent"
+          checked={showCancelled}
+          onChange={(e) => onShowCancelled(e.target.checked)}
+        />
+        {t('schedule.showCancelled')}
+      </label>
 
       {error && <Notice tone="error">{error}</Notice>}
       {schedule.isPending && <p className="text-hint">{t('loading')}</p>}
@@ -93,9 +125,12 @@ export function SchedulePage({
       <ul className="space-y-2">
         {items.map((item) =>
           item.kind === 'appointment' ? (
-            <li key={item.a.id} className="space-y-1 rounded-lg bg-card p-3">
+            <li
+              key={item.a.id}
+              className={`space-y-1 rounded-lg bg-card p-3 ${cancelled(item.a) ? 'text-hint' : ''}`}
+            >
               <div className="flex justify-between gap-2">
-                <span className="font-medium">
+                <span className={`font-medium ${cancelled(item.a) ? 'line-through' : ''}`}>
                   {range(item.a.startAt, item.a.endAt, item.a.timeZone)}
                 </span>
                 <span className="text-sm text-hint">{item.a.office}</span>
@@ -113,12 +148,16 @@ export function SchedulePage({
                 <div className="whitespace-pre-line text-sm text-hint">{item.a.notes}</div>
               )}
               <div className="flex items-center justify-between gap-2 pt-1">
-                <span className="text-sm text-danger">
-                  {item.a.status === 'pending' && t('schedule.pending')}
-                </span>
+                {cancelled(item.a) ? (
+                  <span className="text-sm">{t(cancelledLabel(item.a.cancelledBy))}</span>
+                ) : (
+                  <span className="text-sm text-danger">
+                    {item.a.status === 'pending' && t('schedule.pending')}
+                  </span>
+                )}
                 <div className="flex gap-2">
                   <Button variant="secondary" onClick={() => onEdit(item.a)}>
-                    {t('schedule.edit')}
+                    {t(cancelled(item.a) ? 'edit.history' : 'schedule.edit')}
                   </Button>
                   {item.a.status === 'pending' && (
                     <Button disabled={confirm.isPending} onClick={() => confirm.mutate(item.a.id)}>

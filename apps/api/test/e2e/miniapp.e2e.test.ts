@@ -323,7 +323,27 @@ describe('dentist mini app (Step 7)', () => {
     await page.getByRole('button', { name: 'Cancel booking' }).click();
     await page.getByText('Booking cancelled.').waitFor();
     await page.getByText('Bob Walker').waitFor({ state: 'detached' });
+
+    // С флажком отменённая видна: кто отменил, и вместо «Изменить» — «История»
+    const showCancelled = page.getByLabel('Show cancelled bookings');
+    await showCancelled.check();
+    const card = page.locator('li', { hasText: 'Bob Walker' });
+    await card.getByText('Cancelled by you').waitFor();
+    expect(await card.getByRole('button', { name: 'Edit' }).count()).toBe(0);
     await shot(page, '7-cancelled');
+    await card.getByRole('button', { name: 'History' }).click();
+    // Отменённую не поправить — только посмотреть, история открыта сразу
+    await page.getByRole('list').getByText('Cancelled', { exact: true }).waitFor();
+    expect(await page.getByRole('button', { name: 'Save', exact: true }).count()).toBe(0);
+    expect(await page.getByRole('button', { name: 'Cancel booking' }).count()).toBe(0);
+    await shot(page, '8-cancelled-history');
+
+    // Флажок помнится; снятый — отменённые снова скрыты
+    await page.getByRole('button', { name: '‹ Back' }).click();
+    expect(await showCancelled.isChecked()).toBe(true);
+    await card.waitFor();
+    await showCancelled.uncheck();
+    await card.waitFor({ state: 'detached' });
 
     const rows = await database.db
       .select({
