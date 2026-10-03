@@ -5,6 +5,7 @@
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
+import type { MiniappAppointment } from '@dentbook/shared';
 import { api, ApiError } from '../api';
 import { errorText, useSession } from '../context';
 import { SlotPicker } from '../SlotPicker';
@@ -14,9 +15,12 @@ import { Button, Field, Input, Notice, Select, Textarea } from '../ui';
 export function BookPage({
   date,
   onDone,
+  onOpen,
 }: {
   date: string;
   onDone(date: string, message: string): void;
+  /** Красная клетка в сетке: открыть эту запись. */
+  onOpen(appointment: MiniappAppointment): void;
 }) {
   const { me, locale, t } = useSession();
   const client = useQueryClient();
@@ -123,6 +127,7 @@ export function BookPage({
         date={day}
         value={startAt}
         onChange={setStartAt}
+        onOpen={onOpen}
       />
 
       {startAt && (

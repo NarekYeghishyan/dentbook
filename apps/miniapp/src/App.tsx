@@ -15,7 +15,7 @@ import { BlockPage } from './pages/BlockPage';
 import { BookPage } from './pages/BookPage';
 import { SchedulePage } from './pages/SchedulePage';
 import { initData, webApp } from './telegram';
-import { todayIn } from './time';
+import { dateIn, todayIn } from './time';
 import { Notice } from './ui';
 
 type Tab = 'schedule' | 'block' | 'book';
@@ -134,6 +134,11 @@ function Main() {
     setFlash(null);
     window.scrollTo(0, 0);
   };
+  /** Запись из красной клетки сетки: «Назад» вернёт на вкладку, на день этой записи. */
+  const openBooked = (appointment: MiniappAppointment) => {
+    setDate(dateIn(appointment.startAt, appointment.timeZone));
+    edit(appointment);
+  };
 
   return (
     <div className="mx-auto max-w-lg space-y-4 p-4">
@@ -164,6 +169,7 @@ function Main() {
           appointment={editing}
           onBack={() => setEditing(null)}
           onDone={done}
+          onOpen={openBooked}
         />
       )}
       {!editing && tab === 'schedule' && (
@@ -182,7 +188,7 @@ function Main() {
         />
       )}
       {!editing && tab === 'block' && <BlockPage date={date} onDone={done} />}
-      {!editing && tab === 'book' && <BookPage date={date} onDone={done} />}
+      {!editing && tab === 'book' && <BookPage date={date} onDone={done} onOpen={openBooked} />}
     </div>
   );
 }

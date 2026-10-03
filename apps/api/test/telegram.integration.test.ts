@@ -20,6 +20,8 @@ import type {
   ConfirmedAppointment,
   Dentist,
   HoldResponse,
+  MiniappBusyTime,
+  MiniappSchedule,
   TelegramLink,
 } from '@dentbook/shared';
 import { describeAppointment } from '../src/telegram/texts.js';
@@ -580,7 +582,7 @@ describe('Mini App (§8)', () => {
       .select({ id: appointments.id })
       .from(appointments)
       .where(and(eq(appointments.dentistId, data.dentistId), eq(appointments.source, 'telegram')));
-    await bookFromWebsite(at(day, '14:00'));
+    const website = await bookFromWebsite(at(day, '14:00'));
     const slots = async (extra = '') =>
       (
         await mini(ANNA_CHAT, {
@@ -620,14 +622,52 @@ describe('Mini App (§8)', () => {
           method: 'GET',
           url: `/v1/miniapp/slots?serviceId=${data.serviceId}&locationId=${data.locationId}&date=${day}${extra}`,
         })
-      ).json().busy as { startAt: string; kind: string }[];
+      ).json().busy as MiniappBusyTime[];
+    // Клетка записи знает её id — по нажатию Mini App открывает запись
     expect(await busy()).toEqual([
-      { startAt: at(day, '11:00'), kind: 'booked' },
-      { startAt: at(day, '14:00'), kind: 'booked' },
+      { startAt: at(day, '11:00'), kind: 'booked', appointmentId: own!.id },
+      { startAt: at(day, '14:00'), kind: 'booked', appointmentId: website.id },
     ]);
     expect(await busy(`&appointmentId=${own!.id}`)).toEqual([
-      { startAt: at(day, '14:00'), kind: 'booked' },
+      { startAt: at(day, '14:00'), kind: 'booked', appointmentId: website.id },
     ]);
+    const opened = await mini(ANNA_CHAT, {
+      method: 'GET',
+      url: `/v1/miniapp/appointments/${website.id}`,
+    });
+    expect(opened.statusCode, opened.body).toBe(200);
+    const [inSchedule] = (
+      await mini(ANNA_CHAT, { method: 'GET', url: `/v1/miniapp/schedule?from=${day}&to=${day}` })
+    )
+      .json<MiniappSchedule>()
+      .appointments.filter((a) => a.id === website.id);
+    expect(opened.json()).toEqual(inSchedule);
+
+    // Холд — клиент как раз записывается на сайте: клетка красная, но открывать нечего
+    const headers = { authorization: `Bearer ${key}`, origin: ORIGIN };
+    const hold = await app.inject({
+      method: 'POST',
+      url: '/v1/public/holds',
+      headers,
+      payload: {
+        service_id: data.serviceId,
+        location_id: data.locationId,
+        start_at: at(day, '16:00'),
+      },
+    });
+    expect(hold.statusCode, hold.body).toBe(201);
+    const holdId = hold.json<HoldResponse>().hold_id;
+    expect(await busy()).toContainEqual({ startAt: at(day, '16:00'), kind: 'booked' });
+    expect(
+      (await mini(ANNA_CHAT, { method: 'GET', url: `/v1/miniapp/appointments/${holdId}` }))
+        .statusCode,
+    ).toBe(404);
+    const released = await app.inject({
+      method: 'DELETE',
+      url: `/v1/public/holds/${holdId}`,
+      headers,
+    });
+    expect(released.statusCode, released.body).toBe(204);
 
     // Перенос на 15 минут: новое время задевает старое, запись сама себе не мешает
     const moved = await move(at(day, '11:15'));
@@ -946,6 +986,15 @@ describe('Mini App isolation (§2.2)', () => {
         expect(res.statusCode).toBe(404);
       }
       expect(await startAt()).toEqual(before);
+    },
+    'GET /v1/miniapp/appointments/:id': async () => {
+      for (const chat of [BORIS_CHAT, OTHER_CHAT]) {
+        const res = await mini(chat, {
+          method: 'GET',
+          url: `/v1/miniapp/appointments/${annaAppointment}`,
+        });
+        expect(res.statusCode).toBe(404);
+      }
     },
     'GET /v1/miniapp/appointments/:id/history': async () => {
       for (const chat of [BORIS_CHAT, OTHER_CHAT]) {

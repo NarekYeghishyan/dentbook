@@ -22,10 +22,13 @@ export function AppointmentPage({
   appointment: a,
   onBack,
   onDone,
+  onOpen,
 }: {
   appointment: MiniappAppointment;
   onBack(): void;
   onDone(date: string, message: string): void;
+  /** Красная клетка в сетке переноса: открыть ту запись. */
+  onOpen(appointment: MiniappAppointment): void;
 }) {
   const { locale, t } = useSession();
   const client = useQueryClient();
@@ -170,6 +173,7 @@ export function AppointmentPage({
             appointmentId={a.id}
             value={moveTo}
             onChange={setMoveTo}
+            onOpen={onOpen}
           />
           {errorAt('move')}
           <Button

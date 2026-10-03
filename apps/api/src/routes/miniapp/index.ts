@@ -4,7 +4,7 @@
  * dentists.telegram_chat_id. Врач видит и меняет только своё: clinicId и dentistId берутся
  * из подписи, не из запроса (§2.2).
  */
-import { and, asc, eq, gt, gte, inArray, lt, ne, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, gte, inArray, lt, ne, sql, type SQL } from 'drizzle-orm';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { addDays, dayBounds, localDateOf } from '@dentbook/core';
 import {
@@ -33,6 +33,7 @@ import {
   scheduleQuerySchema,
   type AppointmentChanges,
   type AppointmentHistory,
+  type MiniappAppointment,
   type MiniappBusyTime,
   type MiniappMe,
   type MiniappSchedule,
@@ -169,14 +170,11 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
     return { locale };
   });
 
-  app.get('/schedule', async (request): Promise<MiniappSchedule> => {
-    const { dentistId, clinicId, timeZone } = dentistOf(request);
-    const { from, to, cancelled } = parse(scheduleQuerySchema, request.query);
-    if (to < from || addDays(from, AVAILABILITY_MAX_DAYS - 1) < to) {
-      throw new ApiError(400, 'validation_failed', 'Invalid fields: to');
-    }
-    const start = dayBounds(from, timeZone).start;
-    const end = dayBounds(to, timeZone).end;
+  /** Записи врача, как их показывает Mini App: для расписания и для одной записи. */
+  async function ownAppointments(
+    ctx: DentistContext,
+    where: SQL | undefined,
+  ): Promise<MiniappAppointment[]> {
     const rows = await db
       .select({
         id: appointments.id,
@@ -201,14 +199,37 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
       .leftJoin(patients, eq(patients.id, appointments.patientId))
       .where(
         and(
-          eq(appointments.clinicId, clinicId),
-          eq(appointments.dentistId, dentistId),
-          inArray(appointments.status, cancelled ? SCHEDULE_WITH_CANCELLED : SCHEDULE_STATUSES),
-          lt(appointments.startAt, end),
-          gt(appointments.endAt, start),
+          eq(appointments.clinicId, ctx.clinicId),
+          eq(appointments.dentistId, ctx.dentistId),
+          where,
         ),
       )
       .orderBy(asc(appointments.startAt));
+    return rows.map(({ clientName, clientPhone, ...row }) => ({
+      ...row,
+      startAt: row.startAt.toISOString(),
+      endAt: row.endAt.toISOString(),
+      client: clientName && clientPhone ? { fullName: clientName, phone: clientPhone } : null,
+    }));
+  }
+
+  app.get('/schedule', async (request): Promise<MiniappSchedule> => {
+    const ctx = dentistOf(request);
+    const { dentistId, clinicId, timeZone } = ctx;
+    const { from, to, cancelled } = parse(scheduleQuerySchema, request.query);
+    if (to < from || addDays(from, AVAILABILITY_MAX_DAYS - 1) < to) {
+      throw new ApiError(400, 'validation_failed', 'Invalid fields: to');
+    }
+    const start = dayBounds(from, timeZone).start;
+    const end = dayBounds(to, timeZone).end;
+    const rows = await ownAppointments(
+      ctx,
+      and(
+        inArray(appointments.status, cancelled ? SCHEDULE_WITH_CANCELLED : SCHEDULE_STATUSES),
+        lt(appointments.startAt, end),
+        gt(appointments.endAt, start),
+      ),
+    );
     const blocks = await db
       .select({
         id: scheduleExceptions.id,
@@ -229,12 +250,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
       .orderBy(asc(scheduleExceptions.startAt));
     return {
       timeZone,
-      appointments: rows.map(({ clientName, clientPhone, ...row }) => ({
-        ...row,
-        startAt: row.startAt.toISOString(),
-        endAt: row.endAt.toISOString(),
-        client: clientName && clientPhone ? { fullName: clientName, phone: clientPhone } : null,
-      })),
+      appointments: rows,
       blocks: blocks.map((b) => ({
         ...b,
         startAt: b.startAt.toISOString(),
@@ -335,7 +351,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
     const now = new Date();
     const [booked, closed] = await Promise.all([
       db
-        .select({ startAt: appointments.startAt })
+        .select({ id: appointments.id, status: appointments.status, startAt: appointments.startAt })
         .from(appointments)
         .where(
           and(
@@ -362,14 +378,19 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
         ),
     ]);
     return [
-      ...booked.map((b) => ({ startAt: b.startAt, kind: 'booked' as const })),
+      ...booked.map((b) => ({
+        startAt: b.startAt,
+        kind: 'booked' as const,
+        // У холда записи ещё нет — открывать нечего
+        ...(b.status === 'hold' ? {} : { appointmentId: b.id }),
+      })),
       ...closed.map((c) => ({
         startAt: c.startAt < start ? start : c.startAt,
         kind: 'closed' as const,
       })),
     ]
       .sort((a, b) => a.startAt.getTime() - b.startAt.getTime())
-      .map((b) => ({ startAt: b.startAt.toISOString(), kind: b.kind }));
+      .map((b) => ({ ...b, startAt: b.startAt.toISOString() }));
   }
 
   app.get('/slots', async (request): Promise<MiniappSlots> => {
@@ -608,6 +629,19 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
     });
     await notifier.appointmentConfirmed(clinicId, row.id);
     return row;
+  });
+
+  /** Одна своя запись — её открывает красная клетка в сетке времени. Чужая — 404 (§2.2). */
+  app.get('/appointments/:id', async (request): Promise<MiniappAppointment> => {
+    const [found] = await ownAppointments(
+      dentistOf(request),
+      and(
+        eq(appointments.id, idOf(request)),
+        inArray(appointments.status, SCHEDULE_WITH_CANCELLED),
+      ),
+    );
+    if (!found) throw notFound();
+    return found;
   });
 
   /** История своей записи: что, кем и когда изменено. Чужая запись — 404 (§2.2). */

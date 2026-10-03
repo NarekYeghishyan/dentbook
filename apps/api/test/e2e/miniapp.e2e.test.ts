@@ -306,6 +306,15 @@ describe('dentist mini app (Step 7)', () => {
       .getByText(/^4:00\sPM/)
       .waitFor();
 
+    // Красная клетка в сетке времени открывает свою запись; «Назад» — на ту же вкладку
+    await page.getByRole('button', { name: 'New booking' }).click();
+    await page.getByLabel('Date', { exact: true }).fill(day);
+    await page.locator('fieldset button[data-busy="booked"]', { hasText: /^4:00\sPM/ }).click();
+    expect(await page.getByLabel('Client name', { exact: true }).inputValue()).toBe('Bob Walker');
+    await page.getByRole('button', { name: '‹ Back' }).click();
+    await page.getByRole('button', { name: 'Book', exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Schedule', exact: true }).click();
+
     // История: что, кем и когда менялось
     await edit('Bob Walker');
     await page.getByRole('button', { name: 'History' }).click();

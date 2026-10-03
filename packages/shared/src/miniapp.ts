@@ -108,6 +108,11 @@ export interface MiniappSchedule {
 export interface MiniappBusyTime {
   startAt: string;
   kind: 'booked' | 'closed';
+  /**
+   * Запись на этой клетке — нажатие открывает её. Только у записи: у закрытого времени и
+   * у холда (клиент как раз записывается на сайте) открывать нечего.
+   */
+  appointmentId?: string;
 }
 
 export interface MiniappSlots {

@@ -1,9 +1,10 @@
 /**
- * Время врача на день — сетка: свободное выбирается кнопкой, занятое показано рядом и не
- * нажимается. Запись — одна красная клетка на время её начала, закрытое время — серая.
+ * Время врача на день — сетка: свободное выбирается кнопкой, занятое показано рядом.
+ * Запись — одна красная клетка на время её начала, нажатие открывает эту запись; закрытое
+ * время — серая клетка, она не нажимается.
  */
-import { useQuery } from '@tanstack/react-query';
-import type { MiniappSlots } from '@dentbook/shared';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import type { MiniappAppointment, MiniappSlots } from '@dentbook/shared';
 import { api } from './api';
 import { errorText, useSession } from './context';
 import { formatTime } from './time';
@@ -21,6 +22,7 @@ export function SlotPicker({
   appointmentId,
   value,
   onChange,
+  onOpen,
 }: {
   serviceId: string;
   locationId: string;
@@ -29,6 +31,8 @@ export function SlotPicker({
   appointmentId?: string;
   value: string | null;
   onChange(slot: string): void;
+  /** Нажата красная клетка: открыть эту запись. */
+  onOpen(appointment: MiniappAppointment): void;
 }) {
   const { locale, t } = useSession();
   const query = { serviceId, locationId, date, ...(appointmentId ? { appointmentId } : {}) };
@@ -38,12 +42,16 @@ export function SlotPicker({
     enabled: Boolean(serviceId && locationId && date),
     staleTime: 0,
   });
+  const opening = useMutation({
+    mutationFn: (id: string) => api<MiniappAppointment>('GET', `/appointments/${id}`),
+    onSuccess: onOpen,
+  });
 
   const data = slots.data && !slots.isFetching ? slots.data : null;
   const cells = data
     ? [
-        ...data.slots.map((at) => ({ at, kind: 'free' as const })),
-        ...data.busy.map((b) => ({ at: b.startAt, kind: b.kind })),
+        ...data.slots.map((at) => ({ at, kind: 'free' as const, id: undefined })),
+        ...data.busy.map((b) => ({ at: b.startAt, kind: b.kind, id: b.appointmentId })),
       ].sort((a, b) => a.at.localeCompare(b.at))
     : [];
   const label = { booked: t('book.booked'), closed: t('schedule.closed') };
@@ -56,28 +64,46 @@ export function SlotPicker({
       <legend className="text-sm text-hint">{t('book.time')}</legend>
       {slots.isFetching && <p className="text-hint">{t('loading')}</p>}
       {slots.isError && <Notice tone="error">{errorText(locale, slots.error)}</Notice>}
+      {opening.isError && <Notice tone="error">{errorText(locale, opening.error)}</Notice>}
       {data && data.slots.length === 0 && <p className="text-hint">{t('book.noSlots')}</p>}
       {data && cells.length > 0 && (
         <div className="grid grid-cols-4 gap-2">
           {cells.map((cell) => {
             const time = formatTime(cell.at, data.timeZone, locale);
-            return cell.kind === 'free' ? (
-              <Button
-                key={`free-${cell.at}`}
-                variant={cell.at === value ? 'primary' : 'secondary'}
-                aria-pressed={cell.at === value}
-                onClick={() => onChange(cell.at)}
-              >
-                {time}
-              </Button>
-            ) : (
-              <span
-                key={`${cell.kind}-${cell.at}`}
-                data-busy={cell.kind}
-                className={`rounded-lg px-3 py-2 text-center text-sm font-medium ${BUSY_LOOK[cell.kind]}`}
-              >
+            if (cell.kind === 'free') {
+              return (
+                <Button
+                  key={`free-${cell.at}`}
+                  variant={cell.at === value ? 'primary' : 'secondary'}
+                  aria-pressed={cell.at === value}
+                  onClick={() => onChange(cell.at)}
+                >
+                  {time}
+                </Button>
+              );
+            }
+            const look = `rounded-lg px-3 py-2 text-center text-sm font-medium ${BUSY_LOOK[cell.kind]}`;
+            const content = (
+              <>
                 {time}
                 <span className="sr-only">, {label[cell.kind]}</span>
+              </>
+            );
+            const { id } = cell;
+            return id ? (
+              <button
+                key={`${cell.kind}-${cell.at}`}
+                type="button"
+                data-busy={cell.kind}
+                className={`${look} disabled:opacity-50`}
+                disabled={opening.isPending}
+                onClick={() => opening.mutate(id)}
+              >
+                {content}
+              </button>
+            ) : (
+              <span key={`${cell.kind}-${cell.at}`} data-busy={cell.kind} className={look}>
+                {content}
               </span>
             );
           })}
