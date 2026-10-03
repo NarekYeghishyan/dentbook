@@ -15,6 +15,12 @@ produced them (CLAUDE.md §9).
 
 #### Changed
 
+- `feat(admin): take the client phone in any form at the front desk` — в «Новой записи»
+  журнала телефон по-прежнему обязателен, но формат больше не проверяется: сообщение
+  «Введите корректный номер» убрано. Номер, который читается как американский или
+  международный с «+», API приводит к E.164 — на него уходят SMS; остальное хранится как
+  введено и SMS не получает. API: `staffBookingSchema` берёт `freePhoneSchema`. ADR-0010,
+  ADR-0012, тесты.
 - `feat: refresh the journal and the Mini App schedule by themselves` — записи меняют и
   врачи в Telegram, и регистратура, и сайт, а открытая страница об этом не знала до
   перезагрузки. Теперь журнал в панели и расписание в Mini App перечитываются раз в 15 с,

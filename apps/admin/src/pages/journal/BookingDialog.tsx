@@ -5,7 +5,6 @@
  */
 import { useState, type FormEvent } from 'react';
 import type { Dentist, Service } from '@dentbook/shared';
-import { toE164 } from '@dentbook/shared/phone';
 import { useClients, useCreateBooking } from '../../api/hooks';
 import { Button, Field, Input, Modal, Select } from '../../components/ui';
 import { useI18n } from '../../i18n';
@@ -54,7 +53,6 @@ export function BookingDialog({
   const [query, setQuery] = useState('');
   const [client, setClient] = useState({ fullName: '', phone: '', email: '' });
   const [notes, setNotes] = useState('');
-  const [phoneError, setPhoneError] = useState(false);
   const found = useClients(query.trim(), query.trim().length >= 2);
 
   const dentist = dentists.find((d) => d.id === dentistId);
@@ -64,9 +62,7 @@ export function BookingDialog({
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    const phone = toE164(client.phone);
-    setPhoneError(!phone);
-    if (!phone || !service) return;
+    if (!service) return;
     create.mutate(
       {
         locationId,
@@ -75,7 +71,8 @@ export function BookingDialog({
         startAt: atMinutes(date, toMinutes(time), timeZone),
         client: {
           fullName: client.fullName.trim(),
-          phone,
+          // Номер в любом виде, но обязательно: к E.164 его приводит API, если он так читается
+          phone: client.phone.trim(),
           ...(client.email.trim() ? { email: client.email.trim() } : {}),
         },
         ...(notes.trim() ? { notes: notes.trim() } : {}),
@@ -177,6 +174,7 @@ export function BookingDialog({
               <Input
                 type="tel"
                 required
+                maxLength={50}
                 value={client.phone}
                 onChange={(e) => setClient({ ...client, phone: e.target.value })}
               />
@@ -194,11 +192,6 @@ export function BookingDialog({
           </Field>
         </fieldset>
 
-        {phoneError && (
-          <p role="alert" className="text-sm text-red-700">
-            {t('booking.phoneInvalid')}
-          </p>
-        )}
         {create.error !== null && (
           <div
             role="alert"

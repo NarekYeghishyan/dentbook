@@ -249,7 +249,6 @@
   "booking.submit": "Book",
   "booking.created": "Booked.",
   "booking.alternatives": "Free nearby:",
-  "booking.phoneInvalid": "Enter a valid phone number, e.g. (202) 555-0123.",
   "booking.noServices": "This dentist has no services yet.",
   "clients.title": "Clients",
   "clients.search": "Search by name or phone",

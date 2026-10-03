@@ -7,7 +7,7 @@ import { and, eq, inArray } from 'drizzle-orm';
 import type { FastifyInstance, InjectOptions } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { addDays, isoWeekday, localDateOf, zonedTimeToUtc } from '@dentbook/core';
-import { appointments, blockedUntil, notifications } from '@dentbook/db';
+import { appointments, blockedUntil, notifications, patients } from '@dentbook/db';
 import { startTestDatabase, type TestDatabase } from '@dentbook/db/testing';
 import type {
   AppointmentHistory,
@@ -59,7 +59,7 @@ let phoneCounter = 0;
 async function book(
   date: string,
   time: string,
-  options: { dentistId?: string; fullName?: string } = {},
+  options: { dentistId?: string; fullName?: string; phone?: string } = {},
 ) {
   return as(app, owner, {
     method: 'POST',
@@ -71,7 +71,7 @@ async function book(
       startAt: at(date, time),
       client: {
         fullName: options.fullName ?? 'Jane Client',
-        phone: `+1202555${String(6000 + ++phoneCounter)}`,
+        phone: options.phone ?? `+1202555${String(6000 + ++phoneCounter)}`,
       },
     },
   });
@@ -214,6 +214,29 @@ describe('journal (Step 9)', () => {
     const id = await booked(day, '10:00');
     expect(await smsKinds(id)).toEqual(['reminder_24h:scheduled', 'reminder_2h:scheduled']);
     expect(lastMessageTo(ANNA_CHAT)).toMatch(/^New booking\n/);
+  });
+
+  it('takes the client phone in any form, but not an empty one', async () => {
+    const day = addDays(upcoming(2), 21);
+    const phoneOf = async (id: string) =>
+      (
+        await database.db
+          .select({ phone: patients.phone })
+          .from(appointments)
+          .innerJoin(patients, eq(patients.id, appointments.patientId))
+          .where(eq(appointments.id, id))
+      )[0]!.phone;
+
+    const empty = await book(day, '13:00', { phone: '   ' });
+    expect(empty.statusCode).toBe(400);
+    expect(empty.json().error.code).toBe('validation_failed');
+    // Не в E.164 — как введено; американский номер — в E.164, на него уйдут SMS
+    expect(await phoneOf(await booked(day, '13:00', { phone: ' 077 12-34-56 ' }))).toBe(
+      '077 12-34-56',
+    );
+    expect(await phoneOf(await booked(day, '14:00', { phone: '(202) 555-0144' }))).toBe(
+      '+12025550144',
+    );
   });
 
   it('books only free working time of the dentist', async () => {

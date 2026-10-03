@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import type { AppointmentSource, AppointmentStatus } from './domain.js';
 import { instantSchema, localDateSchema } from './catalog.js';
-import { emailSchema, nameSchema, phoneSchema, uuidSchema } from './validators.js';
+import { emailSchema, freePhoneSchema, nameSchema, uuidSchema } from './validators.js';
 
 /** Сколько дней журнала, отчёта или выгрузки можно запросить за раз. */
 export const JOURNAL_MAX_DAYS = 31;
@@ -73,7 +73,7 @@ export const staffBookingSchema = z.object({
   startAt: instantSchema,
   client: z.object({
     fullName: nameSchema,
-    phone: phoneSchema,
+    phone: freePhoneSchema,
     email: emailSchema.optional(),
   }),
   notes: z.string().trim().max(1000).optional(),

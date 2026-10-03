@@ -249,7 +249,6 @@
   "booking.submit": "Записать",
   "booking.created": "Записано.",
   "booking.alternatives": "Свободно рядом:",
-  "booking.phoneInvalid": "Укажите номер телефона, например (202) 555-0123.",
   "booking.noServices": "У этого врача пока нет услуг.",
   "clients.title": "Клиенты",
   "clients.search": "Поиск по имени или телефону",

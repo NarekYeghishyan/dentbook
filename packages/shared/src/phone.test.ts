@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isE164, maskNational, toE164, toE164In } from './phone.js';
-import { anyPhoneSchema } from './validators.js';
+import { anyPhoneSchema, freePhoneSchema } from './validators.js';
 
 describe('toE164', () => {
   it.each([
@@ -51,6 +51,19 @@ describe('isE164', () => {
     expect(isE164('+37491234567')).toBe(true);
     expect(isE164('(202) 555-0123')).toBe(false);
     expect(isE164('077 12-34-56')).toBe(false);
+  });
+});
+
+describe('freePhoneSchema (front desk in the journal)', () => {
+  it.each([
+    ['(202) 555-0123', '+12025550123'],
+    [' 077 12-34-56 ', '077 12-34-56'],
+  ])('%j → %j', (input, expected) => {
+    expect(freePhoneSchema.parse(input)).toBe(expected);
+  });
+
+  it.each(['', '   ', 'x'.repeat(51)])('rejects %j: the number is required', (input) => {
+    expect(freePhoneSchema.safeParse(input).success).toBe(false);
   });
 });
 
