@@ -318,7 +318,8 @@ describe('dentist mini app (Step 7)', () => {
     await page.getByRole('button', { name: 'Schedule', exact: true }).click();
 
     // История: что, кем и когда менялось
-    await edit('Bob Walker');
+    // Имя клиента в карточке открывает запись так же, как «Изменить»
+    await page.getByRole('button', { name: 'Bob Walker', exact: true }).click();
     await page.getByRole('button', { name: 'History' }).click();
     const history = page.getByRole('list');
     await history.getByText('Moved', { exact: true }).waitFor();

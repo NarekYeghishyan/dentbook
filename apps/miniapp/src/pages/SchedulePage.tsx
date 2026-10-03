@@ -135,20 +135,27 @@ export function SchedulePage({
                 </span>
                 <span className="text-sm text-hint">{item.a.office}</span>
               </div>
-              <div>{item.a.service}</div>
+              {/* Имя клиента — главное в карточке; нажатие открывает запись, как «Изменить» */}
               {item.a.client && (
-                <div className="text-sm">
+                <button
+                  type="button"
+                  className={`block text-left text-lg font-semibold leading-snug ${cancelled(item.a) ? '' : 'text-link'}`}
+                  onClick={() => onEdit(item.a)}
+                >
                   {item.a.client.fullName}
-                  {item.a.client.phone && (
-                    <>
-                      {' · '}
-                      <a className="text-link" href={`tel:${item.a.client.phone}`}>
-                        {item.a.client.phone}
-                      </a>
-                    </>
-                  )}
-                </div>
+                </button>
               )}
+              <div className="text-sm">
+                <span>{item.a.service}</span>
+                {item.a.client?.phone && (
+                  <>
+                    {' · '}
+                    <a className="text-link" href={`tel:${item.a.client.phone}`}>
+                      {item.a.client.phone}
+                    </a>
+                  </>
+                )}
+              </div>
               {item.a.notes && (
                 <div className="whitespace-pre-line text-sm text-hint">{item.a.notes}</div>
               )}
