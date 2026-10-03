@@ -32,8 +32,8 @@ import type { SlotCache, SlotKey } from './slot-cache.js';
 export interface AvailabilityRequest {
   clinicId: string;
   /**
-   * Услуга. null — разовая услуга, которую врач задаёт в Mini App: её ещё нет в БД, есть
-   * только длительность (durationMin), буфера нет.
+   * Услуга. null — разовая услуга «Другое», которую врач задаёт в Mini App: её ещё нет в
+   * БД, есть только длительность (durationMin); буфер после неё — шаг сетки клиники.
    */
   serviceId: string | null;
   /** Длительность разовой услуги — только при serviceId = null. */
@@ -181,7 +181,8 @@ export async function computeAvailability(
       ? [
           {
             durationMin: request.durationMin ?? 0,
-            bufferMin: 0,
+            // После «Другого» — шаг сетки клиники, как буфер после услуги
+            bufferMin: clinic?.slotStepMin ?? 0,
             isActive: true,
             isPublic: false,
             oneTime: true,

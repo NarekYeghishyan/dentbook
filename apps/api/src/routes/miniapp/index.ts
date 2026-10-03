@@ -62,6 +62,8 @@ interface DentistContext {
   timeZone: string;
   /** Язык клиники: на нём названа услуга «Другое». */
   clinicLocale: Locale;
+  /** Шаг сетки клиники — буфер после «Другого». */
+  slotStepMin: number;
 }
 
 declare module 'fastify' {
@@ -111,6 +113,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
         clinicStatus: clinics.status,
         timeZone: clinics.timezone,
         clinicLocale: clinics.locale,
+        slotStepMin: clinics.slotStepMin,
       })
       .from(dentists)
       .innerJoin(clinics, eq(clinics.id, dentists.clinicId))
@@ -123,6 +126,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
       clinicId: row.clinicId,
       timeZone: row.timeZone,
       clinicLocale: row.clinicLocale as Locale,
+      slotStepMin: row.slotStepMin,
     };
   });
 
@@ -444,8 +448,8 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
   /**
    * Врач записывает своего клиента: без SMS-кода, запись сразу подтверждена. Услуга — из
    * каталога или «Другое»: длительность врач задаёт сам, название — «Другое» на языке
-   * клиники. Такая услуга сохраняется только для этой записи (services.one_time), без
-   * буфера.
+   * клиники, буфер после визита — шаг сетки клиники. Такая услуга сохраняется только для
+   * этой записи (services.one_time).
    */
   app.post('/appointments', async (request, reply) => {
     const ctx = dentistOf(request);
@@ -456,7 +460,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
           id: null,
           name: translate(ctx.clinicLocale, 'service.other'),
           durationMin: customService.durationMin,
-          bufferMin: 0,
+          bufferMin: ctx.slotStepMin,
         }
       : await providedService(ctx, input.serviceId);
 
@@ -481,7 +485,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
                   clinicId: ctx.clinicId,
                   name: service.name,
                   durationMin: service.durationMin,
-                  bufferMin: 0,
+                  bufferMin: service.bufferMin,
                   isPublic: false,
                   oneTime: true,
                 })

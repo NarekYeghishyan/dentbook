@@ -932,11 +932,12 @@ describe('Mini App (§8)', () => {
       });
     const other = { durationMin: 50 };
 
-    // Сетка — по введённой длительности: 50 минут влезают до 17:00 с 16:00, но не с 16:15
+    // Сетка — по введённой длительности и шагу клиники (15 мин) после неё: 50 + 15 минут
+    // влезают до 17:00 с 15:45, но не с 16:00
     const grid = await slotsFor('durationMin=50');
     expect(grid.statusCode, grid.body).toBe(200);
-    expect(grid.json().slots).toContain(at(day, '16:00'));
-    expect(grid.json().slots).not.toContain(at(day, '16:15'));
+    expect(grid.json().slots).toContain(at(day, '15:45'));
+    expect(grid.json().slots).not.toContain(at(day, '16:00'));
     // Услуга — ровно одна из двух, длительность — от 5 минут до 8 часов
     expect((await slotsFor('durationMin=3')).statusCode).toBe(400);
     expect((await slotsFor(`durationMin=50&serviceId=${data.serviceId}`)).statusCode).toBe(400);
@@ -949,6 +950,12 @@ describe('Mini App (§8)', () => {
     const res = await book({ customService: { ...other, name: 'Night guard fitting' } });
     expect(res.statusCode, res.body).toBe(201);
     expect(res.json().endAt).toBe(at(day, '12:50'));
+    // После визита запись держит ещё шаг сетки, как буфер после услуги
+    const [held] = await database.db
+      .select({ bufferMin: appointments.bufferMin, blockedUntil: appointments.blockedUntil })
+      .from(appointments)
+      .where(eq(appointments.id, res.json().id));
+    expect(held).toEqual({ bufferMin: 15, blockedUntil: new Date(at(day, '13:05')) });
     const id = res.json().id as string;
     const opened = await mini(ANNA_CHAT, { method: 'GET', url: `/v1/miniapp/appointments/${id}` });
     expect(opened.json()).toMatchObject({
