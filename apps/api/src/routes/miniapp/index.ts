@@ -311,19 +311,21 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
 
   /**
    * Свободное время врача на дату — для записи своего клиента, без минимального запаса.
+   * Услуга — из каталога (id) или разовая (id = null, только длительность).
    * excludeAppointmentId — для переноса: время самой записи не считается занятым. Записи
    * другого врача в расчёт и так не попадают, поэтому чужой id ничего не открывает.
    */
   async function freeSlots(
     ctx: DentistContext,
-    serviceId: string,
+    service: { id: string | null; durationMin?: number | undefined },
     locationId: string,
     date: string,
     excludeAppointmentId?: string,
   ) {
     const result = await computeAvailability(db, {
       clinicId: ctx.clinicId,
-      serviceId,
+      serviceId: service.id,
+      durationMin: service.durationMin,
       locationId,
       dentistId: ctx.dentistId,
       from: date,
@@ -398,7 +400,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
     const query = parse(miniappSlotsQuerySchema, request.query);
     const free = await freeSlots(
       ctx,
-      query.serviceId,
+      { id: query.serviceId ?? null, durationMin: query.durationMin },
       query.locationId,
       query.date,
       query.appointmentId,
@@ -407,12 +409,15 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
     return { ...free, busy };
   });
 
-  /** Врач записывает своего клиента: без SMS-кода, запись сразу подтверждена. */
-  app.post('/appointments', async (request, reply) => {
-    const ctx = dentistOf(request);
-    const input = parse(miniappBookingSchema, request.body);
+  /** Услуга из каталога, которую врач оказывает, — иначе 404. */
+  async function providedService(ctx: DentistContext, serviceId: string | undefined) {
+    if (!serviceId) throw notFound();
     const [service] = await db
-      .select({ durationMin: services.durationMin, bufferMin: services.bufferMin })
+      .select({
+        id: services.id,
+        durationMin: services.durationMin,
+        bufferMin: services.bufferMin,
+      })
       .from(services)
       .innerJoin(
         dentistServices,
@@ -421,12 +426,27 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
           eq(dentistServices.dentistId, ctx.dentistId),
         ),
       )
-      .where(and(eq(services.id, input.serviceId), eq(services.clinicId, ctx.clinicId)));
+      .where(and(eq(services.id, serviceId), eq(services.clinicId, ctx.clinicId)));
     if (!service) throw notFound();
+    return service;
+  }
+
+  /**
+   * Врач записывает своего клиента: без SMS-кода, запись сразу подтверждена. Услуга — из
+   * каталога или разовая: её название и длительность врач задаёт сам, и она сохраняется
+   * только для этой записи (services.one_time), без буфера.
+   */
+  app.post('/appointments', async (request, reply) => {
+    const ctx = dentistOf(request);
+    const input = parse(miniappBookingSchema, request.body);
+    const { customService } = input;
+    const service = customService
+      ? { id: null, ...customService, bufferMin: 0 }
+      : await providedService(ctx, input.serviceId);
 
     const { timeZone, slots } = await freeSlots(
       ctx,
-      input.serviceId,
+      service,
       input.locationId,
       localDateOf(input.startAt, (await officeZone(ctx, input.locationId)) ?? ctx.timeZone),
     );
@@ -437,6 +457,20 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
     try {
       const id = await db.transaction(async (tx) => {
         await lockDentist(tx, ctx.dentistId);
+        const [booked] =
+          service.id === null
+            ? await tx
+                .insert(services)
+                .values({
+                  clinicId: ctx.clinicId,
+                  name: service.name,
+                  durationMin: service.durationMin,
+                  bufferMin: 0,
+                  isPublic: false,
+                  oneTime: true,
+                })
+                .returning({ id: services.id })
+            : [service];
         const [patient] = await tx
           .insert(patients)
           .values({
@@ -455,7 +489,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
             clinicId: ctx.clinicId,
             locationId: input.locationId,
             dentistId: ctx.dentistId,
-            serviceId: input.serviceId,
+            serviceId: booked!.id,
             patientId: patient!.id,
             startAt: input.startAt,
             endAt,

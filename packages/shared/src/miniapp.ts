@@ -3,7 +3,14 @@
  * запись своих клиентов и правка своих записей. Внутренний, как админский, — camelCase.
  */
 import { z } from 'zod';
-import { LOCALES, type AppointmentStatus, type CancelledBy, type Locale } from './domain.js';
+import {
+  CUSTOM_DURATION_MAX,
+  CUSTOM_DURATION_MIN,
+  LOCALES,
+  type AppointmentStatus,
+  type CancelledBy,
+  type Locale,
+} from './domain.js';
 import { instantSchema, localDateSchema } from './catalog.js';
 import { anyPhoneSchema, nameSchema, uuidSchema } from './validators.js';
 
@@ -26,21 +33,44 @@ export const miniappBlockSchema = z
   .refine((v) => v.endAt > v.startAt, { message: 'End before start', path: ['endAt'] });
 export type MiniappBlockInput = z.input<typeof miniappBlockSchema>;
 
-export const miniappSlotsQuerySchema = z.object({
-  serviceId: uuidSchema,
-  locationId: uuidSchema,
-  date: localDateSchema,
-  /** Время для переноса этой записи: её собственное время свободным не мешает. */
-  appointmentId: uuidSchema.optional(),
-});
+const customDurationSchema = z.number().int().min(CUSTOM_DURATION_MIN).max(CUSTOM_DURATION_MAX);
 
-export const miniappBookingSchema = z.object({
-  serviceId: uuidSchema,
-  locationId: uuidSchema,
-  startAt: instantSchema,
-  client: z.object({ fullName: nameSchema, phone: anyPhoneSchema }),
-  notes: z.string().trim().max(1000).optional(),
-});
+/** Ровно одно из двух: услуга из каталога или разовая. */
+const oneServiceOf = (v: { serviceId?: unknown }, custom: unknown) =>
+  (v.serviceId === undefined) !== (custom === undefined);
+
+export const miniappSlotsQuerySchema = z
+  .object({
+    serviceId: uuidSchema.optional(),
+    /** Разовая услуга этой длительности — вместо serviceId. */
+    durationMin: z.coerce.number().pipe(customDurationSchema).optional(),
+    locationId: uuidSchema,
+    date: localDateSchema,
+    /** Время для переноса этой записи: её собственное время свободным не мешает. */
+    appointmentId: uuidSchema.optional(),
+  })
+  .refine((v) => oneServiceOf(v, v.durationMin), {
+    message: 'Pass serviceId or durationMin',
+    path: ['serviceId'],
+  });
+
+/**
+ * Врач записывает своего клиента: на услугу из каталога (serviceId) или на разовую
+ * (customService) — её название и длительность врач задаёт сам, только для этой записи.
+ */
+export const miniappBookingSchema = z
+  .object({
+    serviceId: uuidSchema.optional(),
+    customService: z.object({ name: nameSchema, durationMin: customDurationSchema }).optional(),
+    locationId: uuidSchema,
+    startAt: instantSchema,
+    client: z.object({ fullName: nameSchema, phone: anyPhoneSchema }),
+    notes: z.string().trim().max(1000).optional(),
+  })
+  .refine((v) => oneServiceOf(v, v.customService), {
+    message: 'Pass serviceId or customService',
+    path: ['serviceId'],
+  });
 export type MiniappBookingInput = z.input<typeof miniappBookingSchema>;
 
 /** Врач правит свою запись: клиента и комментарий. notes: null или '' — убрать. */

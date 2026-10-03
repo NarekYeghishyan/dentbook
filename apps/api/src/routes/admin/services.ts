@@ -1,4 +1,7 @@
-/** Услуги клиники. Удаления нет: на услугу ссылаются записи, она отключается. */
+/**
+ * Услуги клиники. Удаления нет: на услугу ссылаются записи, она отключается.
+ * Разовых услуг врача (services.one_time) каталог не показывает и править не даёт.
+ */
 import { and, asc, eq } from 'drizzle-orm';
 import type { FastifyPluginAsync } from 'fastify';
 import { services, type Database } from '@dentbook/db';
@@ -24,14 +27,15 @@ export const serviceRoutes: FastifyPluginAsync<{ db: Database; cache?: SlotCache
   app,
   { db, cache },
 ) => {
-  const scoped = (clinicId: string, id: string) =>
-    and(eq(services.id, id), eq(services.clinicId, clinicId));
+  const catalog = (clinicId: string) =>
+    and(eq(services.clinicId, clinicId), eq(services.oneTime, false));
+  const scoped = (clinicId: string, id: string) => and(eq(services.id, id), catalog(clinicId));
 
   app.get('', async (request): Promise<Service[]> => {
     return db
       .select(columns)
       .from(services)
-      .where(eq(services.clinicId, authOf(request).clinicId))
+      .where(catalog(authOf(request).clinicId))
       .orderBy(asc(services.sortOrder), asc(services.name));
   });
 

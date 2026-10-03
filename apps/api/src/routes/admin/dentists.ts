@@ -139,7 +139,10 @@ export const dentistRoutes: FastifyPluginAsync<DentistRoutesOptions> = async (
     return { clinicId, dentistId: id };
   }
 
-  /** Все id принадлежат клинике — иначе 404, как для чужой сущности. */
+  /**
+   * Все id принадлежат клинике — иначе 404, как для чужой сущности. Разовая услуга врача
+   * (services.one_time) в каталоге не числится, назначить её нельзя.
+   */
   async function assertOwned(
     table: typeof locations | typeof services,
     clinicId: string,
@@ -149,7 +152,11 @@ export const dentistRoutes: FastifyPluginAsync<DentistRoutesOptions> = async (
     if (unique.length === 0) return;
     const count = await db.$count(
       table,
-      and(eq(table.clinicId, clinicId), inArray(table.id, unique)),
+      and(
+        eq(table.clinicId, clinicId),
+        inArray(table.id, unique),
+        table === services ? eq(services.oneTime, false) : undefined,
+      ),
     );
     if (count !== unique.length) throw notFound('Referenced entity not found');
   }

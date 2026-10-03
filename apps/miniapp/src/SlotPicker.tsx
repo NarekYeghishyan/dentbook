@@ -16,7 +16,7 @@ const BUSY_LOOK = {
 } as const;
 
 export function SlotPicker({
-  serviceId,
+  service,
   locationId,
   date,
   appointmentId,
@@ -24,7 +24,8 @@ export function SlotPicker({
   onChange,
   onOpen,
 }: {
-  serviceId: string;
+  /** Услуга из списка или своя: тогда только длительность (null — ещё не введена). */
+  service: { serviceId: string } | { durationMin: number | null };
   locationId: string;
   date: string;
   /** Перенос этой записи: её собственное время показывается свободным. */
@@ -35,11 +36,20 @@ export function SlotPicker({
   onOpen(appointment: MiniappAppointment): void;
 }) {
   const { locale, t } = useSession();
-  const query = { serviceId, locationId, date, ...(appointmentId ? { appointmentId } : {}) };
+  // Чьё время считать: услуга из списка или своя длительность; null — спрашивать не о чем
+  const what =
+    'serviceId' in service
+      ? service.serviceId
+        ? { serviceId: service.serviceId }
+        : null
+      : service.durationMin !== null
+        ? { durationMin: String(service.durationMin) }
+        : null;
+  const query = { ...what, locationId, date, ...(appointmentId ? { appointmentId } : {}) };
   const slots = useQuery({
-    queryKey: ['slots', serviceId, locationId, date, appointmentId ?? null],
+    queryKey: ['slots', what, locationId, date, appointmentId ?? null],
     queryFn: () => api<MiniappSlots>('GET', `/slots?${new URLSearchParams(query).toString()}`),
-    enabled: Boolean(serviceId && locationId && date),
+    enabled: Boolean(what && locationId && date),
     staleTime: 0,
   });
   const opening = useMutation({

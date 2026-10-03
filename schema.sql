@@ -187,13 +187,17 @@ CREATE TABLE services (
   is_public     boolean       NOT NULL DEFAULT true,
   is_active     boolean       NOT NULL DEFAULT true,
   sort_order    integer       NOT NULL DEFAULT 0,
+  -- Разовая услуга: врач задал её в Mini App для одной записи. В списки услуг не
+  -- попадает, врачам не назначается, в виджете не видна.
+  one_time      boolean       NOT NULL DEFAULT false,
   created_at    timestamptz   NOT NULL DEFAULT now(),
   updated_at    timestamptz   NOT NULL DEFAULT now(),
 
   CONSTRAINT services_clinic_id_id_key UNIQUE (clinic_id, id),
   CONSTRAINT services_duration_min     CHECK (duration_min > 0),
   CONSTRAINT services_buffer_min       CHECK (buffer_min >= 0),
-  CONSTRAINT services_price            CHECK (price IS NULL OR price >= 0)
+  CONSTRAINT services_price            CHECK (price IS NULL OR price >= 0),
+  CONSTRAINT services_one_time_hidden  CHECK (NOT one_time OR NOT is_public)
 );
 
 

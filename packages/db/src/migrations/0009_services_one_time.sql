@@ -1,0 +1,2 @@
+ALTER TABLE "services" ADD COLUMN "one_time" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+ALTER TABLE "services" ADD CONSTRAINT "services_one_time_hidden" CHECK (NOT one_time OR NOT is_public);

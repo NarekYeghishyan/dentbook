@@ -376,4 +376,40 @@ describe('dentist mini app (Step 7)', () => {
     ]);
     await page.close();
   });
+
+  it('a dentist books a custom service once, and it is not in the list next time', async () => {
+    const day = upcomingWeekday();
+    const page = await openMiniApp(signInitData(ANNA_CHAT));
+    await page.getByText('Dr. Anna').waitFor();
+    await page.getByRole('button', { name: 'New booking' }).click();
+    // Текст выбранного пункта входит в имя списка, поэтому — по началу подписи
+    const serviceList = page.getByRole('combobox', { name: /^Service/ });
+    await serviceList.selectOption({ label: 'Custom service' });
+    await page.getByLabel('Service name', { exact: true }).fill('Night guard fitting');
+    await page.getByLabel(/^Duration, minutes/).fill('50');
+    await page.getByLabel('Date', { exact: true }).fill(day);
+    await page.getByRole('button', { name: /^11:00\sAM$/ }).click();
+    await page.getByLabel('Client name', { exact: true }).fill('Carl Custom');
+    await page.getByLabel('Client phone', { exact: true }).fill('(202) 555-0188');
+    await shot(page, '9-custom-service');
+    await page.getByRole('button', { name: 'Book', exact: true }).click();
+    await page.getByText(/^Booked: /).waitFor();
+    await page.locator('li', { hasText: 'Carl Custom' }).getByText('Night guard fitting').waitFor();
+
+    // Разовая: в списке услуг её больше нет
+    await page.getByRole('button', { name: 'New booking' }).click();
+    const options = await serviceList.locator('option').allTextContents();
+    expect(options).toContain('Custom service');
+    expect(options.filter((o) => o.includes('Night guard fitting'))).toEqual([]);
+
+    const rows = await database.db
+      .select({ startAt: appointments.startAt, endAt: appointments.endAt })
+      .from(appointments)
+      .innerJoin(patients, eq(patients.id, appointments.patientId))
+      .where(and(eq(appointments.clinicId, owner.clinicId), eq(patients.phone, '+12025550188')));
+    expect(rows).toEqual([
+      { startAt: new Date(at(day, '11:00')), endAt: new Date(at(day, '11:50')) },
+    ]);
+    await page.close();
+  });
 });

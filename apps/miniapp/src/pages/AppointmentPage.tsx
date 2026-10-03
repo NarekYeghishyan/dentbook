@@ -167,7 +167,7 @@ export function AppointmentPage({
             />
           </Field>
           <SlotPicker
-            serviceId={a.serviceId}
+            service={{ serviceId: a.serviceId }}
             locationId={a.locationId}
             date={day}
             appointmentId={a.id}

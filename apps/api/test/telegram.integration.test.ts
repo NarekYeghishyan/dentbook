@@ -21,13 +21,17 @@ import type {
   Dentist,
   HoldResponse,
   MiniappBusyTime,
+  MiniappMe,
   MiniappSchedule,
+  PublicService,
+  Service,
   TelegramLink,
 } from '@dentbook/shared';
 import { describeAppointment } from '../src/telegram/texts.js';
 import {
   TestOutbox,
   TestSms,
+  as,
   call,
   createClinicData,
   registerClinic,
@@ -813,6 +817,131 @@ describe('Mini App (§8)', () => {
     });
     expect(edited.statusCode, edited.body).toBe(204);
     expect(await phoneOf(id)).toBe('+12025550177');
+
+    // Отменить: дальше тесты изоляции берут любую подтверждённую запись врача
+    const cancelled = await mini(ANNA_CHAT, {
+      method: 'POST',
+      url: `/v1/miniapp/appointments/${id}/cancel`,
+    });
+    expect(cancelled.statusCode, cancelled.body).toBe(204);
+  });
+
+  it('books a custom service once, and it never shows up in a service list', async () => {
+    const day = upcoming(3);
+    const slotsFor = (query: string) =>
+      mini(ANNA_CHAT, {
+        method: 'GET',
+        url: `/v1/miniapp/slots?locationId=${data.locationId}&date=${day}&${query}`,
+      });
+    const book = (payload: object) =>
+      mini(ANNA_CHAT, {
+        method: 'POST',
+        url: '/v1/miniapp/appointments',
+        payload: {
+          locationId: data.locationId,
+          startAt: at(day, '12:00'),
+          client: { fullName: 'Custom Client', phone: '+12025559300' },
+          ...payload,
+        },
+      });
+    const fitting = { name: 'Night guard fitting', durationMin: 50 };
+
+    // Сетка — по введённой длительности: 50 минут влезают до 17:00 с 16:00, но не с 16:15
+    const grid = await slotsFor('durationMin=50');
+    expect(grid.statusCode, grid.body).toBe(200);
+    expect(grid.json().slots).toContain(at(day, '16:00'));
+    expect(grid.json().slots).not.toContain(at(day, '16:15'));
+    // Услуга — ровно одна из двух, длительность — от 5 минут до 8 часов
+    expect((await slotsFor('durationMin=3')).statusCode).toBe(400);
+    expect((await slotsFor(`durationMin=50&serviceId=${data.serviceId}`)).statusCode).toBe(400);
+    expect((await slotsFor('')).statusCode).toBe(400);
+    expect((await book({ customService: { ...fitting, durationMin: 481 } })).statusCode).toBe(400);
+    expect((await book({ customService: fitting, serviceId: data.serviceId })).statusCode).toBe(
+      400,
+    );
+    expect((await book({})).statusCode).toBe(400);
+
+    const res = await book({ customService: fitting });
+    expect(res.statusCode, res.body).toBe(201);
+    expect(res.json().endAt).toBe(at(day, '12:50'));
+    const id = res.json().id as string;
+    const opened = await mini(ANNA_CHAT, { method: 'GET', url: `/v1/miniapp/appointments/${id}` });
+    expect(opened.json()).toMatchObject({
+      service: 'Night guard fitting',
+      endAt: at(day, '12:50'),
+    });
+    const customId = opened.json().serviceId as string;
+    expect(customId).not.toBe(data.serviceId);
+
+    // В следующий раз этой услуги нет ни в одном списке, и записать на неё снова нельзя
+    const me = await mini(ANNA_CHAT, { method: 'GET', url: '/v1/miniapp/me' });
+    expect(me.json<MiniappMe>().services.map((s) => s.id)).toEqual([data.serviceId]);
+    const catalog = await call<Service[]>(app, owner, { method: 'GET', url: '/v1/admin/services' });
+    expect(catalog.map((s) => s.id)).not.toContain(customId);
+    await call(app, owner, { method: 'GET', url: `/v1/admin/services/${customId}` }, 404);
+    await call(
+      app,
+      owner,
+      { method: 'PATCH', url: `/v1/admin/services/${customId}`, payload: { isPublic: true } },
+      404,
+    );
+    await call(
+      app,
+      owner,
+      {
+        method: 'PUT',
+        url: `/v1/admin/dentists/${data.dentistId}/services`,
+        payload: { serviceIds: [data.serviceId, customId] },
+      },
+      404,
+    );
+    const headers = { authorization: `Bearer ${key}`, origin: ORIGIN };
+    const published = await app.inject({ method: 'GET', url: '/v1/public/services', headers });
+    expect(published.statusCode).toBe(200);
+    expect(published.json<PublicService[]>().map((s) => s.id)).not.toContain(customId);
+    const hold = await app.inject({
+      method: 'POST',
+      url: '/v1/public/holds',
+      headers,
+      payload: { service_id: customId, location_id: data.locationId, start_at: at(day, '15:00') },
+    });
+    expect(hold.statusCode).toBe(404);
+    expect((await book({ serviceId: customId })).statusCode).toBe(404);
+    const again = await as(app, owner, {
+      method: 'POST',
+      url: '/v1/admin/appointments',
+      payload: {
+        locationId: data.locationId,
+        serviceId: customId,
+        dentistId: data.dentistId,
+        startAt: at(day, '15:00'),
+        client: { fullName: 'Custom Client', phone: '+12025559300' },
+      },
+    });
+    expect(again.statusCode).toBe(400);
+
+    // Запись на свою услугу переносится, как любая: врачом и регистратурой
+    const moved = await mini(ANNA_CHAT, {
+      method: 'POST',
+      url: `/v1/miniapp/appointments/${id}/move`,
+      payload: { startAt: at(day, '13:00') },
+    });
+    expect(moved.statusCode, moved.body).toBe(204);
+    await call(
+      app,
+      owner,
+      {
+        method: 'PATCH',
+        url: `/v1/admin/appointments/${id}`,
+        payload: { startAt: at(day, '14:00') },
+      },
+      204,
+    );
+    const [row] = await database.db
+      .select({ startAt: appointments.startAt, endAt: appointments.endAt })
+      .from(appointments)
+      .where(eq(appointments.id, id));
+    expect(row).toEqual({ startAt: new Date(at(day, '14:00')), endAt: new Date(at(day, '14:50')) });
 
     // Отменить: дальше тесты изоляции берут любую подтверждённую запись врача
     const cancelled = await mini(ANNA_CHAT, {

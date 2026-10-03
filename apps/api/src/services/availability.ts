@@ -31,7 +31,13 @@ import type { SlotCache, SlotKey } from './slot-cache.js';
 
 export interface AvailabilityRequest {
   clinicId: string;
-  serviceId: string;
+  /**
+   * Услуга. null — разовая услуга, которую врач задаёт в Mini App: её ещё нет в БД, есть
+   * только длительность (durationMin), буфера нет.
+   */
+  serviceId: string | null;
+  /** Длительность разовой услуги — только при serviceId = null. */
+  durationMin?: number | undefined;
   locationId: string;
   /** Без врача — все врачи, оказывающие услугу. */
   dentistId?: string | undefined;
@@ -170,18 +176,33 @@ export async function computeAvailability(
     .select({ timezone: locations.timezone, isActive: locations.isActive })
     .from(locations)
     .where(and(eq(locations.id, request.locationId), eq(locations.clinicId, clinicId)));
-  const [service] = await db
-    .select({
-      durationMin: services.durationMin,
-      bufferMin: services.bufferMin,
-      isActive: services.isActive,
-      isPublic: services.isPublic,
-    })
-    .from(services)
-    .where(and(eq(services.id, request.serviceId), eq(services.clinicId, clinicId)));
+  const [service] =
+    request.serviceId === null
+      ? [
+          {
+            durationMin: request.durationMin ?? 0,
+            bufferMin: 0,
+            isActive: true,
+            isPublic: false,
+            oneTime: true,
+          },
+        ]
+      : await db
+          .select({
+            durationMin: services.durationMin,
+            bufferMin: services.bufferMin,
+            isActive: services.isActive,
+            isPublic: services.isPublic,
+            oneTime: services.oneTime,
+          })
+          .from(services)
+          .where(and(eq(services.id, request.serviceId), eq(services.clinicId, clinicId)));
 
   const hidden = !location?.isActive || !service?.isActive || !service.isPublic;
   if (!clinic || !location || !service || (hidden && !request.includeHidden)) throw notFound();
+  // Разовая услуга — только у конкретного врача: в dentist_services её нет
+  if (service.oneTime && !request.dentistId) throw notFound();
+  if (service.durationMin <= 0) throw notFound();
 
   const timeZone = location.timezone ?? clinic.timezone;
   const { durationMin, bufferMin } = service;
@@ -191,8 +212,11 @@ export async function computeAvailability(
   // Не раньше сегодняшней даты и не дальше max_advance_days
   const today = localDateOf(now, timeZone);
   const lastDate = request.ignoreMaxAdvance ? request.to : addDays(today, clinic.maxAdvanceDays);
-  // Кеш хранит слоты «как есть»; расчёт без части записей в него не пишется и не читается
-  if (request.excludeAppointmentId || request.ignoreAppointments) cache = undefined;
+  // Кеш хранит слоты «как есть»; расчёт без части записей в него не пишется и не читается.
+  // Разовой услуги в ключе кеша нет — её слоты считаются всегда заново.
+  if (request.excludeAppointmentId || request.ignoreAppointments || service.oneTime) {
+    cache = undefined;
+  }
   const from = request.from < today ? today : request.from;
   const to = request.to > lastDate ? lastDate : request.to;
   if (from > to || !location.isActive || !service.isActive) {
@@ -200,22 +224,28 @@ export async function computeAvailability(
     return response;
   }
 
+  // Услугу из каталога оказывают назначенные ей врачи; разовую — врач из запроса
+  const providers =
+    request.serviceId === null || service.oneTime
+      ? undefined
+      : db
+          .select({ id: dentistServices.dentistId })
+          .from(dentistServices)
+          .where(
+            and(
+              eq(dentistServices.clinicId, clinicId),
+              eq(dentistServices.serviceId, request.serviceId),
+            ),
+          );
   const candidates = await db
     .select({ id: dentists.id })
     .from(dentists)
-    .innerJoin(
-      dentistServices,
-      and(
-        eq(dentistServices.dentistId, dentists.id),
-        eq(dentistServices.clinicId, clinicId),
-        eq(dentistServices.serviceId, request.serviceId),
-      ),
-    )
     .where(
       and(
         eq(dentists.clinicId, clinicId),
         eq(dentists.isActive, true),
         request.dentistId ? eq(dentists.id, request.dentistId) : undefined,
+        providers ? inArray(dentists.id, providers) : undefined,
       ),
     )
     .orderBy(asc(dentists.priority), asc(dentists.id));
@@ -227,7 +257,8 @@ export async function computeAvailability(
     clinicId,
     dentistId,
     date,
-    serviceId: request.serviceId,
+    // У разовой услуги ключа нет, но и кеш для неё выключен
+    serviceId: request.serviceId ?? '',
     locationId: request.locationId,
   });
   const pairs = dates.flatMap((date) => dentistIds.map((dentistId) => ({ date, dentistId })));

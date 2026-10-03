@@ -208,17 +208,27 @@ export async function loadJournal(
   };
 }
 
-/** Врач оказывает услугу и принимает записи — иначе записать к нему нельзя. */
+/**
+ * Врач оказывает услугу и принимает записи — иначе записать к нему нельзя. Разовая услуга
+ * врача (services.one_time) ни за кем не закреплена: её запись переносится к любому
+ * работающему врачу (moving), а новую запись на неё не создать — она одна на свою запись.
+ */
 async function assertDentistProvides(
   db: Database,
   clinicId: string,
   dentistId: string,
   serviceId: string,
+  moving = false,
 ) {
   const [row] = await db
-    .select({ isActive: dentists.isActive })
+    .select({
+      isActive: dentists.isActive,
+      oneTime: services.oneTime,
+      provided: dentistServices.serviceId,
+    })
     .from(dentists)
-    .innerJoin(
+    .innerJoin(services, and(eq(services.id, serviceId), eq(services.clinicId, clinicId)))
+    .leftJoin(
       dentistServices,
       and(
         eq(dentistServices.dentistId, dentists.id),
@@ -227,7 +237,8 @@ async function assertDentistProvides(
       ),
     )
     .where(and(eq(dentists.id, dentistId), eq(dentists.clinicId, clinicId)));
-  if (!row?.isActive) {
+  const provides = row?.oneTime ? moving : Boolean(row?.provided);
+  if (!row?.isActive || !provides) {
     throw new ApiError(400, 'validation_failed', 'The dentist does not provide this service');
   }
 }
@@ -413,7 +424,7 @@ export async function rescheduleAppointment(
   const dentistId = params.dentistId ?? current.dentistId;
   const { timeZone } = await officeOf(db, clinicId, current.locationId);
   if (dentistId !== current.dentistId) {
-    await assertDentistProvides(db, clinicId, dentistId, current.serviceId);
+    await assertDentistProvides(db, clinicId, dentistId, current.serviceId, true);
   }
   await assertFree(db, {
     clinicId,

@@ -65,6 +65,11 @@ export const services = pgTable(
     isPublic: boolean('is_public').notNull().default(true),
     isActive: boolean('is_active').notNull().default(true),
     sortOrder: integer('sort_order').notNull().default(0),
+    /**
+     * Разовая услуга: врач задал её в Mini App для одной записи (название и длительность).
+     * В списки услуг не попадает, врачам не назначается, в виджете не видна.
+     */
+    oneTime: boolean('one_time').notNull().default(false),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -78,6 +83,8 @@ export const services = pgTable(
     check('services_duration_min', sql`duration_min > 0`),
     check('services_buffer_min', sql`buffer_min >= 0`),
     check('services_price', sql`price IS NULL OR price >= 0`),
+    // Разовая услуга не уходит в публичный API (§2.5) — даже если код ошибётся
+    check('services_one_time_hidden', sql`NOT one_time OR NOT is_public`),
   ],
 );
 

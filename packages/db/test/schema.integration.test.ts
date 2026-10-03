@@ -17,6 +17,7 @@ import {
   isExclusionViolation,
   locations,
   pgErrorCode,
+  services,
   workingHours,
   type Database,
 } from '../src/index.js';
@@ -178,6 +179,19 @@ describe('tenant isolation in the schema (CLAUDE.md §2.2)', () => {
     await expect(crossTenant).rejects.toSatisfy(
       (err: unknown) => pgErrorCode(err) === PG_FOREIGN_KEY_VIOLATION,
     );
+  });
+});
+
+describe('one-time services (Mini App)', () => {
+  it('never lets a one-time service into the public API (§2.5)', async () => {
+    const service = { clinicId, name: 'Night guard fitting', durationMin: 50, oneTime: true };
+    const visible = db.insert(services).values({ ...service, isPublic: true });
+    await expect(visible).rejects.toSatisfy(
+      (err: unknown) => pgErrorCode(err) === PG_CHECK_VIOLATION,
+    );
+    await expect(
+      db.insert(services).values({ ...service, isPublic: false }),
+    ).resolves.toBeDefined();
   });
 });
 

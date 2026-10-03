@@ -100,3 +100,7 @@ export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 
 export const NOTIFICATION_STATUSES = ['scheduled', 'sent', 'failed', 'cancelled'] as const;
 export type NotificationStatus = (typeof NOTIFICATION_STATUSES)[number];
+
+/** Длительность своей (разовой) услуги врача в Mini App, минуты: от 5 минут до 8 часов. */
+export const CUSTOM_DURATION_MIN = 5;
+export const CUSTOM_DURATION_MAX = 480;
