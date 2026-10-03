@@ -37,7 +37,9 @@ export function AppointmentPage({
   const [phone, setPhone] = useState(a.client?.phone ?? '');
   const [notes, setNotes] = useState(a.notes ?? '');
   const [day, setDay] = useState(date);
-  const [moveTo, setMoveTo] = useState<string | null>(null);
+  /** Время в сетке переноса: сначала — текущее время записи, оно выделено синим. */
+  const [moveTo, setMoveTo] = useState<string | null>(a.startAt);
+  const currentOn = (d: string) => (d === date ? a.startAt : null);
   const cancelled = a.status === 'cancelled';
   const [showHistory, setShowHistory] = useState(cancelled);
   /** Ошибка показывается у той части страницы, где её вызвали. */
@@ -73,7 +75,7 @@ export function AppointmentPage({
     onError: (err) => {
       failed('move')(err);
       if (err instanceof ApiError && err.code === 'slot_taken') {
-        setMoveTo(null);
+        setMoveTo(currentOn(day));
         void client.invalidateQueries({ queryKey: ['slots'] });
       }
     },
@@ -161,7 +163,7 @@ export function AppointmentPage({
               value={day}
               onChange={(e) => {
                 setDay(e.target.value);
-                setMoveTo(null);
+                setMoveTo(currentOn(e.target.value));
               }}
             />
           </Field>

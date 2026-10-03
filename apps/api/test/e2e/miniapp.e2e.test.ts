@@ -296,8 +296,10 @@ describe('dentist mini app (Step 7)', () => {
     await page.getByText('Changes saved.').waitFor();
     await page.getByText('Prefers afternoons').waitFor();
 
-    // Перенос на другое свободное время того же дня
+    // Перенос на другое свободное время того же дня. Текущее время записи выделено сразу
     await edit('Bob Walker');
+    await page.getByRole('button', { name: /^3:00\sPM$/, pressed: true }).waitFor();
+    expect(await page.getByRole('button', { name: 'Move', exact: true }).isDisabled()).toBe(true);
     await page.getByRole('button', { name: /^4:00\sPM$/ }).click();
     await page.getByRole('button', { name: 'Move', exact: true }).click();
     await page.getByText(/^Moved to /).waitFor();
