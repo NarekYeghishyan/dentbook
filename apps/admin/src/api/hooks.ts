@@ -292,11 +292,20 @@ export const useRevokeApiKey = () =>
 /** После любого действия с записью журнал, клиенты, дашборд и календарь устаревают. */
 const BOOKING_KEYS = [keys.journal, keys.clients, keys.dashboard, keys.availability];
 
+/**
+ * Журнал перечитывается сам: записи меняют и врачи в Telegram, и сайт, а сервер открытой
+ * странице об этом не сообщает. Раз в 15 с, пока вкладка видна, и при возврате на неё.
+ * TODO: если 15 с станет мало — push с сервера (SSE), это отдельная задача.
+ */
+const LIVE_REFRESH_MS = 15_000;
+
 export const useJournal = (query: { locationId: string; from: string; to: string } | null) =>
   useQuery({
     queryKey: [...keys.journal, query],
     queryFn: () => api<JournalResponse>('GET', `/journal?${new URLSearchParams(query!)}`),
     enabled: query !== null,
+    staleTime: 0,
+    refetchInterval: LIVE_REFRESH_MS,
   });
 
 export const useCreateBooking = () =>

@@ -43,6 +43,8 @@ export function SchedulePage({
   const [error, setError] = useState<string | null>(null);
   const today = todayIn(me.clinic.timezone);
 
+  // Расписание перечитывается само: записи меняют и регистратура, и сайт, а сервер
+  // открытому Mini App об этом не сообщает. Раз в 15 с, пока он виден, и при возврате
   const schedule = useQuery({
     queryKey: ['schedule', date, showCancelled],
     queryFn: () =>
@@ -50,6 +52,8 @@ export function SchedulePage({
         'GET',
         `/schedule?from=${date}&to=${date}${showCancelled ? '&cancelled=true' : ''}`,
       ),
+    staleTime: 0,
+    refetchInterval: 15_000,
   });
   const refresh = () => client.invalidateQueries({ queryKey: ['schedule'] });
   const onError = (err: unknown) => setError(errorText(locale, err));
