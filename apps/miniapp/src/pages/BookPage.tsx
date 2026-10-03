@@ -5,7 +5,6 @@
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
-import { toE164 } from '@dentbook/shared/phone';
 import { api, ApiError } from '../api';
 import { errorText, useSession } from '../context';
 import { SlotPicker } from '../SlotPicker';
@@ -31,12 +30,13 @@ export function BookPage({
   const [error, setError] = useState<string | null>(null);
 
   const book = useMutation({
-    mutationFn: (input: { startAt: string; phone: string }) =>
+    mutationFn: (startAt: string) =>
       api<{ startAt: string; timeZone: string }>('POST', '/appointments', {
         serviceId,
         locationId,
-        startAt: input.startAt,
-        client: { fullName: fullName.trim(), phone: input.phone },
+        startAt,
+        // Номер в любом виде: к E.164 его приводит API, если он так читается
+        client: { fullName: fullName.trim(), phone: phone.trim() },
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       }),
     onSuccess: (result) => {
@@ -62,11 +62,9 @@ export function BookPage({
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const e164 = toE164(phone);
-    if (!e164) return setError(t('error.phone'));
     if (!startAt) return;
     setError(null);
-    book.mutate({ startAt, phone: e164 });
+    book.mutate(startAt);
   };
   const resetTime = () => {
     setStartAt(null);
@@ -142,6 +140,7 @@ export function BookPage({
             <Input
               type="tel"
               required
+              maxLength={50}
               autoComplete="off"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}

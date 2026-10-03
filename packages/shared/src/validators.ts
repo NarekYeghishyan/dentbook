@@ -3,6 +3,7 @@
  * и формы админки.
  */
 import { z } from 'zod';
+import { toE164 } from './phone.js';
 
 function isTimeZone(value: string): boolean {
   try {
@@ -29,3 +30,15 @@ export const uuidSchema = z.uuid();
 
 /** Телефон в E.164: '+12025550123'. Приводит к нему форма записи. */
 export const phoneSchema = z.string().regex(/^\+[1-9]\d{6,14}$/, 'E.164, e.g. +12025550123');
+
+/**
+ * Телефон клиента, который врач вводит в Mini App: формат не проверяется, только непустой.
+ * Номер, который читается как E.164 (toE164), приводится к нему — на него уходят SMS;
+ * остальное хранится как введено, и SMS на такой номер не отправляются.
+ */
+export const anyPhoneSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(50)
+  .transform((value) => toE164(value) ?? value);

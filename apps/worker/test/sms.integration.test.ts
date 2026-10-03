@@ -38,7 +38,7 @@ let day = 0;
 
 /** Запись клиента в демо-клинике (Берлин) и SMS-уведомление о ней. */
 async function booking(
-  options: { status?: AppointmentStatus; kind?: NotificationKind } = {},
+  options: { status?: AppointmentStatus; kind?: NotificationKind; phone?: string } = {},
 ): Promise<{ notificationId: string; startAt: Date }> {
   const n = ++day;
   // Каждая запись — в свой день: ограничение §2.1 не мешает фикстурам
@@ -47,7 +47,11 @@ async function booking(
   const status = options.status ?? 'confirmed';
   const [patient] = await database.db
     .insert(patients)
-    .values({ clinicId: DEMO_IDS.clinic, fullName: 'Jane Client', phone: `+120255510${10 + n}` })
+    .values({
+      clinicId: DEMO_IDS.clinic,
+      fullName: 'Jane Client',
+      phone: options.phone ?? `+120255510${10 + n}`,
+    })
     .returning({ id: patients.id });
   const [appointment] = await database.db
     .insert(appointments)
@@ -176,6 +180,22 @@ describe('sms queue (Step 8)', () => {
       'skipped',
     );
     expect(sent).toHaveLength(0);
+  });
+
+  it('skips a number the dentist typed in a form the provider cannot take', async () => {
+    const { notificationId, startAt } = await booking({ phone: '077 12-34-56' });
+    const { sender, sent } = fakeSms();
+    const result = await smsProcessor({
+      db: database.db,
+      sms: sender,
+      now: () => new Date(startAt.getTime() - 24 * HOUR),
+    })(job(notificationId));
+    expect(result).toBe('skipped');
+    expect(sent).toHaveLength(0);
+    expect(await stateOf(notificationId)).toMatchObject({
+      status: 'cancelled',
+      lastError: 'phone_not_e164',
+    });
   });
 
   it('fails at once when the provider rejects the number', async () => {

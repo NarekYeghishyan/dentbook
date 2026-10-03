@@ -72,7 +72,6 @@
   "history.client": "Client: {from} → {to}",
   "history.comment": "Comment: {from} → {to}",
   "error.generic": "Something went wrong. Please try again.",
-  "error.phone": "Enter a valid phone number, e.g. (202) 555-0123.",
   "error.slot_taken": "This time is already taken.",
   "error.forbidden": "This Telegram account is not connected to a dentist.",
   "error.unauthorized": "The session has expired. Close and reopen the schedule."

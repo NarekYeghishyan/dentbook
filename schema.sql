@@ -317,7 +317,8 @@ CREATE TABLE patients (
   id                 uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   clinic_id          uuid        NOT NULL REFERENCES clinics (id),
   full_name          text        NOT NULL,
-  -- E.164, напр. +37491234567
+  -- E.164, напр. +37491234567, если номер так читается. Врач в Mini App вводит номер в
+  -- любом виде — такой хранится как введён, и SMS на него не уходят.
   phone              text        NOT NULL,
   email              citext,
   phone_verified_at  timestamptz,
@@ -329,7 +330,7 @@ CREATE TABLE patients (
   CONSTRAINT patients_clinic_id_id_key  UNIQUE (clinic_id, id),
   -- Клиент в клинике определяется телефоном: его же подтверждает SMS-код
   CONSTRAINT patients_clinic_phone_key  UNIQUE (clinic_id, phone),
-  CONSTRAINT patients_phone_e164        CHECK (phone ~ '^\+[1-9][0-9]{6,14}$')
+  CONSTRAINT patients_phone_not_blank   CHECK (btrim(phone) <> '')
 );
 
 

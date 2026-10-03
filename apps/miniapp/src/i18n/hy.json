@@ -72,7 +72,6 @@
   "history.client": "Հաճախորդը՝ {from} → {to}",
   "history.comment": "Մեկնաբանությունը՝ {from} → {to}",
   "error.generic": "Ինչ-որ բան սխալ ընթացավ։ Փորձեք կրկին։",
-  "error.phone": "Նշեք հեռախոսահամարը, օրինակ՝ (202) 555-0123։",
   "error.slot_taken": "Այս ժամն արդեն զբաղված է։",
   "error.forbidden": "Այս Telegram հաշիվը միացված չէ բժշկի։",
   "error.unauthorized": "Սեանսը հնացել է։ Փակեք և կրկին բացեք գրաֆիկը։"

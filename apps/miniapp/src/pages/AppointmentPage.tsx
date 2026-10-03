@@ -7,7 +7,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import type { MiniappAppointment } from '@dentbook/shared';
-import { toE164 } from '@dentbook/shared/phone';
 import { api, ApiError } from '../api';
 import { errorText, useSession } from '../context';
 import { SlotPicker } from '../SlotPicker';
@@ -52,9 +51,10 @@ export function AppointmentPage({
   const failed = (part: Part) => (err: unknown) => setError({ part, text: errorText(locale, err) });
 
   const save = useMutation({
-    mutationFn: (e164: string) =>
+    mutationFn: () =>
       api('PATCH', `/appointments/${a.id}`, {
-        client: { fullName: fullName.trim(), phone: e164 },
+        // Номер в любом виде: к E.164 его приводит API, если он так читается
+        client: { fullName: fullName.trim(), phone: phone.trim() },
         notes: notes.trim() || null,
       }),
     onSuccess: () => finish(date, t('edit.saved')),
@@ -86,10 +86,8 @@ export function AppointmentPage({
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const e164 = toE164(phone);
-    if (!e164) return setError({ part: 'details', text: t('error.phone') });
     setError(null);
-    save.mutate(e164);
+    save.mutate();
   };
 
   return (
@@ -129,6 +127,7 @@ export function AppointmentPage({
             <Input
               type="tel"
               required
+              maxLength={50}
               autoComplete="off"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}

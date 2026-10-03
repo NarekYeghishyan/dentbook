@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { maskNational, toE164, toE164In } from './phone.js';
+import { isE164, maskNational, toE164, toE164In } from './phone.js';
+import { anyPhoneSchema } from './validators.js';
 
 describe('toE164', () => {
   it.each([
@@ -41,6 +42,32 @@ describe('toE164In', () => {
     ['1', '+0 123'],
   ])('+%s rejects %j', (dial, input) => {
     expect(toE164In(dial, input)).toBeNull();
+  });
+});
+
+describe('isE164', () => {
+  it('accepts only a number ready for the SMS provider', () => {
+    expect(isE164('+12025550123')).toBe(true);
+    expect(isE164('+37491234567')).toBe(true);
+    expect(isE164('(202) 555-0123')).toBe(false);
+    expect(isE164('077 12-34-56')).toBe(false);
+  });
+});
+
+describe('anyPhoneSchema (dentist in the Mini App)', () => {
+  it.each([
+    // читается как номер — приводится к E.164
+    ['(202) 555-0123', '+12025550123'],
+    ['+374 91 234567', '+37491234567'],
+    // иначе — как ввёл врач, без пробелов по краям
+    [' 077 12-34-56 ', '077 12-34-56'],
+    ['555-0123 ext. 4', '555-0123 ext. 4'],
+  ])('%j → %j', (input, expected) => {
+    expect(anyPhoneSchema.parse(input)).toBe(expected);
+  });
+
+  it.each(['', '   ', 'x'.repeat(51)])('rejects %j', (input) => {
+    expect(anyPhoneSchema.safeParse(input).success).toBe(false);
   });
 });
 

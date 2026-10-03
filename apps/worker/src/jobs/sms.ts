@@ -16,6 +16,7 @@ import {
   type Database,
 } from '@dentbook/db';
 import type { AppointmentStatus, Locale, NotificationKind } from '@dentbook/shared/domain';
+import { isE164 } from '@dentbook/shared/phone';
 import { REMINDER_OFFSETS_MS, type SmsJob } from '@dentbook/shared/queues';
 import { SmsError, type SmsSender } from '@dentbook/shared/sms';
 import { translate, type MessageKey } from '../i18n/index.js';
@@ -135,7 +136,10 @@ export function smsProcessor(deps: { db: Database; sms: SmsSender; now?: () => D
     // Снято при отмене записи или уже отправлено прошлой попыткой
     if (!row || row.status !== 'scheduled') return 'skipped';
 
-    const reason = skipReason(row.kind, row.appointmentStatus, row.startAt, now, row.zone);
+    // Номер, который врач ввёл в Mini App не в E.164, провайдер не примет
+    const reason = isE164(row.phone)
+      ? skipReason(row.kind, row.appointmentStatus, row.startAt, now, row.zone)
+      : 'phone_not_e164';
     if (reason) {
       await mark(id, { status: 'cancelled', lastError: reason });
       return 'skipped';

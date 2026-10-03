@@ -5,7 +5,7 @@
 import { z } from 'zod';
 import { LOCALES, type AppointmentStatus, type CancelledBy, type Locale } from './domain.js';
 import { instantSchema, localDateSchema } from './catalog.js';
-import { nameSchema, phoneSchema, uuidSchema } from './validators.js';
+import { anyPhoneSchema, nameSchema, uuidSchema } from './validators.js';
 
 export const scheduleQuerySchema = z.object({
   from: localDateSchema,
@@ -38,7 +38,7 @@ export const miniappBookingSchema = z.object({
   serviceId: uuidSchema,
   locationId: uuidSchema,
   startAt: instantSchema,
-  client: z.object({ fullName: nameSchema, phone: phoneSchema }),
+  client: z.object({ fullName: nameSchema, phone: anyPhoneSchema }),
   notes: z.string().trim().max(1000).optional(),
 });
 export type MiniappBookingInput = z.input<typeof miniappBookingSchema>;
@@ -46,7 +46,7 @@ export type MiniappBookingInput = z.input<typeof miniappBookingSchema>;
 /** Врач правит свою запись: клиента и комментарий. notes: null или '' — убрать. */
 export const miniappAppointmentUpdateSchema = z
   .object({
-    client: z.object({ fullName: nameSchema, phone: phoneSchema }).optional(),
+    client: z.object({ fullName: nameSchema, phone: anyPhoneSchema }).optional(),
     notes: z.string().trim().max(1000).nullable().optional(),
   })
   .refine((v) => v.client !== undefined || v.notes !== undefined, {

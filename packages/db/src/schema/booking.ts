@@ -29,7 +29,10 @@ export const patients = pgTable(
     id: uuid('id').primaryKey().defaultRandom(),
     clinicId: uuid('clinic_id').notNull(),
     fullName: text('full_name').notNull(),
-    /** E.164 */
+    /**
+     * E.164, если номер так читается. Врач в Mini App вводит номер в любом виде — такой
+     * хранится как введён, и SMS на него не уходят.
+     */
     phone: text('phone').notNull(),
     email: citext('email'),
     phoneVerifiedAt: timestamptz('phone_verified_at'),
@@ -45,7 +48,7 @@ export const patients = pgTable(
     }),
     unique('patients_clinic_id_id_key').on(t.clinicId, t.id),
     unique('patients_clinic_phone_key').on(t.clinicId, t.phone),
-    check('patients_phone_e164', e164('phone')),
+    check('patients_phone_not_blank', sql`btrim(phone) <> ''`),
   ],
 );
 

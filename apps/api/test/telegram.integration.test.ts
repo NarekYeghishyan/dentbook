@@ -735,6 +735,52 @@ describe('Mini App (§8)', () => {
       ['updated', 'dentist'],
     ]);
   });
+
+  it('takes the client phone in any form the dentist types', async () => {
+    const book = (phone: string) =>
+      mini(ANNA_CHAT, {
+        method: 'POST',
+        url: '/v1/miniapp/appointments',
+        payload: {
+          serviceId: data.serviceId,
+          locationId: data.locationId,
+          startAt: at(upcoming(2), '15:00'),
+          client: { fullName: 'Walk-in Client', phone },
+        },
+      });
+    const phoneOf = async (id: string) =>
+      (
+        await database.db
+          .select({ phone: patients.phone })
+          .from(appointments)
+          .innerJoin(patients, eq(patients.id, appointments.patientId))
+          .where(eq(appointments.id, id))
+      )[0]!.phone;
+
+    // Пустой номер — нет: поле обязательное
+    expect((await book('   ')).statusCode).toBe(400);
+    // Номер не в E.164 хранится как введён, без пробелов по краям
+    const res = await book(' 077 12-34-56 ');
+    expect(res.statusCode, res.body).toBe(201);
+    const id = res.json().id as string;
+    expect(await phoneOf(id)).toBe('077 12-34-56');
+
+    // Правка: номер, который читается как американский, приводится к E.164
+    const edited = await mini(ANNA_CHAT, {
+      method: 'PATCH',
+      url: `/v1/miniapp/appointments/${id}`,
+      payload: { client: { fullName: 'Walk-in Client', phone: '(202) 555-0177' } },
+    });
+    expect(edited.statusCode, edited.body).toBe(204);
+    expect(await phoneOf(id)).toBe('+12025550177');
+
+    // Отменить: дальше тесты изоляции берут любую подтверждённую запись врача
+    const cancelled = await mini(ANNA_CHAT, {
+      method: 'POST',
+      url: `/v1/miniapp/appointments/${id}/cancel`,
+    });
+    expect(cancelled.statusCode, cancelled.body).toBe(204);
+  });
 });
 
 describe('Mini App isolation (§2.2)', () => {
