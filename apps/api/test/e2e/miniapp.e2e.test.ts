@@ -246,7 +246,7 @@ describe('dentist mini app (Step 7)', () => {
     expect(busy).toEqual(['10:00 AM, Booked', '2:00 PM, Closed']);
     await page.getByRole('button', { name: /^3:00\sPM$/ }).click();
     await page.getByLabel('Client name', { exact: true }).fill('Bob Walk-in');
-    await page.getByLabel('Client phone', { exact: true }).fill('(202) 555-0199');
+    await page.getByLabel('Client phone (optional)', { exact: true }).fill('(202) 555-0199');
     await page.getByLabel('Comment (optional)', { exact: true }).fill('Wants a morning call');
     await shot(page, '3-book');
     await page.getByRole('button', { name: 'Book', exact: true }).click();
@@ -377,7 +377,7 @@ describe('dentist mini app (Step 7)', () => {
     await page.close();
   });
 
-  it('a dentist books "Other" with its own duration, and the list stays the same', async () => {
+  it('a dentist books "Other" for a client without a phone, and the list stays the same', async () => {
     const day = upcomingWeekday();
     const page = await openMiniApp(signInitData(ANNA_CHAT));
     await page.getByText('Dr. Anna').waitFor();
@@ -391,7 +391,7 @@ describe('dentist mini app (Step 7)', () => {
     await page.getByLabel('Date', { exact: true }).fill(day);
     await page.getByRole('button', { name: /^11:00\sAM$/ }).click();
     await page.getByLabel('Client name', { exact: true }).fill('Carl Custom');
-    await page.getByLabel('Client phone', { exact: true }).fill('(202) 555-0188');
+    // Телефон врач может не указывать
     await shot(page, '9-custom-service');
     await page.getByRole('button', { name: 'Book', exact: true }).click();
     await page.getByText(/^Booked: /).waitFor();
@@ -405,12 +405,12 @@ describe('dentist mini app (Step 7)', () => {
     expect(await serviceList.locator('option').allTextContents()).toEqual(listed);
 
     const rows = await database.db
-      .select({ startAt: appointments.startAt, endAt: appointments.endAt })
+      .select({ startAt: appointments.startAt, endAt: appointments.endAt, phone: patients.phone })
       .from(appointments)
       .innerJoin(patients, eq(patients.id, appointments.patientId))
-      .where(and(eq(appointments.clinicId, owner.clinicId), eq(patients.phone, '+12025550188')));
+      .where(and(eq(appointments.clinicId, owner.clinicId), eq(patients.fullName, 'Carl Custom')));
     expect(rows).toEqual([
-      { startAt: new Date(at(day, '11:00')), endAt: new Date(at(day, '11:50')) },
+      { startAt: new Date(at(day, '11:00')), endAt: new Date(at(day, '11:50')), phone: null },
     ]);
     await page.close();
   });

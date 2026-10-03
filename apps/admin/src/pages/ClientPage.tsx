@@ -60,7 +60,7 @@ function Details({ client }: { client: ClientCard }) {
           />
         </Field>
         <Field label={t('field.phone')}>
-          <Input disabled value={client.phone} />
+          <Input disabled value={client.phone ?? '—'} />
         </Field>
         <Field label={t('field.email')}>
           <Input

@@ -1,6 +1,6 @@
 /**
- * Врач записывает своего клиента: услуга, офис, день → свободное время → имя, телефон
- * и необязательный комментарий (appointments.notes).
+ * Врач записывает своего клиента: услуга, офис, день → свободное время → имя,
+ * необязательные телефон и комментарий (appointments.notes).
  * Услуга — из списка или «Другое»: тогда врач вводит только длительность. Такая услуга
  * остаётся только у этой записи, в списке услуг её нет.
  * Без SMS-кода, запись сразу подтверждена (§1, Шаг 7).
@@ -59,7 +59,7 @@ export function BookPage({
         ...(custom ? { customService: { durationMin } } : { serviceId }),
         locationId,
         startAt,
-        // Номер в любом виде: к E.164 его приводит API, если он так читается
+        // Номер в любом виде или пусто: к E.164 его приводит API, если он так читается
         client: { fullName: fullName.trim(), phone: phone.trim() },
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       }),
@@ -184,7 +184,6 @@ export function BookPage({
           <Field label={t('book.phone')}>
             <Input
               type="tel"
-              required
               maxLength={50}
               autoComplete="off"
               value={phone}

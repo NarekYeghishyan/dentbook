@@ -200,7 +200,7 @@ export async function loadJournal(
       serviceId: r.serviceId,
       service: r.service,
       client:
-        r.clientId && r.clientName && r.clientPhone
+        r.clientId && r.clientName
           ? { id: r.clientId, fullName: r.clientName, phone: r.clientPhone }
           : null,
       notes: r.notes,

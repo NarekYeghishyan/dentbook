@@ -23,7 +23,8 @@ export type BookingStatus = Exclude<AppointmentStatus, 'hold' | 'expired'>;
 export interface JournalClient {
   id: string;
   fullName: string;
-  phone: string;
+  /** null — врач записал клиента в Mini App без номера. */
+  phone: string | null;
 }
 
 export interface JournalAppointment {
@@ -102,7 +103,8 @@ export const clientSearchSchema = z.object({
 export interface ClientSummary {
   id: string;
   fullName: string;
-  phone: string;
+  /** null — врач записал клиента в Mini App без номера. */
+  phone: string | null;
   email: string | null;
   visits: number;
   lastVisitAt: string | null;
@@ -123,7 +125,8 @@ export interface ClientAppointment {
 export interface ClientCard {
   id: string;
   fullName: string;
-  phone: string;
+  /** null — врач записал клиента в Mini App без номера. */
+  phone: string | null;
   email: string | null;
   notes: string | null;
   createdAt: string;

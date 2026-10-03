@@ -31,9 +31,10 @@ export const patients = pgTable(
     fullName: text('full_name').notNull(),
     /**
      * E.164, если номер так читается. Врач в Mini App вводит номер в любом виде — такой
-     * хранится как введён, и SMS на него не уходят.
+     * хранится как введён, и SMS на него не уходят. NULL — врач записал клиента без
+     * номера: такого клиента не найти по телефону, у каждой его записи своя строка.
      */
-    phone: text('phone').notNull(),
+    phone: text('phone'),
     email: citext('email'),
     phoneVerifiedAt: timestamptz('phone_verified_at'),
     notes: text('notes'),
@@ -48,7 +49,7 @@ export const patients = pgTable(
     }),
     unique('patients_clinic_id_id_key').on(t.clinicId, t.id),
     unique('patients_clinic_phone_key').on(t.clinicId, t.phone),
-    check('patients_phone_not_blank', sql`btrim(phone) <> ''`),
+    check('patients_phone_not_blank', sql`phone IS NULL OR btrim(phone) <> ''`),
   ],
 );
 

@@ -136,10 +136,15 @@ export function smsProcessor(deps: { db: Database; sms: SmsSender; now?: () => D
     // Снято при отмене записи или уже отправлено прошлой попыткой
     if (!row || row.status !== 'scheduled') return 'skipped';
 
-    // Номер, который врач ввёл в Mini App не в E.164, провайдер не примет
-    const reason = isE164(row.phone)
-      ? skipReason(row.kind, row.appointmentStatus, row.startAt, now, row.zone)
-      : 'phone_not_e164';
+    // Врач записал клиента в Mini App без номера или ввёл номер не в E.164 — слать некуда
+    if (row.phone === null || !isE164(row.phone)) {
+      await mark(id, {
+        status: 'cancelled',
+        lastError: row.phone === null ? 'no_phone' : 'phone_not_e164',
+      });
+      return 'skipped';
+    }
+    const reason = skipReason(row.kind, row.appointmentStatus, row.startAt, now, row.zone);
     if (reason) {
       await mark(id, { status: 'cancelled', lastError: reason });
       return 'skipped';

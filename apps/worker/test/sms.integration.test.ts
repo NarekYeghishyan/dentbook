@@ -38,7 +38,7 @@ let day = 0;
 
 /** Запись клиента в демо-клинике (Берлин) и SMS-уведомление о ней. */
 async function booking(
-  options: { status?: AppointmentStatus; kind?: NotificationKind; phone?: string } = {},
+  options: { status?: AppointmentStatus; kind?: NotificationKind; phone?: string | null } = {},
 ): Promise<{ notificationId: string; startAt: Date }> {
   const n = ++day;
   // Каждая запись — в свой день: ограничение §2.1 не мешает фикстурам
@@ -50,7 +50,7 @@ async function booking(
     .values({
       clinicId: DEMO_IDS.clinic,
       fullName: 'Jane Client',
-      phone: options.phone ?? `+120255510${10 + n}`,
+      phone: options.phone === undefined ? `+120255510${10 + n}` : options.phone,
     })
     .returning({ id: patients.id });
   const [appointment] = await database.db
@@ -182,8 +182,11 @@ describe('sms queue (Step 8)', () => {
     expect(sent).toHaveLength(0);
   });
 
-  it('skips a number the dentist typed in a form the provider cannot take', async () => {
-    const { notificationId, startAt } = await booking({ phone: '077 12-34-56' });
+  it.each([
+    ['a number in a form the provider cannot take', '077 12-34-56', 'phone_not_e164'],
+    ['no number at all', null, 'no_phone'],
+  ])('skips a client the dentist booked with %s', async (_, phone, reason) => {
+    const { notificationId, startAt } = await booking({ phone });
     const { sender, sent } = fakeSms();
     const result = await smsProcessor({
       db: database.db,
@@ -192,10 +195,7 @@ describe('sms queue (Step 8)', () => {
     })(job(notificationId));
     expect(result).toBe('skipped');
     expect(sent).toHaveLength(0);
-    expect(await stateOf(notificationId)).toMatchObject({
-      status: 'cancelled',
-      lastError: 'phone_not_e164',
-    });
+    expect(await stateOf(notificationId)).toMatchObject({ status: 'cancelled', lastError: reason });
   });
 
   it('fails at once when the provider rejects the number', async () => {

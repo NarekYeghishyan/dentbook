@@ -801,8 +801,6 @@ describe('Mini App (§8)', () => {
           .where(eq(appointments.id, id))
       )[0]!.phone;
 
-    // Пустой номер — нет: поле обязательное
-    expect((await book('   ')).statusCode).toBe(400);
     // Номер не в E.164 хранится как введён, без пробелов по краям
     const res = await book(' 077 12-34-56 ');
     expect(res.statusCode, res.body).toBe(201);
@@ -824,6 +822,94 @@ describe('Mini App (§8)', () => {
       url: `/v1/miniapp/appointments/${id}/cancel`,
     });
     expect(cancelled.statusCode, cancelled.body).toBe(204);
+  });
+
+  it('books a client without a phone, and keeps that client to the one booking', async () => {
+    const day = upcoming(2);
+    const clientOf = async (id: string) =>
+      (
+        await database.db
+          .select({ id: patients.id, fullName: patients.fullName, phone: patients.phone })
+          .from(appointments)
+          .innerJoin(patients, eq(patients.id, appointments.patientId))
+          .where(eq(appointments.id, id))
+      )[0]!;
+    const edit = (id: string, phone: string) =>
+      mini(ANNA_CHAT, {
+        method: 'PATCH',
+        url: `/v1/miniapp/appointments/${id}`,
+        payload: { client: { fullName: 'No Phone Client', phone } },
+      });
+
+    // Без поля phone, с пустым и с пробелами — клиент без номера, у каждой записи свой
+    const ids: string[] = [];
+    for (const [time, client] of [
+      ['12:00', { fullName: 'No Phone' }],
+      ['13:00', { fullName: 'No Phone', phone: '' }],
+      ['14:00', { fullName: 'No Phone', phone: '   ' }],
+    ] as const) {
+      const res = await mini(ANNA_CHAT, {
+        method: 'POST',
+        url: '/v1/miniapp/appointments',
+        payload: {
+          serviceId: data.serviceId,
+          locationId: data.locationId,
+          startAt: at(day, time),
+          client,
+        },
+      });
+      expect(res.statusCode, res.body).toBe(201);
+      ids.push(res.json().id as string);
+    }
+    const first = await clientOf(ids[0]!);
+    expect(first).toMatchObject({ fullName: 'No Phone', phone: null });
+    expect(new Set(await Promise.all(ids.map(async (id) => (await clientOf(id)).id))).size).toBe(3);
+    const schedule = await mini(ANNA_CHAT, {
+      method: 'GET',
+      url: `/v1/miniapp/schedule?from=${day}&to=${day}`,
+    });
+    expect(schedule.json<MiniappSchedule>().appointments).toContainEqual(
+      expect.objectContaining({ id: ids[0], client: { fullName: 'No Phone', phone: null } }),
+    );
+
+    // Имя клиента без номера правится на месте — новых клиентов не появляется
+    expect((await edit(ids[0]!, '')).statusCode).toBe(204);
+    expect(await clientOf(ids[0]!)).toEqual({ ...first, fullName: 'No Phone Client' });
+    // Номер можно добавить, а потом убрать: клиент с этим номером остаётся, как был
+    expect((await edit(ids[0]!, '(202) 555-0166')).statusCode).toBe(204);
+    const withPhone = await clientOf(ids[0]!);
+    expect(withPhone.phone).toBe('+12025550166');
+    expect((await edit(ids[0]!, '')).statusCode).toBe(204);
+    const removed = await clientOf(ids[0]!);
+    expect(removed.phone).toBeNull();
+    expect(removed.id).not.toBe(withPhone.id);
+    const [kept] = await database.db
+      .select({ phone: patients.phone })
+      .from(patients)
+      .where(eq(patients.id, withPhone.id));
+    expect(kept).toEqual({ phone: '+12025550166' });
+
+    // Алерт о переносе регистратурой — с одним именем, без «null»
+    await call(
+      app,
+      owner,
+      {
+        method: 'PATCH',
+        url: `/v1/admin/appointments/${ids[0]}`,
+        payload: { startAt: at(day, '16:00') },
+      },
+      204,
+    );
+    expect(outbox.messagesTo(ANNA_CHAT).at(-1)!.text).toMatch(/\nClient: No Phone Client$/);
+
+    // Отменить: дальше тесты изоляции берут любую подтверждённую запись врача
+    for (const id of ids) {
+      const cancelled = await mini(ANNA_CHAT, {
+        method: 'POST',
+        url: `/v1/miniapp/appointments/${id}/cancel`,
+      });
+      expect(cancelled.statusCode, cancelled.body).toBe(204);
+    }
   });
 
   it('books "Other" with its own duration once, and it never shows up in a list', async () => {

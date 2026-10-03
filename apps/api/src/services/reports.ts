@@ -257,7 +257,7 @@ export async function exportAppointmentsCsv(db: Database, params: Period): Promi
         r.dentist,
         r.service,
         r.client,
-        r.phone,
+        r.phone ?? '',
         r.email ?? '',
         translate(locale, `status.${r.status}` as MessageKey),
         translate(locale, `source.${r.source}` as MessageKey),

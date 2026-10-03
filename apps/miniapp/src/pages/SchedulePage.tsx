@@ -138,10 +138,15 @@ export function SchedulePage({
               <div>{item.a.service}</div>
               {item.a.client && (
                 <div className="text-sm">
-                  {item.a.client.fullName} ·{' '}
-                  <a className="text-link" href={`tel:${item.a.client.phone}`}>
-                    {item.a.client.phone}
-                  </a>
+                  {item.a.client.fullName}
+                  {item.a.client.phone && (
+                    <>
+                      {' · '}
+                      <a className="text-link" href={`tel:${item.a.client.phone}`}>
+                        {item.a.client.phone}
+                      </a>
+                    </>
+                  )}
                 </div>
               )}
               {item.a.notes && (

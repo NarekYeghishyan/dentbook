@@ -56,7 +56,7 @@ export function AppointmentPage({
   const save = useMutation({
     mutationFn: () =>
       api('PATCH', `/appointments/${a.id}`, {
-        // Номер в любом виде: к E.164 его приводит API, если он так читается
+        // Номер в любом виде или пусто: к E.164 его приводит API, если он так читается
         client: { fullName: fullName.trim(), phone: phone.trim() },
         notes: notes.trim() || null,
       }),
@@ -129,7 +129,6 @@ export function AppointmentPage({
           <Field label={t('book.phone')}>
             <Input
               type="tel"
-              required
               maxLength={50}
               autoComplete="off"
               value={phone}

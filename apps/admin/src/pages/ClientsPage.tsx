@@ -48,7 +48,7 @@ export function ClientsPage() {
                         {c.fullName}
                       </Link>
                     </td>
-                    <td className="py-2 pr-4 text-slate-700">{c.phone}</td>
+                    <td className="py-2 pr-4 text-slate-700">{c.phone ?? '—'}</td>
                     <td className="py-2 pr-4 text-slate-700">{c.visits}</td>
                     <td className="py-2 pr-4 text-slate-700">{when(c.lastVisitAt)}</td>
                     <td className="py-2 text-slate-700">{when(c.nextVisitAt)}</td>

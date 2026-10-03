@@ -21,7 +21,8 @@ export function HistoryList({ appointmentId }: { appointmentId: string }) {
   if (events.length === 0) return <p className="text-sm text-hint">{t('history.empty')}</p>;
 
   const when = (iso: string) => formatDateTime(iso, timeZone, locale);
-  const client = (c: ClientSnapshot | null) => (c ? `${c.fullName}, ${c.phone}` : '—');
+  const client = (c: ClientSnapshot | null) =>
+    c ? [c.fullName, c.phone].filter(Boolean).join(', ') : '—';
   const who = (e: AppointmentEvent) => {
     if (e.actor === 'client') return t('history.byClient');
     if (e.actor === 'system') return t('history.bySystem');

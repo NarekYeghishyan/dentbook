@@ -78,7 +78,8 @@ export function createNotifier(deps: {
     service: details.service,
     office: details.office,
     client: details.client,
-    phone: details.phone,
+    // «Имя, телефон» или только имя: клиента без номера врач записывает в Mini App
+    contact: [details.client, details.phone].filter(Boolean).join(', '),
   });
 
   /** Сообщение врачу в Telegram: строка notifications и задача очереди. */

@@ -55,6 +55,10 @@ describe('isE164', () => {
 });
 
 describe('anyPhoneSchema (dentist in the Mini App)', () => {
+  it.each(['', '   ', null, undefined])('takes %j as a client without a number', (input) => {
+    expect(anyPhoneSchema.parse(input)).toBeNull();
+  });
+
   it.each([
     // читается как номер — приводится к E.164
     ['(202) 555-0123', '+12025550123'],
@@ -66,8 +70,8 @@ describe('anyPhoneSchema (dentist in the Mini App)', () => {
     expect(anyPhoneSchema.parse(input)).toBe(expected);
   });
 
-  it.each(['', '   ', 'x'.repeat(51)])('rejects %j', (input) => {
-    expect(anyPhoneSchema.safeParse(input).success).toBe(false);
+  it('rejects a number longer than 50 characters', () => {
+    expect(anyPhoneSchema.safeParse('x'.repeat(51)).success).toBe(false);
   });
 });
 

@@ -148,7 +148,11 @@ export function BookingDialog({
                     type="button"
                     className="flex w-full justify-between gap-2 px-3 py-1.5 text-left text-sm hover:bg-slate-50"
                     onClick={() => {
-                      setClient({ fullName: c.fullName, phone: c.phone, email: c.email ?? '' });
+                      setClient({
+                        fullName: c.fullName,
+                        phone: c.phone ?? '',
+                        email: c.email ?? '',
+                      });
                       setQuery('');
                     }}
                   >

@@ -30,7 +30,8 @@ export interface AppointmentDetails {
   service: string;
   office: string;
   client: string;
-  phone: string;
+  /** null — врач записал клиента без номера. */
+  phone: string | null;
   dentistId: string;
   dentistChatId: number | null;
   dentistBlocked: boolean;

@@ -68,7 +68,7 @@ export function AppointmentDialog({
             <p className="text-base font-medium text-slate-900">
               {appointment.client?.fullName ?? '—'}
             </p>
-            {appointment.client && (
+            {appointment.client?.phone && (
               <a className="text-teal-700 hover:underline" href={`tel:${appointment.client.phone}`}>
                 {appointment.client.phone}
               </a>

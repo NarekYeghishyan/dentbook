@@ -111,7 +111,8 @@ export interface MiniappAppointment {
   service: string;
   locationId: string;
   office: string;
-  client: { fullName: string; phone: string } | null;
+  /** phone: null — клиент записан без номера. */
+  client: { fullName: string; phone: string | null } | null;
   notes: string | null;
   source: string;
   /** Кто отменил — только у отменённой записи. */

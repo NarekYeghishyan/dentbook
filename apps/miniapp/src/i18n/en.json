@@ -38,7 +38,7 @@
   "book.noSlots": "No free time on this day.",
   "book.booked": "Booked",
   "book.name": "Client name",
-  "book.phone": "Client phone",
+  "book.phone": "Client phone (optional)",
   "book.comment": "Comment (optional)",
   "book.submit": "Book",
   "book.done": "Booked: {when}.",

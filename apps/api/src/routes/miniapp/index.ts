@@ -218,7 +218,8 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
       ...row,
       startAt: row.startAt.toISOString(),
       endAt: row.endAt.toISOString(),
-      client: clientName && clientPhone ? { fullName: clientName, phone: clientPhone } : null,
+      // Клиента нет только у холда; телефона может не быть — врач записал без номера
+      client: clientName ? { fullName: clientName, phone: clientPhone } : null,
     }));
   }
 
@@ -486,6 +487,8 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
                 })
                 .returning({ id: services.id })
             : [service];
+        // Клиент с номером ищется по нему (Q9). Без номера совпасть не с чем: NULL в
+        // уникальном ключе не равен NULL, и у такой записи свой клиент
         const [patient] = await tx
           .insert(patients)
           .values({
@@ -539,7 +542,9 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
   /**
    * Врач правит свою запись: клиента и комментарий. Клиент в клинике определяется
    * телефоном (Q9): новое имя меняет карточку клиента, новый телефон переводит запись на
-   * клиента с этим номером. В историю пишется только то, что действительно изменилось.
+   * клиента с этим номером. Клиент без номера есть только у своей записи: его имя правится
+   * на месте, а убранный номер даёт записи нового клиента без номера — карточка клиента с
+   * этим номером не трогается. В историю пишется только то, что действительно изменилось.
    */
   app.patch('/appointments/:id', async (request, reply) => {
     const { dentistId, clinicId } = dentistOf(request);
@@ -567,9 +572,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
       if (!current) throw notFound();
 
       const before =
-        current.fullName !== null && current.phone !== null
-          ? { fullName: current.fullName, phone: current.phone }
-          : null;
+        current.fullName !== null ? { fullName: current.fullName, phone: current.phone } : null;
       const notes = input.notes === undefined ? current.notes : input.notes || null;
       const changes: AppointmentChanges = {};
       if (
@@ -581,10 +584,16 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
       if (notes !== current.notes) changes.notes = { from: current.notes, to: notes };
 
       let patientId = current.patientId;
-      if (changes.client) {
+      const client = changes.client?.to;
+      if (client && client.phone === null && before?.phone === null && patientId) {
+        await tx
+          .update(patients)
+          .set({ fullName: client.fullName })
+          .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)));
+      } else if (client) {
         const [patient] = await tx
           .insert(patients)
-          .values({ clinicId, ...changes.client.to })
+          .values({ clinicId, ...client })
           .onConflictDoUpdate({
             target: [patients.clinicId, patients.phone],
             set: { fullName: sql`excluded.full_name` },
