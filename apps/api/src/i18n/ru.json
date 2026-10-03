@@ -40,5 +40,6 @@
   "source.widget": "Сайт",
   "source.telegram": "Telegram",
   "source.admin": "Регистратура",
-  "tg.clinicSuspended": "Аккаунт клиники приостановлен. Обратитесь в клинику."
+  "tg.clinicSuspended": "Аккаунт клиники приостановлен. Обратитесь в клинику.",
+  "service.other": "Другое"
 }

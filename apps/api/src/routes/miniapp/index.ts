@@ -40,6 +40,7 @@ import {
   type MiniappSlots,
 } from '@dentbook/shared';
 import type { Locale } from '@dentbook/shared/domain';
+import { translate } from '../../i18n/index.js';
 import { ApiError, forbidden, notFound, parse, unauthorized } from '../../lib/errors.js';
 import { idOf } from '../../lib/params.js';
 import { computeAvailability } from '../../services/availability.js';
@@ -59,6 +60,8 @@ interface DentistContext {
   dentistId: string;
   clinicId: string;
   timeZone: string;
+  /** Язык клиники: на нём названа услуга «Другое». */
+  clinicLocale: Locale;
 }
 
 declare module 'fastify' {
@@ -107,6 +110,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
         isActive: dentists.isActive,
         clinicStatus: clinics.status,
         timeZone: clinics.timezone,
+        clinicLocale: clinics.locale,
       })
       .from(dentists)
       .innerJoin(clinics, eq(clinics.id, dentists.clinicId))
@@ -114,7 +118,12 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
     if (!row || !row.isActive || row.clinicStatus !== 'active') {
       throw forbidden('This Telegram account is not connected to an active dentist');
     }
-    request.dentist = { dentistId: row.dentistId, clinicId: row.clinicId, timeZone: row.timeZone };
+    request.dentist = {
+      dentistId: row.dentistId,
+      clinicId: row.clinicId,
+      timeZone: row.timeZone,
+      clinicLocale: row.clinicLocale as Locale,
+    };
   });
 
   const zone = sql<string>`coalesce(${locations.timezone}, ${clinics.timezone})`;
@@ -433,15 +442,21 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
 
   /**
    * Врач записывает своего клиента: без SMS-кода, запись сразу подтверждена. Услуга — из
-   * каталога или разовая: её название и длительность врач задаёт сам, и она сохраняется
-   * только для этой записи (services.one_time), без буфера.
+   * каталога или «Другое»: длительность врач задаёт сам, название — «Другое» на языке
+   * клиники. Такая услуга сохраняется только для этой записи (services.one_time), без
+   * буфера.
    */
   app.post('/appointments', async (request, reply) => {
     const ctx = dentistOf(request);
     const input = parse(miniappBookingSchema, request.body);
     const { customService } = input;
     const service = customService
-      ? { id: null, ...customService, bufferMin: 0 }
+      ? {
+          id: null,
+          name: translate(ctx.clinicLocale, 'service.other'),
+          durationMin: customService.durationMin,
+          bufferMin: 0,
+        }
       : await providedService(ctx, input.serviceId);
 
     const { timeZone, slots } = await freeSlots(

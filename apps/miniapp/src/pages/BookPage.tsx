@@ -1,8 +1,8 @@
 /**
  * Врач записывает своего клиента: услуга, офис, день → свободное время → имя, телефон
  * и необязательный комментарий (appointments.notes).
- * Услуга — из списка или своя: название и длительность врач вводит сам, и она остаётся
- * только у этой записи — в списке услуг в следующий раз её нет.
+ * Услуга — из списка или «Другое»: тогда врач вводит только длительность. Такая услуга
+ * остаётся только у этой записи, в списке услуг её нет.
  * Без SMS-кода, запись сразу подтверждена (§1, Шаг 7).
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -15,10 +15,10 @@ import { SlotPicker } from '../SlotPicker';
 import { dateIn, formatDateTime } from '../time';
 import { Button, Field, Input, Notice, Select, Textarea } from '../ui';
 
-/** Значение пункта «Своя услуга» в списке услуг. */
+/** Значение пункта «Другое» в списке услуг. */
 const CUSTOM = 'custom';
 
-/** Длительность своей услуги из поля ввода — или null, пока она не годится. */
+/** Длительность «Другого» из поля ввода — или null, пока она не годится. */
 function durationOf(value: string): number | null {
   const minutes = Number(value);
   return Number.isInteger(minutes) &&
@@ -41,7 +41,6 @@ export function BookPage({
   const { me, locale, t } = useSession();
   const client = useQueryClient();
   const [serviceId, setServiceId] = useState(me.services[0]?.id ?? CUSTOM);
-  const [customName, setCustomName] = useState('');
   const [customDuration, setCustomDuration] = useState('30');
   const [locationId, setLocationId] = useState(me.locations[0]?.id ?? '');
   const [day, setDay] = useState(date);
@@ -57,7 +56,7 @@ export function BookPage({
   const book = useMutation({
     mutationFn: (startAt: string) =>
       api<{ startAt: string; timeZone: string }>('POST', '/appointments', {
-        ...(custom ? { customService: { name: customName.trim(), durationMin } } : { serviceId }),
+        ...(custom ? { customService: { durationMin } } : { serviceId }),
         locationId,
         startAt,
         // Номер в любом виде: к E.164 его приводит API, если он так читается
@@ -115,35 +114,23 @@ export function BookPage({
         </Select>
       </Field>
       {custom && (
-        <>
-          <p className="text-sm text-hint">{t('book.customHint')}</p>
-          <Field label={t('book.customName')}>
-            <Input
-              required
-              maxLength={200}
-              autoComplete="off"
-              value={customName}
-              onChange={(e) => setCustomName(e.target.value)}
-            />
-          </Field>
-          <Field
-            label={t('book.customDuration', { min: CUSTOM_DURATION_MIN, max: CUSTOM_DURATION_MAX })}
-          >
-            <Input
-              type="number"
-              inputMode="numeric"
-              required
-              min={CUSTOM_DURATION_MIN}
-              max={CUSTOM_DURATION_MAX}
-              step={5}
-              value={customDuration}
-              onChange={(e) => {
-                setCustomDuration(e.target.value);
-                resetTime();
-              }}
-            />
-          </Field>
-        </>
+        <Field
+          label={t('book.customDuration', { min: CUSTOM_DURATION_MIN, max: CUSTOM_DURATION_MAX })}
+        >
+          <Input
+            type="number"
+            inputMode="numeric"
+            required
+            min={CUSTOM_DURATION_MIN}
+            max={CUSTOM_DURATION_MAX}
+            step={5}
+            value={customDuration}
+            onChange={(e) => {
+              setCustomDuration(e.target.value);
+              resetTime();
+            }}
+          />
+        </Field>
       )}
       {me.locations.length > 1 && (
         <Field label={t('book.office')}>

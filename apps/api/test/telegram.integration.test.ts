@@ -826,7 +826,7 @@ describe('Mini App (§8)', () => {
     expect(cancelled.statusCode, cancelled.body).toBe(204);
   });
 
-  it('books a custom service once, and it never shows up in a service list', async () => {
+  it('books "Other" with its own duration once, and it never shows up in a list', async () => {
     const day = upcoming(3);
     const slotsFor = (query: string) =>
       mini(ANNA_CHAT, {
@@ -844,7 +844,7 @@ describe('Mini App (§8)', () => {
           ...payload,
         },
       });
-    const fitting = { name: 'Night guard fitting', durationMin: 50 };
+    const other = { durationMin: 50 };
 
     // Сетка — по введённой длительности: 50 минут влезают до 17:00 с 16:00, но не с 16:15
     const grid = await slotsFor('durationMin=50');
@@ -855,19 +855,18 @@ describe('Mini App (§8)', () => {
     expect((await slotsFor('durationMin=3')).statusCode).toBe(400);
     expect((await slotsFor(`durationMin=50&serviceId=${data.serviceId}`)).statusCode).toBe(400);
     expect((await slotsFor('')).statusCode).toBe(400);
-    expect((await book({ customService: { ...fitting, durationMin: 481 } })).statusCode).toBe(400);
-    expect((await book({ customService: fitting, serviceId: data.serviceId })).statusCode).toBe(
-      400,
-    );
+    expect((await book({ customService: { durationMin: 481 } })).statusCode).toBe(400);
+    expect((await book({ customService: other, serviceId: data.serviceId })).statusCode).toBe(400);
     expect((await book({})).statusCode).toBe(400);
 
-    const res = await book({ customService: fitting });
+    // Название — всегда «Другое» на языке клиники; присланное (старый Mini App) не берётся
+    const res = await book({ customService: { ...other, name: 'Night guard fitting' } });
     expect(res.statusCode, res.body).toBe(201);
     expect(res.json().endAt).toBe(at(day, '12:50'));
     const id = res.json().id as string;
     const opened = await mini(ANNA_CHAT, { method: 'GET', url: `/v1/miniapp/appointments/${id}` });
     expect(opened.json()).toMatchObject({
-      service: 'Night guard fitting',
+      service: 'Other',
       endAt: at(day, '12:50'),
     });
     const customId = opened.json().serviceId as string;

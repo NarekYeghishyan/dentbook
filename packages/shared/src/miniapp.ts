@@ -55,13 +55,13 @@ export const miniappSlotsQuerySchema = z
   });
 
 /**
- * Врач записывает своего клиента: на услугу из каталога (serviceId) или на разовую
- * (customService) — её название и длительность врач задаёт сам, только для этой записи.
+ * Врач записывает своего клиента: на услугу из каталога (serviceId) или на «Другое»
+ * (customService) — длительность врач задаёт сам, только для этой записи.
  */
 export const miniappBookingSchema = z
   .object({
     serviceId: uuidSchema.optional(),
-    customService: z.object({ name: nameSchema, durationMin: customDurationSchema }).optional(),
+    customService: z.object({ durationMin: customDurationSchema }).optional(),
     locationId: uuidSchema,
     startAt: instantSchema,
     client: z.object({ fullName: nameSchema, phone: anyPhoneSchema }),

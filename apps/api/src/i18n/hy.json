@@ -40,5 +40,6 @@
   "source.widget": "Կայք",
   "source.telegram": "Telegram",
   "source.admin": "Ընդունարան",
-  "tg.clinicSuspended": "Կլինիկայի հաշիվը կասեցված է։ Դիմեք կլինիկային։"
+  "tg.clinicSuspended": "Կլինիկայի հաշիվը կասեցված է։ Դիմեք կլինիկային։",
+  "service.other": "Այլ"
 }

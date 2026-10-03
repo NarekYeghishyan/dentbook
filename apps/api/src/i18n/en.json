@@ -40,5 +40,6 @@
   "source.widget": "Website",
   "source.telegram": "Telegram",
   "source.admin": "Front desk",
-  "tg.clinicSuspended": "The clinic account is suspended. Please contact the clinic."
+  "tg.clinicSuspended": "The clinic account is suspended. Please contact the clinic.",
+  "service.other": "Other"
 }
