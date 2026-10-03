@@ -246,6 +246,7 @@
   "booking.notes": "Notes (optional)",
   "booking.date": "Date",
   "booking.time": "Time",
+  "booking.duration": "Duration, min",
   "booking.submit": "Book",
   "booking.created": "Booked.",
   "booking.alternatives": "Free nearby:",

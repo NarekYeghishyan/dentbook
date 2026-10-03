@@ -25,7 +25,11 @@ export function SlotPicker({
   onOpen,
 }: {
   /** Услуга из списка или своя: тогда только длительность (null — ещё не введена). */
-  service: { serviceId: string } | { durationMin: number | null };
+  /**
+   * Услуга из списка (serviceId) и/или длительность записи: у «Другого» — только она,
+   * null — ещё не введена. При переносе сервер берёт длительность самой записи.
+   */
+  service: { serviceId?: string; durationMin?: number | null };
   locationId: string;
   date: string;
   /** Перенос этой записи: её собственное время показывается свободным. */
@@ -36,15 +40,15 @@ export function SlotPicker({
   onOpen(appointment: MiniappAppointment): void;
 }) {
   const { locale, t } = useSession();
-  // Чьё время считать: услуга из списка или своя длительность; null — спрашивать не о чем
+  // Что считать: услуга и/или длительность; null — длительность не годится или нет ничего
+  const { serviceId, durationMin } = service;
   const what =
-    'serviceId' in service
-      ? service.serviceId
-        ? { serviceId: service.serviceId }
-        : null
-      : service.durationMin !== null
-        ? { durationMin: String(service.durationMin) }
-        : null;
+    durationMin === null || (!serviceId && durationMin === undefined)
+      ? null
+      : {
+          ...(serviceId ? { serviceId } : {}),
+          ...(durationMin !== undefined ? { durationMin: String(durationMin) } : {}),
+        };
   const query = { ...what, locationId, date, ...(appointmentId ? { appointmentId } : {}) };
   const slots = useQuery({
     queryKey: ['slots', what, locationId, date, appointmentId ?? null],

@@ -23,6 +23,7 @@ import type {
   MiniappBusyTime,
   MiniappMe,
   MiniappSchedule,
+  MiniappSlots,
   PublicService,
   Service,
   TelegramLink,
@@ -912,6 +913,70 @@ describe('Mini App (§8)', () => {
     }
   });
 
+  it('books a service with its own duration for this booking, and moves it with it', async () => {
+    const day = addDays(upcoming(4), 7);
+    const grid = async (query: string) =>
+      (
+        await mini(ANNA_CHAT, {
+          method: 'GET',
+          url: `/v1/miniapp/slots?serviceId=${data.serviceId}&locationId=${data.locationId}&date=${day}&${query}`,
+        })
+      ).json<MiniappSlots>().slots;
+    const book = (durationMin: number) =>
+      mini(ANNA_CHAT, {
+        method: 'POST',
+        url: '/v1/miniapp/appointments',
+        payload: {
+          serviceId: data.serviceId,
+          durationMin,
+          locationId: data.locationId,
+          startAt: at(day, '09:00'),
+          client: { fullName: 'Long Visit' },
+        },
+      });
+
+    // Услуга — 30 минут; на 2 часа сетка последним предлагает 15:00 (смена до 17:00)
+    expect(await grid('durationMin=120')).toContain(at(day, '15:00'));
+    expect(await grid('durationMin=120')).not.toContain(at(day, '15:15'));
+    expect(await grid('')).toContain(at(day, '16:30'));
+    expect((await book(3)).statusCode).toBe(400);
+
+    const res = await book(120);
+    expect(res.statusCode, res.body).toBe(201);
+    expect(res.json().endAt).toBe(at(day, '11:00'));
+    const id = res.json().id as string;
+    const opened = await mini(ANNA_CHAT, { method: 'GET', url: `/v1/miniapp/appointments/${id}` });
+    expect(opened.json()).toMatchObject({ service: 'Checkup', endAt: at(day, '11:00') });
+    // В каталоге услуга осталась 30-минутной
+    const me = await mini(ANNA_CHAT, { method: 'GET', url: '/v1/miniapp/me' });
+    expect(me.json<MiniappMe>().services).toEqual([
+      expect.objectContaining({ id: data.serviceId, durationMin: 30 }),
+    ]);
+
+    // Перенос — со своей длительностью: сетка и проверка считают 2 часа, а не 30 минут
+    expect(await grid(`appointmentId=${id}`)).not.toContain(at(day, '15:15'));
+    const move = (time: string) =>
+      mini(ANNA_CHAT, {
+        method: 'POST',
+        url: `/v1/miniapp/appointments/${id}/move`,
+        payload: { startAt: at(day, time) },
+      });
+    expect((await move('15:15')).statusCode).toBe(400);
+    expect((await move('15:00')).statusCode).toBe(204);
+    const [row] = await database.db
+      .select({ endAt: appointments.endAt })
+      .from(appointments)
+      .where(eq(appointments.id, id));
+    expect(row).toEqual({ endAt: new Date(at(day, '17:00')) });
+
+    // Отменить: дальше тесты изоляции берут любую подтверждённую запись врача
+    const cancelled = await mini(ANNA_CHAT, {
+      method: 'POST',
+      url: `/v1/miniapp/appointments/${id}/cancel`,
+    });
+    expect(cancelled.statusCode, cancelled.body).toBe(204);
+  });
+
   it('books "Other" with its own duration once, and it never shows up in a list', async () => {
     const day = upcoming(3);
     const slotsFor = (query: string) =>
@@ -940,10 +1005,11 @@ describe('Mini App (§8)', () => {
     expect(grid.json().slots).not.toContain(at(day, '16:00'));
     // Услуга — ровно одна из двух, длительность — от 5 минут до 8 часов
     expect((await slotsFor('durationMin=3')).statusCode).toBe(400);
-    expect((await slotsFor(`durationMin=50&serviceId=${data.serviceId}`)).statusCode).toBe(400);
     expect((await slotsFor('')).statusCode).toBe(400);
     expect((await book({ customService: { durationMin: 481 } })).statusCode).toBe(400);
     expect((await book({ customService: other, serviceId: data.serviceId })).statusCode).toBe(400);
+    // Длительность «Другого» — внутри customService, второй рядом не бывает
+    expect((await book({ customService: other, durationMin: 50 })).statusCode).toBe(400);
     expect((await book({})).statusCode).toBe(400);
 
     // Название — всегда «Другое» на языке клиники; присланное (старый Mini App) не берётся

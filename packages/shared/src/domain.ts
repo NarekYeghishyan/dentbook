@@ -101,6 +101,9 @@ export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 export const NOTIFICATION_STATUSES = ['scheduled', 'sent', 'failed', 'cancelled'] as const;
 export type NotificationStatus = (typeof NOTIFICATION_STATUSES)[number];
 
-/** Длительность своей (разовой) услуги врача в Mini App, минуты: от 5 минут до 8 часов. */
-export const CUSTOM_DURATION_MIN = 5;
-export const CUSTOM_DURATION_MAX = 480;
+/**
+ * Длительность записи, минуты: от 5 минут до 8 часов. Её задают у услуги в каталоге, а при
+ * записи врач и регистратура могут изменить её для этой записи; у «Другого» — только так.
+ */
+export const BOOKING_DURATION_MIN = 5;
+export const BOOKING_DURATION_MAX = 480;

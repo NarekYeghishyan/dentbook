@@ -256,6 +256,8 @@ async function assertFree(
     serviceId: string;
     dentistId: string;
     startAt: Date;
+    /** Своя длительность записи вместо длительности услуги. */
+    durationMin?: number | undefined;
     timeZone: string;
     now: Date;
     excludeAppointmentId?: string;
@@ -275,6 +277,7 @@ async function assertFree(
     includeHidden: true,
     ignoreLeadTime: true,
     ignoreMaxAdvance: true,
+    durationMin: params.durationMin,
     ...(params.excludeAppointmentId ? { excludeAppointmentId: params.excludeAppointmentId } : {}),
   };
   const target = startAt.getTime();
@@ -322,7 +325,9 @@ export async function createStaffBooking(
     .select({ durationMin: services.durationMin, bufferMin: services.bufferMin })
     .from(services)
     .where(and(eq(services.id, input.serviceId), eq(services.clinicId, clinicId)));
-  const endAt = new Date(input.startAt.getTime() + service!.durationMin * MINUTE_MS);
+  // Своя длительность этой записи или длительность услуги; буфер — всегда от услуги
+  const durationMin = input.durationMin ?? service!.durationMin;
+  const endAt = new Date(input.startAt.getTime() + durationMin * MINUTE_MS);
   const until = blockedUntil(endAt, service!.bufferMin);
 
   let id: string;
@@ -432,6 +437,8 @@ export async function rescheduleAppointment(
     serviceId: current.serviceId,
     dentistId,
     startAt,
+    // Запись переносится со своей длительностью — её могли изменить при записи
+    durationMin: (current.endAt.getTime() - current.startAt.getTime()) / MINUTE_MS,
     timeZone,
     now,
     excludeAppointmentId: id,

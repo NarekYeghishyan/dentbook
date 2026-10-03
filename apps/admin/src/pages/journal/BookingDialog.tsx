@@ -1,10 +1,12 @@
 /**
  * Регистратура записывает клиента (Q17): врач, услуга, время по сетке клиники, клиент —
- * найденный по имени или телефону или новый. Запись сразу подтверждена; занято — 409 и
- * ближайшее свободное время, которое можно выбрать одним нажатием.
+ * найденный по имени или телефону или новый. Длительность сначала — как у услуги, её можно
+ * изменить для этой записи. Запись сразу подтверждена; занято — 409 и ближайшее свободное
+ * время, которое можно выбрать одним нажатием.
  */
 import { useState, type FormEvent } from 'react';
 import type { Dentist, Service } from '@dentbook/shared';
+import { BOOKING_DURATION_MAX, BOOKING_DURATION_MIN } from '@dentbook/shared/domain';
 import { useClients, useCreateBooking } from '../../api/hooks';
 import { Button, Field, Input, Modal, Select } from '../../components/ui';
 import { useI18n } from '../../i18n';
@@ -59,6 +61,12 @@ export function BookingDialog({
   const offered = services.filter((s) => s.isActive && dentist?.serviceIds.includes(s.id));
   const [serviceId, setServiceId] = useState(offered[0]?.id ?? '');
   const service = offered.find((s) => s.id === serviceId) ?? offered[0];
+  // Своя длительность — у той услуги, для которой её ввели; другая услуга — её длительность
+  const [ownDuration, setOwnDuration] = useState<{ serviceId: string; value: string } | null>(null);
+  const duration =
+    ownDuration && ownDuration.serviceId === service?.id
+      ? ownDuration.value
+      : String(service?.durationMin ?? '');
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -69,6 +77,7 @@ export function BookingDialog({
         serviceId: service.id,
         dentistId,
         startAt: atMinutes(date, toMinutes(time), timeZone),
+        durationMin: Number(duration),
         client: {
           fullName: client.fullName.trim(),
           // Номер в любом виде, но обязательно: к E.164 его приводит API, если он так читается
@@ -121,6 +130,19 @@ export function BookingDialog({
               step={slotStepMin * 60}
               value={time}
               onChange={(e) => setTime(e.target.value)}
+            />
+          </Field>
+          <Field label={t('booking.duration')}>
+            <Input
+              type="number"
+              inputMode="numeric"
+              required
+              min={BOOKING_DURATION_MIN}
+              max={BOOKING_DURATION_MAX}
+              value={duration}
+              onChange={(e) =>
+                service && setOwnDuration({ serviceId: service.id, value: e.target.value })
+              }
             />
           </Field>
         </div>

@@ -30,7 +30,7 @@
   "block.zone": "Time zone: {zone}",
   "book.service": "Service",
   "book.custom": "Other",
-  "book.customDuration": "Duration, minutes ({min}–{max})",
+  "book.durationField": "Duration, minutes ({min}–{max})",
   "book.duration": "{min} min",
   "book.office": "Office",
   "book.date": "Date",

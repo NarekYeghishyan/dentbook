@@ -3,6 +3,7 @@
  * и формы админки.
  */
 import { z } from 'zod';
+import { BOOKING_DURATION_MAX, BOOKING_DURATION_MIN } from './domain.js';
 import { toE164 } from './phone.js';
 
 function isTimeZone(value: string): boolean {
@@ -25,6 +26,13 @@ export const emailSchema = z.string().trim().max(254).pipe(z.email());
 export const passwordSchema = z.string().min(10).max(200);
 
 export const nameSchema = z.string().trim().min(1).max(200);
+
+/** Длительность одной записи — своя, а не из услуги (врач в Mini App, регистратура). */
+export const bookingDurationSchema = z
+  .number()
+  .int()
+  .min(BOOKING_DURATION_MIN)
+  .max(BOOKING_DURATION_MAX);
 
 export const uuidSchema = z.uuid();
 

@@ -246,6 +246,7 @@
   "booking.notes": "Նշումներ (ըստ ցանկության)",
   "booking.date": "Ամսաթիվ",
   "booking.time": "Ժամ",
+  "booking.duration": "Տևողությունը, րոպե",
   "booking.submit": "Գրանցել",
   "booking.created": "Գրանցված է։",
   "booking.alternatives": "Մոտակա ազատ ժամեր՝",

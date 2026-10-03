@@ -30,7 +30,7 @@
   "block.zone": "Ժամային գոտի՝ {zone}",
   "book.service": "Ծառայություն",
   "book.custom": "Այլ",
-  "book.customDuration": "Տևողությունը, րոպե ({min}–{max})",
+  "book.durationField": "Տևողությունը, րոպե ({min}–{max})",
   "book.duration": "{min} րոպե",
   "book.office": "Գրասենյակ",
   "book.date": "Ամսաթիվ",

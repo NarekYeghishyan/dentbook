@@ -30,7 +30,7 @@
   "block.zone": "Часовой пояс: {zone}",
   "book.service": "Услуга",
   "book.custom": "Другое",
-  "book.customDuration": "Длительность, мин ({min}–{max})",
+  "book.durationField": "Длительность, мин ({min}–{max})",
   "book.duration": "{min} мин",
   "book.office": "Офис",
   "book.date": "Дата",

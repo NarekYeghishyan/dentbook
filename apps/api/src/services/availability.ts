@@ -36,7 +36,10 @@ export interface AvailabilityRequest {
    * БД, есть только длительность (durationMin); буфер после неё — шаг сетки клиники.
    */
   serviceId: string | null;
-  /** Длительность разовой услуги — только при serviceId = null. */
+  /**
+   * Длительность записи вместо длительности услуги: у «Другого» (serviceId = null) — всегда,
+   * у услуги из каталога — своя длительность этой записи. Буфер остаётся от услуги.
+   */
   durationMin?: number | undefined;
   locationId: string;
   /** Без врача — все врачи, оказывающие услугу. */
@@ -206,7 +209,8 @@ export async function computeAvailability(
   if (service.durationMin <= 0) throw notFound();
 
   const timeZone = location.timezone ?? clinic.timezone;
-  const { durationMin, bufferMin } = service;
+  const { bufferMin } = service;
+  const durationMin = request.durationMin ?? service.durationMin;
   const response: AvailabilityResponse = { timeZone, durationMin, days: [] };
   const allDates = datesBetween(request.from, request.to);
 
@@ -214,8 +218,14 @@ export async function computeAvailability(
   const today = localDateOf(now, timeZone);
   const lastDate = request.ignoreMaxAdvance ? request.to : addDays(today, clinic.maxAdvanceDays);
   // Кеш хранит слоты «как есть»; расчёт без части записей в него не пишется и не читается.
-  // Разовой услуги в ключе кеша нет — её слоты считаются всегда заново.
-  if (request.excludeAppointmentId || request.ignoreAppointments || service.oneTime) {
+  // Разовой услуги и своей длительности записи в ключе кеша нет — такие слоты считаются
+  // всегда заново.
+  if (
+    request.excludeAppointmentId ||
+    request.ignoreAppointments ||
+    service.oneTime ||
+    durationMin !== service.durationMin
+  ) {
     cache = undefined;
   }
   const from = request.from < today ? today : request.from;

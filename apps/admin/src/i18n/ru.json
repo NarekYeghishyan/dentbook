@@ -246,6 +246,7 @@
   "booking.notes": "Заметки (необязательно)",
   "booking.date": "Дата",
   "booking.time": "Время",
+  "booking.duration": "Длительность, мин",
   "booking.submit": "Записать",
   "booking.created": "Записано.",
   "booking.alternatives": "Свободно рядом:",

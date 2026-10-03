@@ -409,12 +409,30 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
       .map((b) => ({ ...b, startAt: b.startAt.toISOString() }));
   }
 
+  /** Длительность своей записи в минутах — её могли изменить при записи. */
+  async function ownDuration(ctx: DentistContext, appointmentId: string) {
+    const [row] = await db
+      .select({ startAt: appointments.startAt, endAt: appointments.endAt })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.id, appointmentId),
+          eq(appointments.clinicId, ctx.clinicId),
+          eq(appointments.dentistId, ctx.dentistId),
+        ),
+      );
+    return row ? (row.endAt.getTime() - row.startAt.getTime()) / 60_000 : undefined;
+  }
+
   app.get('/slots', async (request): Promise<MiniappSlots> => {
     const ctx = dentistOf(request);
     const query = parse(miniappSlotsQuerySchema, request.query);
+    // Перенос — по длительности самой записи, а не услуги
+    const durationMin =
+      (query.appointmentId && (await ownDuration(ctx, query.appointmentId))) || query.durationMin;
     const free = await freeSlots(
       ctx,
-      { id: query.serviceId ?? null, durationMin: query.durationMin },
+      { id: query.serviceId ?? null, durationMin },
       query.locationId,
       query.date,
       query.appointmentId,
@@ -447,7 +465,8 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
 
   /**
    * Врач записывает своего клиента: без SMS-кода, запись сразу подтверждена. Услуга — из
-   * каталога или «Другое»: длительность врач задаёт сам, название — «Другое» на языке
+   * каталога (с её длительностью или своей для этой записи, буфер — от услуги) или
+   * «Другое»: длительность врач задаёт сам, название — «Другое» на языке
    * клиники, буфер после визита — шаг сетки клиники. Такая услуга сохраняется только для
    * этой записи (services.one_time).
    */
@@ -462,7 +481,11 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
           durationMin: customService.durationMin,
           bufferMin: ctx.slotStepMin,
         }
-      : await providedService(ctx, input.serviceId);
+      : {
+          ...(await providedService(ctx, input.serviceId)),
+          // Своя длительность этой записи; буфер — от услуги
+          ...(input.durationMin ? { durationMin: input.durationMin } : {}),
+        };
 
     const { timeZone, slots } = await freeSlots(
       ctx,

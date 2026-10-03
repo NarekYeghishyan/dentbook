@@ -59,7 +59,7 @@ let phoneCounter = 0;
 async function book(
   date: string,
   time: string,
-  options: { dentistId?: string; fullName?: string; phone?: string } = {},
+  options: { dentistId?: string; fullName?: string; phone?: string; durationMin?: number } = {},
 ) {
   return as(app, owner, {
     method: 'POST',
@@ -69,6 +69,7 @@ async function book(
       serviceId: data.serviceId,
       dentistId: options.dentistId ?? data.dentistId,
       startAt: at(date, time),
+      ...(options.durationMin ? { durationMin: options.durationMin } : {}),
       client: {
         fullName: options.fullName ?? 'Jane Client',
         phone: options.phone ?? `+1202555${String(6000 + ++phoneCounter)}`,
@@ -237,6 +238,26 @@ describe('journal (Step 9)', () => {
     expect(await phoneOf(await booked(day, '14:00', { phone: '(202) 555-0144' }))).toBe(
       '+12025550144',
     );
+  });
+
+  it('books a service with its own duration, and moves it with that duration', async () => {
+    const day = addDays(upcoming(3), 21);
+    expect((await book(day, '09:00', { durationMin: 3 })).statusCode).toBe(400);
+    // Своя длительность тоже должна влезть в смену (до 17:00)
+    const tooLong = await book(day, '16:30', { durationMin: 45 });
+    expect(tooLong.json().error.code).toBe('outside_working_hours');
+
+    const id = await booked(day, '09:00', { durationMin: 45 });
+    const shown = (await journal(day)).appointments.find((a) => a.id === id);
+    expect(shown).toMatchObject({ startAt: at(day, '09:00'), endAt: at(day, '09:45') });
+
+    // Перенос — со своими 45 минутами: в 16:30 они уже не влезают, в 16:15 — да
+    expect((await move(id, { startAt: at(day, '16:30') })).json().error.code).toBe(
+      'outside_working_hours',
+    );
+    expect((await move(id, { startAt: at(day, '16:15') })).statusCode).toBe(204);
+    const moved = (await journal(day)).appointments.find((a) => a.id === id);
+    expect(moved).toMatchObject({ startAt: at(day, '16:15'), endAt: at(day, '17:00') });
   });
 
   it('books only free working time of the dentist', async () => {

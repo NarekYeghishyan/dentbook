@@ -229,8 +229,10 @@ describe('dentist mini app (Step 7)', () => {
     await page.getByText('Time closed.').waitFor();
     await page.getByText('Closed', { exact: true }).waitFor();
 
-    // Своего клиента врач записывает без SMS-кода — запись сразу подтверждена
+    // Своего клиента врач записывает без SMS-кода — запись сразу подтверждена.
+    // Длительность сначала — как у услуги, её можно изменить для этой записи
     await page.getByRole('button', { name: 'New booking' }).click();
+    expect(await page.getByLabel(/^Duration, minutes/).inputValue()).toBe('30');
     await page.getByLabel('Date', { exact: true }).fill(day);
     const slots = page.locator('fieldset button');
     await slots.first().waitFor();

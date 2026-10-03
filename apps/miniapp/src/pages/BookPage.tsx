@@ -1,14 +1,15 @@
 /**
  * Врач записывает своего клиента: услуга, офис, день → свободное время → имя,
  * необязательные телефон и комментарий (appointments.notes).
- * Услуга — из списка или «Другое»: тогда врач вводит только длительность. Такая услуга
- * остаётся только у этой записи, в списке услуг её нет.
+ * Услуга — из списка или «Другое». Длительность сначала — как у услуги (у «Другого» —
+ * 30 минут), врач может изменить её для этой записи; сетка времени считается по ней.
+ * «Другое» остаётся только у этой записи, в списке услуг его нет.
  * Без SMS-кода, запись сразу подтверждена (§1, Шаг 7).
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import type { MiniappAppointment } from '@dentbook/shared';
-import { CUSTOM_DURATION_MAX, CUSTOM_DURATION_MIN } from '@dentbook/shared/domain';
+import { BOOKING_DURATION_MAX, BOOKING_DURATION_MIN } from '@dentbook/shared/domain';
 import { api, ApiError } from '../api';
 import { errorText, useSession } from '../context';
 import { SlotPicker } from '../SlotPicker';
@@ -18,12 +19,12 @@ import { Button, Field, Input, Notice, Select, Textarea } from '../ui';
 /** Значение пункта «Другое» в списке услуг. */
 const CUSTOM = 'custom';
 
-/** Длительность «Другого» из поля ввода — или null, пока она не годится. */
+/** Длительность из поля ввода — или null, пока она не годится. */
 function durationOf(value: string): number | null {
   const minutes = Number(value);
   return Number.isInteger(minutes) &&
-    minutes >= CUSTOM_DURATION_MIN &&
-    minutes <= CUSTOM_DURATION_MAX
+    minutes >= BOOKING_DURATION_MIN &&
+    minutes <= BOOKING_DURATION_MAX
     ? minutes
     : null;
 }
@@ -40,8 +41,11 @@ export function BookPage({
 }) {
   const { me, locale, t } = useSession();
   const client = useQueryClient();
+  /** Длительность по умолчанию: у услуги — её, у «Другого» — 30 минут. */
+  const defaultDuration = (id: string) =>
+    String(me.services.find((s) => s.id === id)?.durationMin ?? 30);
   const [serviceId, setServiceId] = useState(me.services[0]?.id ?? CUSTOM);
-  const [customDuration, setCustomDuration] = useState('30');
+  const [duration, setDuration] = useState(() => defaultDuration(serviceId));
   const [locationId, setLocationId] = useState(me.locations[0]?.id ?? '');
   const [day, setDay] = useState(date);
   const [startAt, setStartAt] = useState<string | null>(null);
@@ -51,12 +55,12 @@ export function BookPage({
   const [error, setError] = useState<string | null>(null);
 
   const custom = serviceId === CUSTOM;
-  const durationMin = durationOf(customDuration);
+  const durationMin = durationOf(duration);
 
   const book = useMutation({
     mutationFn: (startAt: string) =>
       api<{ startAt: string; timeZone: string }>('POST', '/appointments', {
-        ...(custom ? { customService: { durationMin } } : { serviceId }),
+        ...(custom ? { customService: { durationMin } } : { serviceId, durationMin }),
         locationId,
         startAt,
         // Номер в любом виде или пусто: к E.164 его приводит API, если он так читается
@@ -102,6 +106,7 @@ export function BookPage({
           value={serviceId}
           onChange={(e) => {
             setServiceId(e.target.value);
+            setDuration(defaultDuration(e.target.value));
             resetTime();
           }}
         >
@@ -113,25 +118,22 @@ export function BookPage({
           <option value={CUSTOM}>{t('book.custom')}</option>
         </Select>
       </Field>
-      {custom && (
-        <Field
-          label={t('book.customDuration', { min: CUSTOM_DURATION_MIN, max: CUSTOM_DURATION_MAX })}
-        >
-          <Input
-            type="number"
-            inputMode="numeric"
-            required
-            min={CUSTOM_DURATION_MIN}
-            max={CUSTOM_DURATION_MAX}
-            step={5}
-            value={customDuration}
-            onChange={(e) => {
-              setCustomDuration(e.target.value);
-              resetTime();
-            }}
-          />
-        </Field>
-      )}
+      <Field
+        label={t('book.durationField', { min: BOOKING_DURATION_MIN, max: BOOKING_DURATION_MAX })}
+      >
+        <Input
+          type="number"
+          inputMode="numeric"
+          required
+          min={BOOKING_DURATION_MIN}
+          max={BOOKING_DURATION_MAX}
+          value={duration}
+          onChange={(e) => {
+            setDuration(e.target.value);
+            resetTime();
+          }}
+        />
+      </Field>
       {me.locations.length > 1 && (
         <Field label={t('book.office')}>
           <Select
@@ -162,7 +164,7 @@ export function BookPage({
       </Field>
 
       <SlotPicker
-        service={custom ? { durationMin } : { serviceId }}
+        service={custom ? { durationMin } : { serviceId, durationMin }}
         locationId={locationId}
         date={day}
         value={startAt}
