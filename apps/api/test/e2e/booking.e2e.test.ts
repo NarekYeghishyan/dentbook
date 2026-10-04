@@ -286,7 +286,11 @@ describe('booking form in a popup on a clinic website', () => {
     // Крестик закрывает окно и возвращает прокрутку; ссылка открывает его на том же шаге
     await dialog.getByRole('button', { name: 'Close' }).click();
     await dialog.waitFor({ state: 'hidden' });
-    expect(await page.evaluate(() => document.documentElement.style.overflow)).toBe('');
+    // Прокрутку возвращает событие close у <dialog>: оно приходит задачей после закрытия,
+    // поэтому — ждать, а не проверять сразу (иначе тест через раз падает)
+    await page.waitForFunction(() => document.documentElement.style.overflow === '', null, {
+      timeout: 2000,
+    });
     await page.getByRole('link', { name: 'Book online' }).click();
     await dialog.getByText('You are booked!').waitFor();
 
