@@ -276,6 +276,7 @@
   "client.addNote": "Добавить заметку",
   "client.noNotes": "Заметок пока нет.",
   "client.noteOnBooking": "Запись на {when}",
+  "client.noteEdited": "изменена",
   "client.deleteNote": "Удалить",
   "client.deleteNoteConfirm": "Удалить эту заметку? Восстановить её будет нельзя.",
   "dashboard.title": "Дашборд",

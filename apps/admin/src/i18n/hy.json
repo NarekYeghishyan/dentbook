@@ -276,6 +276,7 @@
   "client.addNote": "Ավելացնել նշում",
   "client.noNotes": "Նշումներ դեռ չկան։",
   "client.noteOnBooking": "Գրանցում՝ {when}",
+  "client.noteEdited": "փոփոխված",
   "client.deleteNote": "Ջնջել",
   "client.deleteNoteConfirm": "Ջնջե՞լ այս նշումը։ Այն հնարավոր չի լինի վերականգնել։",
   "dashboard.title": "Վահանակ",

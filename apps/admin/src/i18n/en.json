@@ -276,6 +276,7 @@
   "client.addNote": "Add note",
   "client.noNotes": "No notes yet.",
   "client.noteOnBooking": "Booking on {when}",
+  "client.noteEdited": "edited",
   "client.deleteNote": "Delete",
   "client.deleteNoteConfirm": "Delete this note? It cannot be restored.",
   "dashboard.title": "Dashboard",

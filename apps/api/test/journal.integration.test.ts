@@ -895,9 +895,8 @@ describe('client notes (Q19)', () => {
     const day = addDays(upcoming(5), 28);
     const id = await booked(day, '10:00', { notes: 'Allergic to latex' });
     const clientId = await clientOf(id);
+    // Заметка к записи — одна: новый текст правит её в истории, а не добавляет новую
     expect((await edit(id, { notes: 'Allergic to latex and penicillin' })).statusCode).toBe(204);
-    // Убранная заметка к записи — не новая заметка; прежние остаются в истории
-    expect((await edit(id, { notes: '' })).statusCode).toBe(204);
     for (const text of ['Prefers mornings', '  Pays in cash  ']) {
       expect((await addNote(owner, clientId, text)).statusCode).toBe(201);
     }
@@ -906,24 +905,55 @@ describe('client notes (Q19)', () => {
     const onBooking = { id, startAt: at(day, '10:00'), timeZone: ZONE };
     const { notes } = await cardOf(clientId);
     expect(
-      notes.map(({ text, author, authorName, appointment }) => ({
+      notes.map(({ text, author, authorName, edited, appointment }) => ({
         text,
         author,
         authorName,
+        edited,
         appointment,
       })),
     ).toEqual([
-      { text: 'Pays in cash', ...staff, appointment: null },
-      { text: 'Prefers mornings', ...staff, appointment: null },
-      { text: 'Allergic to latex and penicillin', ...staff, appointment: onBooking },
-      { text: 'Allergic to latex', ...staff, appointment: onBooking },
+      { text: 'Pays in cash', ...staff, edited: false, appointment: null },
+      { text: 'Prefers mornings', ...staff, edited: false, appointment: null },
+      {
+        text: 'Allergic to latex and penicillin',
+        ...staff,
+        edited: true,
+        appointment: onBooking,
+      },
     ]);
     const times = notes.map((n) => Date.parse(n.at));
     expect(times).toEqual([...times].sort((a, b) => b - a));
 
+    // Убранная заметка к записи уходит и из истории; заметки карточки остаются
+    expect((await edit(id, { notes: '' })).statusCode).toBe(204);
+    expect((await cardOf(clientId)).notes.map((n) => n.text)).toEqual([
+      'Pays in cash',
+      'Prefers mornings',
+    ]);
+
     expect((await addNote(owner, clientId, '   ')).statusCode).toBe(400);
     expect((await addNote(owner, clientId, 'x'.repeat(2001))).statusCode).toBe(400);
     expect((await addNote(owner, randomUUID(), 'Nobody')).statusCode).toBe(404);
+  });
+
+  it('moves the booking note to the new client of the booking', async () => {
+    const day = addDays(upcoming(4), 35);
+    const id = await booked(day, '10:00', { notes: 'Needs a translator' });
+    const first = await clientOf(id);
+    const second = await clientOf(await booked(day, '11:00', { fullName: 'Other Client' }));
+    const phone = `+1202555${String(6000 + phoneCounter)}`;
+
+    const res = await edit(id, { client: { fullName: 'Other Client', phone } });
+    expect(res.statusCode, res.body).toBe(204);
+    expect((await cardOf(first)).notes).toEqual([]);
+    expect((await cardOf(second)).notes).toEqual([
+      expect.objectContaining({
+        text: 'Needs a translator',
+        edited: false,
+        appointment: expect.objectContaining({ id }),
+      }),
+    ]);
   });
 
   it('lets the front desk add notes, and only the owner or an admin delete them', async () => {

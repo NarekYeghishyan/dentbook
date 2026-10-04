@@ -32,6 +32,7 @@ import {
   scheduleQuerySchema,
   type AppointmentChanges,
   type AppointmentHistory,
+  type ClientNote,
   type MiniappAppointment,
   type MiniappBusyTime,
   type MiniappMe,
@@ -46,7 +47,12 @@ import { computeAvailability } from '../../services/availability.js';
 import { loadHistory, recordEvent } from '../../services/history.js';
 import type { Notifier } from '../../services/notifier.js';
 import { slotTaken } from '../../services/holds.js';
-import { addClientNote, setBookingClient } from '../../services/clients.js';
+import {
+  loadClientNotes,
+  moveBookingNote,
+  setBookingClient,
+  syncBookingNote,
+} from '../../services/clients.js';
 import { cancelByClinic, updateAppointment } from '../../services/journal.js';
 import {
   findConflictingAppointments,
@@ -552,11 +558,11 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
           actor: { kind: 'dentist', dentistId: ctx.dentistId },
           changes: { startAt: { from: null, to: startIso } },
         });
-        // Комментарий врача — и в историю заметок клиента (Q19)
-        await addClientNote(tx, {
+        // Комментарий врача — он же в истории заметок клиента (Q19)
+        await syncBookingNote(tx, {
           clinicId: ctx.clinicId,
-          patientId: patient!.id,
           appointmentId: row!.id,
+          patientId: patient!.id,
           author: { kind: 'dentist', dentistId: ctx.dentistId },
           text: input.notes,
         });
@@ -628,15 +634,18 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
         .update(appointments)
         .set({ patientId, notes })
         .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)));
-      // Новый комментарий — и в историю заметок клиента (Q19)
-      if (changes.notes && patientId) {
-        await addClientNote(tx, {
+      // Комментарий — он же в истории заметок клиента (Q19): новый текст правит его, новый
+      // клиент записи забирает его к себе
+      if (changes.notes) {
+        await syncBookingNote(tx, {
           clinicId,
-          patientId,
           appointmentId: id,
+          patientId,
           author: { kind: 'dentist', dentistId },
           text: notes,
         });
+      } else if (patientId !== current.patientId) {
+        await moveBookingNote(tx, { clinicId, appointmentId: id, patientId });
       }
       if (changes.client || changes.notes) {
         await recordEvent(tx, {
@@ -725,6 +734,27 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
   app.get('/appointments/:id/history', async (request): Promise<AppointmentHistory> => {
     const { dentistId, clinicId } = dentistOf(request);
     return loadHistory(db, { clinicId, appointmentId: idOf(request), dentistId });
+  });
+
+  /**
+   * Заметки о клиенте своей записи (Q19) — те же, что в карточке клиента в панели:
+   * регистратуры, врачей и клиента с сайта. Только для чтения. Чужая запись — 404 (§2.2).
+   */
+  app.get('/appointments/:id/client-notes', async (request): Promise<ClientNote[]> => {
+    const { dentistId, clinicId } = dentistOf(request);
+    const [own] = await db
+      .select({ patientId: appointments.patientId })
+      .from(appointments)
+      .where(
+        and(
+          eq(appointments.id, idOf(request)),
+          eq(appointments.clinicId, clinicId),
+          eq(appointments.dentistId, dentistId),
+          inArray(appointments.status, SCHEDULE_WITH_CANCELLED),
+        ),
+      );
+    if (!own) throw notFound();
+    return own.patientId ? loadClientNotes(db, { clinicId, patientId: own.patientId }) : [];
   });
 
   async function officeZone(ctx: DentistContext, locationId: string) {

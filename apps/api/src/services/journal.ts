@@ -41,7 +41,7 @@ import type {
 } from '@dentbook/shared';
 import { ApiError, notFound } from '../lib/errors.js';
 import { computeAvailability, loadSchedules } from './availability.js';
-import { addClientNote, setBookingClient } from './clients.js';
+import { moveBookingNote, setBookingClient, syncBookingNote } from './clients.js';
 import { recordEvent, type ClinicActor } from './history.js';
 import { slotTaken } from './holds.js';
 import type { Notifier } from './notifier.js';
@@ -386,11 +386,11 @@ export async function createStaffBooking(
         actor: { kind: 'staff', userId: params.userId },
         changes: { startAt: { from: null, to: input.startAt.toISOString() } },
       });
-      // Заметка к записи — и в историю заметок клиента (Q19)
-      await addClientNote(tx, {
+      // Заметка к записи — она же в истории заметок клиента (Q19)
+      await syncBookingNote(tx, {
         clinicId,
-        patientId: patient!.id,
         appointmentId: row!.id,
+        patientId: patient!.id,
         author: { kind: 'staff', userId: params.userId },
         text: input.notes,
       });
@@ -590,15 +590,18 @@ export async function updateAppointment(
           notes,
         })
         .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)));
-      // Новая заметка к записи — и в историю заметок клиента (Q19)
-      if (changes.notes && patientId) {
-        await addClientNote(tx, {
+      // Заметка к записи — она же в истории заметок клиента (Q19): новый текст правит её,
+      // новый клиент записи забирает её к себе
+      if (changes.notes) {
+        await syncBookingNote(tx, {
           clinicId,
-          patientId,
           appointmentId: id,
+          patientId,
           author: actor,
           text: notes,
         });
+      } else if (patientId !== before.patientId) {
+        await moveBookingNote(tx, { clinicId, appointmentId: id, patientId });
       }
       const changed = Object.keys(changes);
       if (changed.length === 0) return;

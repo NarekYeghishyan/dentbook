@@ -20,6 +20,7 @@ import {
 } from '@dentbook/db';
 import type {
   ClientCard,
+  ClientNote,
   ClientSnapshot,
   ClientSummary,
   UpdateClientInput,
@@ -30,6 +31,9 @@ import type { Actor } from './history.js';
 /** Записи, которые попадают в историю клиента: всё, кроме холдов. */
 const HISTORY_STATUSES = ['pending', 'confirmed', 'completed', 'no_show', 'cancelled'] as const;
 const HISTORY_LIMIT = 200;
+
+/** Пояс офиса записи, без него — клиники (§2.3). */
+const zone = sql<string>`coalesce(${locations.timezone}, ${clinics.timezone})`;
 
 /** Поисковая строка для LIKE: спецсимволы экранируются, чтобы «%» не находил всех. */
 const likeTerm = (value: string) => `%${value.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
@@ -93,7 +97,6 @@ export async function loadClientCard(
     .where(and(eq(patients.id, id), eq(patients.clinicId, clinicId)));
   if (!patient) throw notFound();
 
-  const zone = sql<string>`coalesce(${locations.timezone}, ${clinics.timezone})`;
   const [history, notes] = await Promise.all([
     db
       .select({
@@ -120,26 +123,7 @@ export async function loadClientCard(
       )
       .orderBy(desc(appointments.startAt))
       .limit(HISTORY_LIMIT),
-    db
-      .select({
-        id: patientNotes.id,
-        at: patientNotes.createdAt,
-        text: patientNotes.text,
-        author: patientNotes.author,
-        userName: users.fullName,
-        dentistName: dentists.fullName,
-        appointmentId: appointments.id,
-        startAt: appointments.startAt,
-        timeZone: zone,
-      })
-      .from(patientNotes)
-      .innerJoin(clinics, eq(clinics.id, patientNotes.clinicId))
-      .leftJoin(users, eq(users.id, patientNotes.userId))
-      .leftJoin(dentists, eq(dentists.id, patientNotes.dentistId))
-      .leftJoin(appointments, eq(appointments.id, patientNotes.appointmentId))
-      .leftJoin(locations, eq(locations.id, appointments.locationId))
-      .where(and(eq(patientNotes.clinicId, clinicId), eq(patientNotes.patientId, id)))
-      .orderBy(desc(patientNotes.createdAt), desc(patientNotes.id)),
+    loadClientNotes(db, { clinicId, patientId: id }),
   ]);
 
   const count = (test: (h: (typeof history)[number]) => boolean) => history.filter(test).length;
@@ -159,51 +143,114 @@ export async function loadClientCard(
       status: h.status as ClientCard['appointments'][number]['status'],
       startAt: h.startAt.toISOString(),
     })),
-    notes: notes.map((n) => ({
-      id: n.id,
-      at: n.at.toISOString(),
-      text: n.text,
-      author: n.author,
-      authorName: n.userName ?? n.dentistName ?? null,
-      appointment:
-        n.appointmentId && n.startAt
-          ? { id: n.appointmentId, startAt: n.startAt.toISOString(), timeZone: n.timeZone }
-          : null,
-    })),
+    notes,
   };
 }
 
 /**
- * Заметка в историю клиента (Q19): из карточки или к записи — тогда со ссылкой на неё.
- * Пустую не пишет: убранная заметка к записи — не новая заметка. Вызывается в транзакции
- * того изменения, которое заметку принесло.
+ * История заметок клиента (Q19): карточка в панели и запись в Mini App. Сверху — последний
+ * написанный текст; заметка к записи, которую правили, поднимается со своей правкой.
  */
-export async function addClientNote(
+export async function loadClientNotes(
+  db: Database,
+  params: { clinicId: string; patientId: string },
+): Promise<ClientNote[]> {
+  const rows = await db
+    .select({
+      id: patientNotes.id,
+      createdAt: patientNotes.createdAt,
+      updatedAt: patientNotes.updatedAt,
+      text: patientNotes.text,
+      author: patientNotes.author,
+      userName: users.fullName,
+      dentistName: dentists.fullName,
+      appointmentId: appointments.id,
+      startAt: appointments.startAt,
+      timeZone: zone,
+    })
+    .from(patientNotes)
+    .innerJoin(clinics, eq(clinics.id, patientNotes.clinicId))
+    .leftJoin(users, eq(users.id, patientNotes.userId))
+    .leftJoin(dentists, eq(dentists.id, patientNotes.dentistId))
+    .leftJoin(appointments, eq(appointments.id, patientNotes.appointmentId))
+    .leftJoin(locations, eq(locations.id, appointments.locationId))
+    .where(
+      and(eq(patientNotes.clinicId, params.clinicId), eq(patientNotes.patientId, params.patientId)),
+    )
+    .orderBy(desc(patientNotes.updatedAt), desc(patientNotes.id));
+  return rows.map((n) => ({
+    id: n.id,
+    at: n.updatedAt.toISOString(),
+    edited: n.updatedAt > n.createdAt,
+    text: n.text,
+    author: n.author,
+    authorName: n.userName ?? n.dentistName ?? null,
+    appointment:
+      n.appointmentId && n.startAt
+        ? { id: n.appointmentId, startAt: n.startAt.toISOString(), timeZone: n.timeZone }
+        : null,
+  }));
+}
+
+const authorOf = (author: Actor) => ({
+  author: author.kind,
+  userId: author.kind === 'staff' ? author.userId : null,
+  dentistId: author.kind === 'dentist' ? author.dentistId : null,
+});
+
+/**
+ * Заметка к записи в истории клиента (Q19). У записи одна заметка — и в истории она одна:
+ * первый текст добавляет её, новый правит (автор и время — того, кто написал этот текст),
+ * пустой — убирает. В истории записи (appointment_events) остаются все версии. Вызывается в
+ * транзакции того изменения, которое принесло текст.
+ */
+export async function syncBookingNote(
   db: Executor,
   note: {
     clinicId: string;
-    patientId: string;
-    appointmentId?: string;
+    appointmentId: string;
+    /** Нынешний клиент записи. */
+    patientId: string | null;
     author: Actor;
     text: string | null | undefined;
   },
-): Promise<string | null> {
+): Promise<void> {
+  const { clinicId, appointmentId, patientId } = note;
   const text = note.text?.trim();
-  if (!text) return null;
-  const { author } = note;
-  const [row] = await db
+  if (!text || !patientId) {
+    await db
+      .delete(patientNotes)
+      .where(
+        and(eq(patientNotes.clinicId, clinicId), eq(patientNotes.appointmentId, appointmentId)),
+      );
+    return;
+  }
+  const written = { patientId, text, ...authorOf(note.author) };
+  await db
     .insert(patientNotes)
-    .values({
-      clinicId: note.clinicId,
-      patientId: note.patientId,
-      appointmentId: note.appointmentId ?? null,
-      author: author.kind,
-      userId: author.kind === 'staff' ? author.userId : null,
-      dentistId: author.kind === 'dentist' ? author.dentistId : null,
-      text,
-    })
-    .returning({ id: patientNotes.id });
-  return row!.id;
+    .values({ clinicId, appointmentId, ...written })
+    .onConflictDoUpdate({
+      target: patientNotes.appointmentId,
+      targetWhere: sql`appointment_id IS NOT NULL`,
+      set: { ...written, updatedAt: sql`now()` },
+    });
+}
+
+/** Клиент записи сменился, а заметка — нет: она уходит к новому клиенту, текст и время те же. */
+export async function moveBookingNote(
+  db: Executor,
+  note: { clinicId: string; appointmentId: string; patientId: string | null },
+): Promise<void> {
+  if (!note.patientId) return;
+  await db
+    .update(patientNotes)
+    .set({ patientId: note.patientId })
+    .where(
+      and(
+        eq(patientNotes.clinicId, note.clinicId),
+        eq(patientNotes.appointmentId, note.appointmentId),
+      ),
+    );
 }
 
 /** Регистратура добавляет заметку в карточке клиента. Чужой клиент — 404 (§2.2). */
@@ -217,13 +264,16 @@ export async function createClientNote(
     and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)),
   );
   if (found === 0) throw notFound();
-  const id = await addClientNote(db, {
-    clinicId,
-    patientId,
-    author: { kind: 'staff', userId: params.userId },
-    text: params.text,
-  });
-  return { id: id! };
+  const [row] = await db
+    .insert(patientNotes)
+    .values({
+      clinicId,
+      patientId,
+      text: params.text,
+      ...authorOf({ kind: 'staff', userId: params.userId }),
+    })
+    .returning({ id: patientNotes.id });
+  return { id: row!.id };
 }
 
 /** Удаление заметки — владелец или администратор (Q19); правки заметок нет. */

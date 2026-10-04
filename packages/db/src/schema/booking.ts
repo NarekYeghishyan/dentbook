@@ -8,6 +8,7 @@ import {
   pgTable,
   text,
   unique,
+  uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
 import {
@@ -237,11 +238,11 @@ export const appointmentEvents = pgTable(
 );
 
 /**
- * Заметки о клиенте (Q19) — история на его карточке. Регистратура пишет их в карточке, а
- * заметка к записи (регистратура в журнале, врач в Mini App, клиент на сайте) попадает
- * сюда же со ссылкой на запись. Заметки не правятся: только добавляются, удалить может
- * владелец или администратор клиники. Текст — данные клиники, как patients: в логи и
- * трекеры не попадает (§2.6).
+ * Заметки о клиенте (Q19) — история на его карточке; её видит и врач в Mini App.
+ * Регистратура пишет заметки в карточке — они не правятся, удалить может владелец или
+ * администратор клиники. Заметка к записи (регистратура в журнале, врач в Mini App, клиент
+ * на сайте) — та же заметка: одна строка на запись, новый текст правит её, убранный —
+ * удаляет. Текст — данные клиники, как patients: в логи и трекеры не попадает (§2.6).
  */
 export const patientNotes = pgTable(
   'patient_notes',
@@ -259,6 +260,11 @@ export const patientNotes = pgTable(
     dentistId: uuid('dentist_id'),
     text: text('text').notNull(),
     createdAt: createdAt(),
+    /**
+     * Когда написан нынешний текст. Меняется только у заметки к записи — при новом тексте;
+     * смена клиента записи его не трогает. Поэтому без $onUpdate.
+     */
+    updatedAt: timestamptz('updated_at').notNull().defaultNow(),
   },
   (t) => [
     foreignKey({
@@ -291,5 +297,9 @@ export const patientNotes = pgTable(
     check('patient_notes_dentist_writes', sql`dentist_id IS NULL OR author = 'dentist'`),
     check('patient_notes_text', sql`btrim(text) <> '' AND char_length(text) <= 2000`),
     index('patient_notes_patient_idx').on(t.patientId, t.createdAt),
+    // У записи одна заметка — и в истории клиента одна строка: новый текст правит её
+    uniqueIndex('patient_notes_appointment_key')
+      .on(t.appointmentId)
+      .where(sql`appointment_id IS NOT NULL`),
   ],
 );

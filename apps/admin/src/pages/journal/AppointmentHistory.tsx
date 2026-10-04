@@ -1,8 +1,23 @@
 /** История записи в журнале: что, кем и когда изменено — новые события сверху. */
 import type { AppointmentEvent, ClientSnapshot } from '@dentbook/shared';
+import type { AppointmentActor } from '@dentbook/shared/domain';
 import { useAppointmentHistory } from '../../api/hooks';
 import { useI18n, type MessageKey } from '../../i18n';
 import { formatDateTime } from '../../lib/time';
+
+/** Кто это сделал или написал: клиент на сайте, врач, регистратура, система. */
+export function actorLabel(
+  t: ReturnType<typeof useI18n>['t'],
+  actor: AppointmentActor,
+  name: string | null,
+) {
+  if (actor === 'client') return t('history.byClient');
+  if (actor === 'system') return t('history.bySystem');
+  if (actor === 'dentist') {
+    return name ? t('history.byDentistNamed', { name }) : t('history.byDentist');
+  }
+  return name ? t('history.byStaffNamed', { name }) : t('history.byStaff');
+}
 
 export function AppointmentHistory({ appointmentId }: { appointmentId: string }) {
   const { t, locale } = useI18n();
@@ -22,16 +37,7 @@ export function AppointmentHistory({ appointmentId }: { appointmentId: string })
   const when = (iso: string) => formatDateTime(iso, timeZone, locale);
   const client = (c: ClientSnapshot | null) =>
     c ? [c.fullName, c.phone].filter(Boolean).join(', ') : '—';
-  const who = (e: AppointmentEvent) => {
-    if (e.actor === 'client') return t('history.byClient');
-    if (e.actor === 'system') return t('history.bySystem');
-    if (e.actor === 'dentist') {
-      return e.actorName
-        ? t('history.byDentistNamed', { name: e.actorName })
-        : t('history.byDentist');
-    }
-    return e.actorName ? t('history.byStaffNamed', { name: e.actorName }) : t('history.byStaff');
-  };
+  const who = (e: AppointmentEvent) => actorLabel(t, e.actor, e.actorName);
   const lines = ({ changes: c }: AppointmentEvent) => {
     if (!c) return [];
     return [

@@ -18,6 +18,7 @@ import {
 import type {
   AppointmentHistory,
   ClientCard,
+  ClientNote,
   ConfirmedAppointment,
   Dentist,
   HoldResponse,
@@ -563,8 +564,31 @@ describe('Mini App (§8)', () => {
         notes: 'Allergic to latex',
       }),
     );
+    // Комментарий — он же заметка в истории клиента (Q19): новый текст поправил её, а не
+    // добавил новую, и она ушла к новому клиенту записи
+    const notesOf = async (phone: string) => {
+      const [client] = await database.db
+        .select({ id: patients.id })
+        .from(patients)
+        .where(and(eq(patients.clinicId, owner.clinicId), eq(patients.phone, phone)));
+      const card = await call<ClientCard>(app, owner, {
+        method: 'GET',
+        url: `/v1/admin/clients/${client!.id}`,
+      });
+      return card.notes.map(({ text, author, authorName, edited }) => ({
+        text,
+        author,
+        authorName,
+        edited,
+      }));
+    };
+    const anna = { author: 'dentist', authorName: 'Dr. Anna' };
+    expect(await notesOf('+12025559000')).toEqual([]);
+    expect(await notesOf('+12025559002')).toEqual([
+      { text: 'Allergic to latex', ...anna, edited: true },
+    ]);
 
-    // Пустой комментарий убирает его; клиент без поля client не меняется
+    // Пустой комментарий убирает его — и из истории клиента; клиент без поля client не меняется
     expect((await edit(own!.id, { notes: '' })).statusCode).toBe(204);
     const [row] = await database.db
       .select({ notes: appointments.notes, phone: patients.phone })
@@ -581,22 +605,62 @@ describe('Mini App (§8)', () => {
       expect.objectContaining({ id: website!.id, notes: 'Call before the visit' }),
     );
 
-    // Комментарии врача — в истории заметок карточки клиента (Q19): первый остался у
-    // прежнего клиента записи, новый — у нового; убранный комментарий заметок не добавляет
-    const notesOf = async (phone: string) => {
-      const [client] = await database.db
-        .select({ id: patients.id })
-        .from(patients)
-        .where(and(eq(patients.clinicId, owner.clinicId), eq(patients.phone, phone)));
-      const card = await call<ClientCard>(app, owner, {
-        method: 'GET',
-        url: `/v1/admin/clients/${client!.id}`,
-      });
-      return card.notes.map(({ text, author, authorName }) => ({ text, author, authorName }));
-    };
-    const anna = { author: 'dentist', authorName: 'Dr. Anna' };
-    expect(await notesOf('+12025559000')).toEqual([{ text: 'Bring the X-ray', ...anna }]);
-    expect(await notesOf('+12025559002')).toEqual([{ text: 'Allergic to latex', ...anna }]);
+    expect(await notesOf('+12025559002')).toEqual([]);
+  });
+
+  it('shows the dentist every note about the client of an own booking (Q19)', async () => {
+    const booked = await mini(ANNA_CHAT, {
+      method: 'POST',
+      url: '/v1/miniapp/appointments',
+      payload: {
+        serviceId: data.serviceId,
+        locationId: data.locationId,
+        startAt: at(addDays(upcoming(3), 14), '15:00'),
+        client: { fullName: 'Noted Client', phone: '+12025559050' },
+        notes: 'Sensitive teeth',
+      },
+    });
+    expect(booked.statusCode, booked.body).toBe(201);
+    const id = booked.json<{ id: string }>().id;
+    const [client] = await database.db
+      .select({ id: patients.id })
+      .from(patients)
+      .where(and(eq(patients.clinicId, owner.clinicId), eq(patients.phone, '+12025559050')));
+    // Заметка регистратуры в карточке клиента
+    await call(
+      app,
+      owner,
+      {
+        method: 'POST',
+        url: `/v1/admin/clients/${client!.id}/notes`,
+        payload: { text: 'Pays in cash' },
+      },
+      201,
+    );
+
+    const notesUrl = `/v1/miniapp/appointments/${id}/client-notes`;
+    const res = await mini(ANNA_CHAT, { method: 'GET', url: notesUrl });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(
+      res.json<ClientNote[]>().map(({ text, author, authorName, appointment }) => ({
+        text,
+        author,
+        authorName,
+        appointment: appointment?.id ?? null,
+      })),
+    ).toEqual([
+      { text: 'Pays in cash', author: 'staff', authorName: 'Olivia Owner', appointment: null },
+      { text: 'Sensitive teeth', author: 'dentist', authorName: 'Dr. Anna', appointment: id },
+    ]);
+
+    // Отменить: дальше тесты изоляции берут любую подтверждённую запись врача
+    const cancelled = await mini(ANNA_CHAT, {
+      method: 'POST',
+      url: `/v1/miniapp/appointments/${id}/cancel`,
+    });
+    expect(cancelled.statusCode, cancelled.body).toBe(204);
+    // Отменённая запись — заметки клиента по-прежнему видны
+    expect((await mini(ANNA_CHAT, { method: 'GET', url: notesUrl })).json()).toHaveLength(2);
   });
 
   it('moves and cancels an own booking without alerting the dentist', async () => {
@@ -1306,6 +1370,15 @@ describe('Mini App isolation (§2.2)', () => {
         const res = await mini(chat, {
           method: 'GET',
           url: `/v1/miniapp/appointments/${annaAppointment}/history`,
+        });
+        expect(res.statusCode).toBe(404);
+      }
+    },
+    'GET /v1/miniapp/appointments/:id/client-notes': async () => {
+      for (const chat of [BORIS_CHAT, OTHER_CHAT]) {
+        const res = await mini(chat, {
+          method: 'GET',
+          url: `/v1/miniapp/appointments/${annaAppointment}/client-notes`,
         });
         expect(res.statusCode).toBe(404);
       }

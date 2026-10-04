@@ -463,11 +463,12 @@ CREATE INDEX appointment_events_appointment_idx ON appointment_events (appointme
 
 
 -- -----------------------------------------------------------------------------
--- patient_notes — заметки о клиенте (Q19): история на его карточке. Регистратура
--- пишет их в карточке; заметка к записи (регистратура в журнале, врач в Mini App,
--- клиент на сайте) попадает сюда же со ссылкой на запись — при создании записи и
--- при каждом новом тексте. Заметки не правятся: только добавляются, удалить может
--- владелец или администратор. Текст — данные клиники, в логи не попадает (§2.6).
+-- patient_notes — заметки о клиенте (Q19): история на его карточке; её же видит врач
+-- в Mini App. Регистратура пишет заметки в карточке — они не правятся, удалить может
+-- владелец или администратор. Заметка к записи (регистратура в журнале, врач в Mini
+-- App, клиент на сайте) — та же заметка: одна строка на запись со ссылкой на неё; новый
+-- текст правит строку, убранный — удаляет, новый клиент записи забирает её к себе.
+-- Текст — данные клиники, в логи не попадает (§2.6).
 -- -----------------------------------------------------------------------------
 CREATE TABLE patient_notes (
   id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -482,6 +483,8 @@ CREATE TABLE patient_notes (
   dentist_id      uuid,
   text            text        NOT NULL,
   created_at      timestamptz NOT NULL DEFAULT now(),
+  -- Когда написан нынешний текст: меняется только у заметки к записи при новом тексте
+  updated_at      timestamptz NOT NULL DEFAULT now(),
 
   CONSTRAINT patient_notes_author  CHECK (author IN ('client', 'dentist', 'staff', 'system')),
   CONSTRAINT patient_notes_user_is_staff   CHECK (user_id IS NULL OR author = 'staff'),
@@ -497,6 +500,9 @@ CREATE TABLE patient_notes (
 );
 
 CREATE INDEX patient_notes_patient_idx ON patient_notes (patient_id, created_at);
+-- У записи одна заметка — и в истории клиента одна строка
+CREATE UNIQUE INDEX patient_notes_appointment_key ON patient_notes (appointment_id)
+  WHERE appointment_id IS NOT NULL;
 
 
 -- -----------------------------------------------------------------------------

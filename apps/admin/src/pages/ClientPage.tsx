@@ -4,7 +4,7 @@
  */
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { CLIENT_NOTE_MAX, type ClientCard, type ClientNote } from '@dentbook/shared';
+import { CLIENT_NOTE_MAX, type ClientCard } from '@dentbook/shared';
 import { useAddClientNote, useClient, useDeleteClientNote, useUpdateClient } from '../api/hooks';
 import { useCanManage, useSession } from '../components/Layout';
 import {
@@ -20,6 +20,7 @@ import {
 } from '../components/ui';
 import { useI18n, type MessageKey } from '../i18n';
 import { dateIn, formatDate, formatDateTime } from '../lib/time';
+import { actorLabel } from './journal/AppointmentHistory';
 
 const STATUS_TONE = {
   pending: 'amber',
@@ -71,9 +72,10 @@ function Details({ client }: { client: ClientCard }) {
 }
 
 /**
- * История заметок (Q19): новая заметка — сверху. Сюда же приходят заметки к записям —
- * регистратуры, врача из Telegram, клиента с сайта. Правки нет; удалить может владелец или
- * администратор.
+ * История заметок (Q19): новая заметка — сверху. Здесь же заметки к записям — регистратуры,
+ * врача из Telegram, клиента с сайта: у записи одна заметка, и её правка меняет её здесь
+ * («изменена»), а не добавляет новую. Заметки карточки не правятся; удалить может владелец
+ * или администратор. Эти же заметки врач видит в Mini App.
  */
 function Notes({ client }: { client: ClientCard }) {
   const { t, locale } = useI18n();
@@ -87,19 +89,6 @@ function Notes({ client }: { client: ClientCard }) {
     event.preventDefault();
     add.mutate({ clientId: client.id, text }, { onSuccess: () => setText('') });
   }
-
-  const author = (note: ClientNote) => {
-    if (note.author === 'client') return t('history.byClient');
-    if (note.author === 'system') return t('history.bySystem');
-    if (note.author === 'dentist') {
-      return note.authorName
-        ? t('history.byDentistNamed', { name: note.authorName })
-        : t('history.byDentist');
-    }
-    return note.authorName
-      ? t('history.byStaffNamed', { name: note.authorName })
-      : t('history.byStaff');
-  };
 
   return (
     <Card title={t('client.notes')}>
@@ -127,7 +116,9 @@ function Notes({ client }: { client: ClientCard }) {
               <div className="mt-1 flex justify-between gap-3 text-xs text-slate-500">
                 <div>
                   <p>
-                    {formatDateTime(note.at, clinic.timezone, locale)} · {author(note)}
+                    {formatDateTime(note.at, clinic.timezone, locale)} ·{' '}
+                    {actorLabel(t, note.author, note.authorName)}
+                    {note.edited && ` · ${t('client.noteEdited')}`}
                   </p>
                   {note.appointment && (
                     <p>

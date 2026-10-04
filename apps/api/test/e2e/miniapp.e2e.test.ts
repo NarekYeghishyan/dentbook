@@ -319,9 +319,37 @@ describe('dentist mini app (Step 7)', () => {
     await page.getByRole('button', { name: 'Book', exact: true }).waitFor();
     await page.getByRole('button', { name: 'Schedule', exact: true }).click();
 
+    // Регистратура пишет заметку в карточке клиента — врач увидит её в записи (Q19)
+    const [bob] = await database.db
+      .select({ id: patients.id })
+      .from(patients)
+      .where(and(eq(patients.clinicId, owner.clinicId), eq(patients.phone, '+12025550199')));
+    await call(
+      app,
+      owner,
+      {
+        method: 'POST',
+        url: `/v1/admin/clients/${bob!.id}/notes`,
+        payload: { text: 'Pays in cash' },
+      },
+      201,
+    );
+
     // История: что, кем и когда менялось
     // Имя клиента в карточке открывает запись так же, как «Изменить»
     await page.getByRole('button', { name: 'Bob Walker', exact: true }).click();
+
+    // Заметки о клиенте: заметка регистратуры и комментарий врача — один, правка его
+    // поменяла, а не добавила второй
+    const notes = page.getByRole('list', { name: 'Client notes' });
+    await notes.getByText('Pays in cash').waitFor();
+    await notes.getByText('Front desk · Olivia Owner', { exact: false }).waitFor();
+    const comment = notes.getByRole('listitem').filter({ hasText: 'Prefers afternoons' });
+    await comment.getByText(/Dentist · Dr\. Anna · edited$/).waitFor();
+    await comment.getByText('This booking').waitFor();
+    expect(await notes.getByRole('listitem').count()).toBe(2);
+    await shot(page, '6-client-notes');
+
     await page.getByRole('button', { name: 'History' }).click();
     const history = page.getByRole('list');
     await history.getByText('Moved', { exact: true }).waitFor();

@@ -2,6 +2,7 @@
  * Запись из расписания врача. Клиента и комментарий можно поправить всегда; предстоящую
  * запись — ещё перенести на другое свободное время или отменить. Клиенту о переносе и
  * отмене уходит SMS, как при действиях регистратуры. «История» — кто и что менял.
+ * Ниже — заметки о клиенте из его карточки (Q19), только для чтения.
  * Отменённая запись — только для просмотра: кто отменил, и история открыта сразу.
  */
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -13,6 +14,7 @@ import { SlotPicker } from '../SlotPicker';
 import { confirmAction } from '../telegram';
 import { dateIn, formatDateTime } from '../time';
 import { Button, Field, Input, Notice, Textarea } from '../ui';
+import { ClientNotes } from './ClientNotes';
 import { HistoryList } from './HistoryList';
 import { cancelledLabel } from './SchedulePage';
 
@@ -51,6 +53,7 @@ export function AppointmentPage({
     void client.invalidateQueries({ queryKey: ['schedule'] });
     void client.invalidateQueries({ queryKey: ['slots'] });
     void client.invalidateQueries({ queryKey: ['history', a.id] });
+    void client.invalidateQueries({ queryKey: ['client-notes'] });
     onDone(target, message);
   };
   const failed = (part: Part) => (err: unknown) => setError({ part, text: errorText(locale, err) });
@@ -116,6 +119,7 @@ export function AppointmentPage({
         {cancelled && <div className="text-sm text-danger">{t(cancelledLabel(a.cancelledBy))}</div>}
       </div>
       {showHistory && <HistoryList appointmentId={a.id} />}
+      <ClientNotes appointmentId={a.id} />
 
       {!cancelled && (
         <form className="space-y-3" onSubmit={submit}>

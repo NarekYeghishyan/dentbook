@@ -1,11 +1,22 @@
 /** История записи: что, кем и когда изменено — новые события сверху. */
 import { useQuery } from '@tanstack/react-query';
 import type { AppointmentEvent, AppointmentHistory, ClientSnapshot } from '@dentbook/shared';
+import type { AppointmentActor } from '@dentbook/shared/domain';
 import { api } from '../api';
-import { errorText, useSession } from '../context';
+import { errorText, useSession, type Session } from '../context';
 import type { MessageKey } from '../i18n';
 import { formatDateTime } from '../time';
 import { Notice } from '../ui';
+
+/** Кто это сделал или написал: клиент на сайте, врач, регистратура, система. */
+export function actorLabel(t: Session['t'], actor: AppointmentActor, name: string | null) {
+  if (actor === 'client') return t('history.byClient');
+  if (actor === 'system') return t('history.bySystem');
+  if (actor === 'dentist') {
+    return name ? t('history.byDentistNamed', { name }) : t('history.byDentist');
+  }
+  return name ? t('history.byStaffNamed', { name }) : t('history.byStaff');
+}
 
 export function HistoryList({ appointmentId }: { appointmentId: string }) {
   const { locale, t } = useSession();
@@ -23,16 +34,7 @@ export function HistoryList({ appointmentId }: { appointmentId: string }) {
   const when = (iso: string) => formatDateTime(iso, timeZone, locale);
   const client = (c: ClientSnapshot | null) =>
     c ? [c.fullName, c.phone].filter(Boolean).join(', ') : '—';
-  const who = (e: AppointmentEvent) => {
-    if (e.actor === 'client') return t('history.byClient');
-    if (e.actor === 'system') return t('history.bySystem');
-    if (e.actor === 'dentist') {
-      return e.actorName
-        ? t('history.byDentistNamed', { name: e.actorName })
-        : t('history.byDentist');
-    }
-    return e.actorName ? t('history.byStaffNamed', { name: e.actorName }) : t('history.byStaff');
-  };
+  const who = (e: AppointmentEvent) => actorLabel(t, e.actor, e.actorName);
   const lines = ({ changes: c }: AppointmentEvent) => {
     if (!c) return [];
     return [

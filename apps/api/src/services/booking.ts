@@ -18,7 +18,7 @@ import type {
   PublicAppointment,
 } from '@dentbook/shared';
 import { ApiError, notFound } from '../lib/errors.js';
-import { addClientNote } from './clients.js';
+import { syncBookingNote } from './clients.js';
 import { recordEvent } from './history.js';
 import type { Notifier } from './notifier.js';
 import type { SlotCache } from './slot-cache.js';
@@ -146,11 +146,11 @@ export async function confirmAppointment(
       actor: { kind: 'client' },
       changes: { startAt: { from: null, to: appointment.startAt.toISOString() } },
     });
-    // Комментарий клиента на сайте — и в историю заметок клиента (Q19)
-    await addClientNote(tx, {
+    // Комментарий клиента на сайте — он же в истории заметок клиента (Q19)
+    await syncBookingNote(tx, {
       clinicId,
-      patientId: patient!.id,
       appointmentId: appointment.id,
+      patientId: patient!.id,
       author: { kind: 'client' },
       text: input.notes,
     });

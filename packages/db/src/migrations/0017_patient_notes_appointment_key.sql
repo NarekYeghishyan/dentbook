@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "patient_notes_appointment_key" ON "patient_notes" USING btree ("appointment_id") WHERE appointment_id IS NOT NULL;
