@@ -6,9 +6,9 @@ import { z } from 'zod';
 import type { AppointmentSource, AppointmentStatus } from './domain.js';
 import { instantSchema, localDateSchema } from './catalog.js';
 import {
+  anyPhoneSchema,
   bookingDurationSchema,
   emailSchema,
-  freePhoneSchema,
   nameSchema,
   uuidSchema,
 } from './validators.js';
@@ -29,7 +29,7 @@ export type BookingStatus = Exclude<AppointmentStatus, 'hold' | 'expired'>;
 export interface JournalClient {
   id: string;
   fullName: string;
-  /** null — врач записал клиента в Mini App без номера. */
+  /** null — клиента записали без номера (врач в Mini App или регистратура). */
   phone: string | null;
 }
 
@@ -81,7 +81,8 @@ export const staffBookingSchema = z.object({
   durationMin: bookingDurationSchema.optional(),
   client: z.object({
     fullName: nameSchema,
-    phone: freePhoneSchema,
+    /** Необязательный, в любом виде: пусто → клиент без номера. */
+    phone: anyPhoneSchema,
     email: emailSchema.optional(),
   }),
   notes: z.string().trim().max(1000).optional(),
@@ -111,7 +112,7 @@ export const clientSearchSchema = z.object({
 export interface ClientSummary {
   id: string;
   fullName: string;
-  /** null — врач записал клиента в Mini App без номера. */
+  /** null — клиента записали без номера (врач в Mini App или регистратура). */
   phone: string | null;
   email: string | null;
   visits: number;
@@ -133,7 +134,7 @@ export interface ClientAppointment {
 export interface ClientCard {
   id: string;
   fullName: string;
-  /** null — врач записал клиента в Mini App без номера. */
+  /** null — клиента записали без номера (врач в Mini App или регистратура). */
   phone: string | null;
   email: string | null;
   notes: string | null;

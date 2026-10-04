@@ -242,6 +242,7 @@
   "booking.client": "Հաճախորդ",
   "booking.search": "Գտնել հաճախորդին անունով կամ հեռախոսով",
   "booking.newClient": "Կամ մուտքագրեք նոր հաճախորդ",
+  "booking.phoneOptional": "Հեռախոս (ըստ ցանկության)",
   "booking.emailOptional": "Email (ըստ ցանկության)",
   "booking.notes": "Նշումներ (ըստ ցանկության)",
   "booking.date": "Ամսաթիվ",

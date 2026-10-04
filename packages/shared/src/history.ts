@@ -6,7 +6,7 @@ import type { AppointmentActor, AppointmentEventType } from './domain.js';
 
 export interface ClientSnapshot {
   fullName: string;
-  /** null — врач записал клиента в Mini App без номера. */
+  /** null — клиента записали без номера (врач в Mini App или регистратура). */
   phone: string | null;
 }
 

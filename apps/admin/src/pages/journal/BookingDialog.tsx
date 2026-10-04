@@ -1,6 +1,7 @@
 /**
  * Регистратура записывает клиента (Q17): врач, услуга, время по сетке клиники, клиент —
- * найденный по имени или телефону или новый. Длительность сначала — как у услуги, её можно
+ * найденный по имени или телефону или новый; телефон необязателен (без него — новый
+ * клиент, SMS ему не уходят). Длительность сначала — как у услуги, её можно
  * изменить для этой записи. Запись сразу подтверждена; занято — 409 и ближайшее свободное
  * время, которое можно выбрать одним нажатием.
  */
@@ -80,7 +81,7 @@ export function BookingDialog({
         durationMin: Number(duration),
         client: {
           fullName: client.fullName.trim(),
-          // Номер в любом виде, но обязательно: к E.164 его приводит API, если он так читается
+          // Номер в любом виде или пусто: к E.164 его приводит API, если он так читается
           phone: client.phone.trim(),
           ...(client.email.trim() ? { email: client.email.trim() } : {}),
         },
@@ -192,10 +193,9 @@ export function BookingDialog({
                 onChange={(e) => setClient({ ...client, fullName: e.target.value })}
               />
             </Field>
-            <Field label={t('field.phone')}>
+            <Field label={t('booking.phoneOptional')}>
               <Input
                 type="tel"
-                required
                 maxLength={50}
                 value={client.phone}
                 onChange={(e) => setClient({ ...client, phone: e.target.value })}

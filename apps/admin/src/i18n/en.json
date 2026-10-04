@@ -242,6 +242,7 @@
   "booking.client": "Client",
   "booking.search": "Find a client by name or phone",
   "booking.newClient": "Or enter a new client",
+  "booking.phoneOptional": "Phone (optional)",
   "booking.emailOptional": "Email (optional)",
   "booking.notes": "Notes (optional)",
   "booking.date": "Date",

@@ -136,7 +136,7 @@ export function smsProcessor(deps: { db: Database; sms: SmsSender; now?: () => D
     // Снято при отмене записи или уже отправлено прошлой попыткой
     if (!row || row.status !== 'scheduled') return 'skipped';
 
-    // Врач записал клиента в Mini App без номера или ввёл номер не в E.164 — слать некуда
+    // Клиента записали без номера или ввели номер не в E.164 — слать некуда
     if (row.phone === null || !isE164(row.phone)) {
       await mark(id, {
         status: 'cancelled',

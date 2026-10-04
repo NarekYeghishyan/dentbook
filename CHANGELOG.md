@@ -15,6 +15,12 @@ produced them (CLAUDE.md §9).
 
 #### Changed
 
+- `feat(admin): let the front desk book a client without a phone` — в «Новой записи» журнала
+  телефон больше не обязателен: поле подписано «Телефон (необязательно)», пусто — клиент без
+  номера, как у врача в Mini App. Такой клиент получает алерт врачу с именем, но не SMS.
+  У каждой записи без номера свой клиент, даже если его выбрали в поиске.
+  - API: `staffBookingSchema` берёт `anyPhoneSchema`; `freePhoneSchema` удалена.
+  - ADR-0010, ADR-0012, интеграционный и e2e-тесты.
 - `feat: let the dentist and the front desk change the duration of one booking` — в «Новой
   записи» (Mini App и журнал) есть поле «Длительность»: сначала — как у выбранной услуги,
   её можно изменить для этой записи (5–480 мин): например, консультация не на 30, а на

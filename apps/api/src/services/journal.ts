@@ -335,7 +335,8 @@ export async function createStaffBooking(
     id = await db.transaction(async (tx) => {
       await lockDentist(tx, input.dentistId);
       await assertNotBlocked(tx, clinicId, input.dentistId, { start: input.startAt, end: until });
-      // Клиент в клинике определяется телефоном (Q9)
+      // Клиент с номером ищется по нему (Q9). Без номера совпасть не с чем: NULL в
+      // уникальном ключе не равен NULL, и у такой записи свой клиент
       const [patient] = await tx
         .insert(patients)
         .values({

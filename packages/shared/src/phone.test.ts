@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isE164, maskNational, toE164, toE164In } from './phone.js';
-import { anyPhoneSchema, freePhoneSchema } from './validators.js';
+import { anyPhoneSchema } from './validators.js';
 
 describe('toE164', () => {
   it.each([
@@ -54,20 +54,7 @@ describe('isE164', () => {
   });
 });
 
-describe('freePhoneSchema (front desk in the journal)', () => {
-  it.each([
-    ['(202) 555-0123', '+12025550123'],
-    [' 077 12-34-56 ', '077 12-34-56'],
-  ])('%j → %j', (input, expected) => {
-    expect(freePhoneSchema.parse(input)).toBe(expected);
-  });
-
-  it.each(['', '   ', 'x'.repeat(51)])('rejects %j: the number is required', (input) => {
-    expect(freePhoneSchema.safeParse(input).success).toBe(false);
-  });
-});
-
-describe('anyPhoneSchema (dentist in the Mini App)', () => {
+describe('anyPhoneSchema (dentist in the Mini App, front desk in the journal)', () => {
   it.each(['', '   ', null, undefined])('takes %j as a client without a number', (input) => {
     expect(anyPhoneSchema.parse(input)).toBeNull();
   });

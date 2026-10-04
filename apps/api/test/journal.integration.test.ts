@@ -217,27 +217,40 @@ describe('journal (Step 9)', () => {
     expect(lastMessageTo(ANNA_CHAT)).toMatch(/^New booking\n/);
   });
 
-  it('takes the client phone in any form, but not an empty one', async () => {
+  it('takes the client phone in any form, or none', async () => {
     const day = addDays(upcoming(2), 21);
-    const phoneOf = async (id: string) =>
+    const clientOf = async (id: string) =>
       (
         await database.db
-          .select({ phone: patients.phone })
+          .select({ id: patients.id, phone: patients.phone })
           .from(appointments)
           .innerJoin(patients, eq(patients.id, appointments.patientId))
           .where(eq(appointments.id, id))
-      )[0]!.phone;
+      )[0]!;
 
-    const empty = await book(day, '13:00', { phone: '   ' });
-    expect(empty.statusCode).toBe(400);
-    expect(empty.json().error.code).toBe('validation_failed');
     // Не в E.164 — как введено; американский номер — в E.164, на него уйдут SMS
-    expect(await phoneOf(await booked(day, '13:00', { phone: ' 077 12-34-56 ' }))).toBe(
+    expect((await clientOf(await booked(day, '13:00', { phone: ' 077 12-34-56 ' }))).phone).toBe(
       '077 12-34-56',
     );
-    expect(await phoneOf(await booked(day, '14:00', { phone: '(202) 555-0144' }))).toBe(
+    expect((await clientOf(await booked(day, '14:00', { phone: '(202) 555-0144' }))).phone).toBe(
       '+12025550144',
     );
+    expect((await book(day, '15:00', { phone: 'x'.repeat(51) })).statusCode).toBe(400);
+
+    // Пусто — клиент без номера: у каждой такой записи свой клиент, в журнале он виден
+    const blank = await booked(day, '15:00', { fullName: 'No Phone', phone: '   ' });
+    const blankAgain = await booked(day, '16:00', { fullName: 'No Phone', phone: '' });
+    const first = await clientOf(blank);
+    expect(first.phone).toBeNull();
+    expect((await clientOf(blankAgain)).id).not.toBe(first.id);
+    expect((await journal(day)).appointments).toContainEqual(
+      expect.objectContaining({
+        id: blank,
+        client: { id: first.id, fullName: 'No Phone', phone: null },
+      }),
+    );
+    // Алерт врачу — с именем, без номера; SMS-напоминаниям некуда уйти, их снимет worker
+    expect(lastMessageTo(ANNA_CHAT)).toContain('No Phone');
   });
 
   it('books a service with its own duration, and moves it with that duration', async () => {

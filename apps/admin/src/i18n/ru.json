@@ -242,6 +242,7 @@
   "booking.client": "Клиент",
   "booking.search": "Найти клиента по имени или телефону",
   "booking.newClient": "Или введите нового клиента",
+  "booking.phoneOptional": "Телефон (необязательно)",
   "booking.emailOptional": "Email (необязательно)",
   "booking.notes": "Заметки (необязательно)",
   "booking.date": "Дата",

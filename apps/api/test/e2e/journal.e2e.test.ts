@@ -219,7 +219,7 @@ describe('front desk journal (Step 9)', () => {
     await page.context().close();
   });
 
-  it('books a client by clicking free time', async () => {
+  it('books a client by clicking free time, even without a phone', async () => {
     const page = await openJournal();
     const column = page.locator(`[data-column="${data.dentistId}|${day}"]`);
     const box = (await column.boundingBox())!;
@@ -228,7 +228,8 @@ describe('front desk journal (Step 9)', () => {
     const dialog = page.getByRole('dialog', { name: 'New booking' });
     await dialog.waitFor();
     await dialog.getByLabel('Full name', { exact: true }).fill('Walk-in Client');
-    await dialog.getByLabel('Phone', { exact: true }).fill('(202) 555-8003');
+    // Телефон необязателен: поле остаётся пустым
+    expect(await dialog.getByLabel('Phone (optional)').inputValue()).toBe('');
     await shot(page, '4-booking');
     await dialog.getByRole('button', { name: 'Book' }).click();
     await page.getByText('Booked.').waitFor();
