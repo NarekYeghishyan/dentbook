@@ -6,6 +6,7 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
 } from 'react';
 import { ApiError } from '../api/client';
 import { useI18n, type MessageKey } from '../i18n';
@@ -50,6 +51,15 @@ export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElem
 
 export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select className={cx(control, className)} {...props} />;
+}
+
+/** Многострочный текст: заметки и комментарии. По умолчанию три строки. */
+export function Textarea({
+  className,
+  rows = 3,
+  ...props
+}: TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return <textarea rows={rows} className={cx(control, 'resize-y', className)} {...props} />;
 }
 
 /** Все часовые пояса со смещением от UTC — для <Select>. Список считается один раз. */

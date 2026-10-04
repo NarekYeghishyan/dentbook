@@ -16,6 +16,7 @@ import {
   Input,
   Loading,
   PageHeader,
+  Textarea,
 } from '../components/ui';
 import { useI18n, type MessageKey } from '../i18n';
 import { dateIn, formatDate, formatDateTime } from '../lib/time';
@@ -103,11 +104,9 @@ function Notes({ client }: { client: ClientCard }) {
   return (
     <Card title={t('client.notes')}>
       <form className="space-y-2" onSubmit={submit}>
-        <textarea
+        <Textarea
           aria-label={t('client.newNote')}
           placeholder={t('client.newNote')}
-          className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-          rows={3}
           required
           maxLength={CLIENT_NOTE_MAX}
           value={text}

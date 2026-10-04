@@ -13,7 +13,7 @@ import { useState, type FormEvent } from 'react';
 import type { Dentist, JournalAppointment, Service } from '@dentbook/shared';
 import { BOOKING_DURATION_MAX, BOOKING_DURATION_MIN } from '@dentbook/shared/domain';
 import { useClients, useCreateBooking, useUpdateAppointment } from '../../api/hooks';
-import { Button, Field, Input, Modal, Select } from '../../components/ui';
+import { Button, Field, Input, Modal, Select, Textarea } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { atMinutes, dateIn, formatTime, minutesOfDay } from '../../lib/time';
 import { alternativesOf, useJournalError } from './errors';
@@ -268,7 +268,7 @@ export function BookingDialog({
             />
           </Field>
           <Field label={t('booking.notes')}>
-            <Input maxLength={1000} value={notes} onChange={(e) => setNotes(e.target.value)} />
+            <Textarea maxLength={1000} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </Field>
         </fieldset>
 

@@ -264,7 +264,10 @@ describe('front desk journal (Step 9)', () => {
     await dialog.getByLabel('Time', { exact: true }).fill('16:00');
     await dialog.getByLabel('Duration, min').fill('45');
     await dialog.getByLabel('Full name', { exact: true }).fill('Edited Client');
-    await dialog.getByLabel('Notes (optional)').fill('Wheelchair access');
+    // Заметки — многострочное поле: перенос строки сохраняется
+    const notesField = dialog.getByLabel('Notes (optional)');
+    expect(await notesField.evaluate((el) => el.tagName)).toBe('TEXTAREA');
+    await notesField.fill('Wheelchair access\nCall before the visit');
     await shot(page, '5-edit');
     await dialog.getByRole('button', { name: 'Save' }).click();
     await page.getByText('Changes saved.').waitFor();
@@ -281,7 +284,7 @@ describe('front desk journal (Step 9)', () => {
     expect(row).toEqual({
       startAt: new Date(at(day, '16:00')),
       endAt: new Date(at(day, '16:45')),
-      notes: 'Wheelchair access',
+      notes: 'Wheelchair access\nCall before the visit',
     });
 
     // История: одна правка — время, длительность, клиент и заметки
