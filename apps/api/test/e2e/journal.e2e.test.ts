@@ -2,7 +2,7 @@
  * Критерий «Готово» Шага 9: перенос записи мышью не создаёт пересечений. Собранная панель
  * в Chromium против настоящего API: запись перетаскивается по времени и к другому врачу,
  * перенос на занятое время отклоняется и запись остаётся на месте, свободное время
- * открывает запись клиента.
+ * открывает запись клиента, а сохранённую запись можно открыть и изменить.
  */
 import { fileURLToPath } from 'node:url';
 import type { AddressInfo } from 'node:net';
@@ -234,6 +234,59 @@ describe('front desk journal (Step 9)', () => {
     await dialog.getByRole('button', { name: 'Book' }).click();
     await page.getByText('Booked.').waitFor();
     await page.getByRole('button', { name: /^3:00\sPM Walk-in Client$/ }).waitFor();
+    await page.context().close();
+  });
+
+  it('edits a saved booking: opens it, Edit, changes the time and details, Save', async () => {
+    const id = await book(data.dentistId, '14:00', 'Edit Client', '+12025558003');
+    const page = await openJournal();
+    await page.getByRole('button', { name: /^2:00\sPM Edit Client$/ }).click();
+    await page
+      .getByRole('dialog', { name: 'Booking' })
+      .getByRole('button', { name: 'Edit' })
+      .click();
+
+    // Форма записи открывается с данными записи
+    const dialog = page.getByRole('dialog', { name: 'Edit booking' });
+    await dialog.waitFor();
+    expect(await dialog.getByLabel('Full name', { exact: true }).inputValue()).toBe('Edit Client');
+    expect(await dialog.getByLabel('Phone (optional)').inputValue()).toBe('+12025558003');
+    expect(await dialog.getByLabel('Time', { exact: true }).inputValue()).toBe('14:00');
+    expect(await dialog.getByLabel('Duration, min').inputValue()).toBe('30');
+
+    await dialog.getByLabel('Time', { exact: true }).fill('16:00');
+    await dialog.getByLabel('Duration, min').fill('45');
+    await dialog.getByLabel('Full name', { exact: true }).fill('Edited Client');
+    await dialog.getByLabel('Notes (optional)').fill('Wheelchair access');
+    await shot(page, '5-edit');
+    await dialog.getByRole('button', { name: 'Save' }).click();
+    await page.getByText('Changes saved.').waitFor();
+    await page.getByRole('button', { name: /^4:00\sPM Edited Client$/ }).waitFor();
+
+    const [row] = await database.db
+      .select({
+        startAt: appointments.startAt,
+        endAt: appointments.endAt,
+        notes: appointments.notes,
+      })
+      .from(appointments)
+      .where(eq(appointments.id, id));
+    expect(row).toEqual({
+      startAt: new Date(at(day, '16:00')),
+      endAt: new Date(at(day, '16:45')),
+      notes: 'Wheelchair access',
+    });
+
+    // История: одна правка — время, длительность, клиент и заметки
+    await page.getByRole('button', { name: /^4:00\sPM Edited Client$/ }).click();
+    const card = page.getByRole('dialog', { name: 'Booking' });
+    await card.getByRole('button', { name: 'History' }).click();
+    await card.getByText('Details changed').waitFor();
+    await card.getByText('Duration: 30 → 45 min').waitFor();
+    await card
+      .getByText(/^Client: Edit Client, \+12025558003 → Edited Client, \+12025558003$/)
+      .waitFor();
+    await shot(page, '6-edited');
     await page.context().close();
   });
 });

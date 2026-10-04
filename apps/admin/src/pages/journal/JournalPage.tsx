@@ -1,7 +1,8 @@
 /**
  * Журнал регистратуры (Шаг 9, Q17). День — колонки врачей офиса, неделя — дни одного врача.
  * Запись перетаскивается мышью: время — по сетке шага клиники, в дневном виде — и к другому
- * врачу. Пересечения отклоняет сервер (EXCLUDE, §2.1), здесь — только понятное сообщение.
+ * врачу, а в карточке записи «Изменить» открывает её в форме записи. Пересечения отклоняет
+ * сервер (EXCLUDE, §2.1), здесь — только понятное сообщение.
  * Сетка — по настенным часам офиса (§2.3).
  */
 import {
@@ -22,8 +23,8 @@ import {
   useDentists,
   useJournal,
   useLocations,
-  useMoveAppointment,
   useServices,
+  useUpdateAppointment,
 } from '../../api/hooks';
 import { useCanManage, useSession } from '../../components/Layout';
 import { Button, Checkbox, ErrorText, Loading, PageHeader, Select } from '../../components/ui';
@@ -39,7 +40,7 @@ import {
   todayIn,
 } from '../../lib/time';
 import { AppointmentDialog } from './AppointmentDialog';
-import { BookingDialog, type BookingDraft } from './BookingDialog';
+import { BookingDialog, draftOf, type BookingDraft } from './BookingDialog';
 import { useJournalError } from './errors';
 import {
   clickedMinutes,
@@ -284,7 +285,7 @@ export function JournalPage() {
   const locations = useLocations();
   const dentists = useDentists();
   const services = useServices();
-  const move = useMoveAppointment();
+  const move = useUpdateAppointment();
   const errorText = useJournalError();
 
   const [locationId, setLocationId] = useState('');
@@ -504,17 +505,20 @@ export function JournalPage() {
         </DndContext>
       )}
 
-      {selected && (
+      {/* Пока открыта форма правки, карточка записи ждёт под ней: «Отмена» возвращает к ней */}
+      {selected && !draft && (
         <AppointmentDialog
           appointment={selected}
           dentistName={data?.dentists.find((d) => d.id === selected.dentistId)?.fullName ?? ''}
           timeZone={timeZone}
           onClose={() => setSelectedId(null)}
           onDone={() => setSelectedId(null)}
+          onEdit={() => setDraft(draftOf(selected, timeZone))}
         />
       )}
       {draft && data && dentists.data && services.data && (
         <BookingDialog
+          key={draft.appointment?.id ?? 'new'}
           draft={draft}
           locationId={office.id}
           timeZone={timeZone}
@@ -524,7 +528,11 @@ export function JournalPage() {
           onClose={() => setDraft(null)}
           onDone={() => {
             setDraft(null);
-            setNotice({ error: false, text: t('booking.created') });
+            if (draft.appointment) setSelectedId(null);
+            setNotice({
+              error: false,
+              text: t(draft.appointment ? 'booking.updated' : 'booking.created'),
+            });
           }}
         />
       )}

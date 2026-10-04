@@ -71,6 +71,8 @@
   "history.for": "На {when}",
   "history.time": "Время: {from} → {to}",
   "history.dentist": "Врач: {from} → {to}",
+  "history.service": "Услуга: {from} → {to}",
+  "history.duration": "Длительность: {from} → {to} мин",
   "history.client": "Клиент: {from} → {to}",
   "history.comment": "Комментарий: {from} → {to}",
   "error.generic": "Что-то пошло не так. Попробуйте ещё раз.",

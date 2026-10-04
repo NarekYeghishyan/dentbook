@@ -1,13 +1,13 @@
 /**
  * Журнал регистратуры (Шаг 9, Q17): записи офиса по датам, запись клиента сотрудником,
- * перенос мышью, подтверждение, отмена клиникой, отметки после визита. Перенос и отмену
- * своих записей делает и врач в Mini App — actor.kind = 'dentist'. Каждое изменение пишет
- * событие в историю записи (recordEvent) в той же транзакции.
+ * перенос мышью и правка записи, подтверждение, отмена клиникой, отметки после визита.
+ * Перенос и отмену своих записей делает и врач в Mini App — actor.kind = 'dentist'. Каждое
+ * изменение пишет событие в историю записи (recordEvent) в той же транзакции.
  * Пересечения исключает EXCLUDE (§2.1). Проверка в коде нужна только для понятной ошибки,
  * гонку закрывает БД. Закрытое время (block) проверяется под advisory-lock врача — тем же,
  * что берёт закрытие времени.
  */
-import { and, asc, eq, gt, inArray, lt, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, lt, sql, type SQL } from 'drizzle-orm';
 import {
   addDays,
   dayBounds,
@@ -28,9 +28,12 @@ import {
   scheduleExceptions,
   services,
   type Database,
+  type Executor,
   type Transaction,
 } from '@dentbook/db';
 import type {
+  AppointmentChanges,
+  AppointmentUpdate,
   JournalAppointment,
   JournalResponse,
   StaffBooking,
@@ -38,6 +41,7 @@ import type {
 } from '@dentbook/shared';
 import { ApiError, notFound } from '../lib/errors.js';
 import { computeAvailability, loadSchedules } from './availability.js';
+import { setBookingClient } from './clients.js';
 import { recordEvent, type ClinicActor } from './history.js';
 import { slotTaken } from './holds.js';
 import type { Notifier } from './notifier.js';
@@ -48,6 +52,10 @@ const MAX_ALTERNATIVES = 6;
 
 /** Статусы, которые показывает журнал: всё, кроме холдов. */
 const JOURNAL_STATUSES = ['pending', 'confirmed', 'completed', 'no_show', 'cancelled'] as const;
+/** Время, врача, услугу и длительность можно менять только у предстоящей записи. */
+const UPCOMING_STATUSES = ['pending', 'confirmed'] as const;
+/** Клиента и заметки — у любой, кроме отменённой. */
+const EDITABLE_STATUSES = ['pending', 'confirmed', 'completed', 'no_show'] as const;
 
 export const outsideWorkingHours = () =>
   new ApiError(400, 'outside_working_hours', 'The dentist does not work at this time');
@@ -119,6 +127,7 @@ export async function loadJournal(
         clientId: patients.id,
         clientName: patients.fullName,
         clientPhone: patients.phone,
+        clientEmail: patients.email,
         notes: appointments.notes,
       })
       .from(appointments)
@@ -201,7 +210,7 @@ export async function loadJournal(
       service: r.service,
       client:
         r.clientId && r.clientName
-          ? { id: r.clientId, fullName: r.clientName, phone: r.clientPhone }
+          ? { id: r.clientId, fullName: r.clientName, phone: r.clientPhone, email: r.clientEmail }
           : null,
       notes: r.notes,
     })),
@@ -388,28 +397,9 @@ export async function createStaffBooking(
   return { id };
 }
 
-/**
- * Перенос мышью: новое время и, возможно, другой врач того же офиса. Длительность и буфер —
- * записи. Пересечение с другой записью отклоняет EXCLUDE (23P01 → 409): «перенос не
- * создаёт пересечений» (Шаг 9) держит БД, а не этот код.
- *
- * Переносит сам врач в Mini App (actor.kind = 'dentist') — только свою запись, алерта ему нет.
- */
-export async function rescheduleAppointment(
-  db: Database,
-  deps: { cache: SlotCache | undefined; notifier: Notifier },
-  params: {
-    clinicId: string;
-    id: string;
-    startAt: Date;
-    dentistId?: string;
-    actor: ClinicActor;
-    now: Date;
-  },
-): Promise<void> {
-  const { clinicId, id, startAt, now, actor } = params;
-  const own = actor.kind === 'dentist' ? eq(appointments.dentistId, actor.dentistId) : undefined;
-  const [current] = await db
+/** Запись с услугой и клиентом — то, что меняет правка. */
+const bookingOf = (db: Executor, where: SQL | undefined) =>
+  db
     .select({
       status: appointments.status,
       startAt: appointments.startAt,
@@ -417,74 +407,196 @@ export async function rescheduleAppointment(
       bufferMin: appointments.bufferMin,
       dentistId: appointments.dentistId,
       serviceId: appointments.serviceId,
+      service: services.name,
       locationId: appointments.locationId,
+      patientId: appointments.patientId,
+      notes: appointments.notes,
+      fullName: patients.fullName,
+      phone: patients.phone,
+      email: patients.email,
     })
     .from(appointments)
-    .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId), own));
+    .innerJoin(services, eq(services.id, appointments.serviceId))
+    .leftJoin(patients, eq(patients.id, appointments.patientId))
+    .where(where);
+
+const minutesOf = (b: { startAt: Date; endAt: Date }) =>
+  (b.endAt.getTime() - b.startAt.getTime()) / MINUTE_MS;
+
+/**
+ * Правка записи: перенос мышью и форма «Изменить» в журнале, перенос врачом в Mini App
+ * (actor.kind = 'dentist' — только своя запись, алерта ему нет).
+ *
+ * Время, врач, услуга и длительность меняются только у предстоящей записи. Новое время
+ * проверяется как при записи сотрудником; пересечение с другой записью отклоняет EXCLUDE
+ * (23P01 → 409): «перенос не создаёт пересечений» (Шаг 9) держит БД, а не этот код. Новая
+ * услуга приносит свой буфер, а без своей длительности — и свою длительность. Клиента и
+ * заметки можно поправить и после визита; отменённую запись — нельзя ничего.
+ * В историю — одно событие с тем, что действительно изменилось: только время и врач — moved,
+ * иначе updated.
+ */
+export async function updateAppointment(
+  db: Database,
+  deps: { cache: SlotCache | undefined; notifier: Notifier },
+  params: {
+    clinicId: string;
+    id: string;
+    update: AppointmentUpdate;
+    actor: ClinicActor;
+    now: Date;
+  },
+): Promise<void> {
+  const { clinicId, id, update, now, actor } = params;
+  const own = actor.kind === 'dentist' ? eq(appointments.dentistId, actor.dentistId) : undefined;
+  const where = and(eq(appointments.id, id), eq(appointments.clinicId, clinicId), own);
+  const [current] = await bookingOf(db, where);
   if (!current) throw notFound();
-  if (current.status !== 'pending' && current.status !== 'confirmed') {
-    throw notMovable('Only an upcoming booking can be moved');
-  }
-  if (current.startAt <= now) throw notMovable('The visit has already started');
 
-  const dentistId = params.dentistId ?? current.dentistId;
-  const { timeZone } = await officeOf(db, clinicId, current.locationId);
-  if (dentistId !== current.dentistId) {
-    await assertDentistProvides(db, clinicId, dentistId, current.serviceId, true);
-  }
-  await assertFree(db, {
-    clinicId,
-    locationId: current.locationId,
-    serviceId: current.serviceId,
-    dentistId,
-    startAt,
-    // Запись переносится со своей длительностью — её могли изменить при записи
-    durationMin: (current.endAt.getTime() - current.startAt.getTime()) / MINUTE_MS,
-    timeZone,
-    now,
-    excludeAppointmentId: id,
-  });
+  const startAt = update.startAt ?? current.startAt;
+  const dentistId = update.dentistId ?? current.dentistId;
+  const serviceId = update.serviceId ?? current.serviceId;
+  const serviceChanged = serviceId !== current.serviceId;
+  const scheduleChanged =
+    serviceChanged ||
+    dentistId !== current.dentistId ||
+    startAt.getTime() !== current.startAt.getTime() ||
+    (update.durationMin !== undefined && update.durationMin !== minutesOf(current));
+  const statuses = scheduleChanged ? UPCOMING_STATUSES : EDITABLE_STATUSES;
+  const refused = scheduleChanged
+    ? 'Only an upcoming booking can be moved'
+    : 'A cancelled booking cannot be changed';
+  if (!(statuses as readonly string[]).includes(current.status)) throw notMovable(refused);
 
-  const endAt = new Date(startAt.getTime() + (current.endAt.getTime() - current.startAt.getTime()));
-  const until = blockedUntil(endAt, current.bufferMin);
+  // Без новой услуги длительность и буфер — записи: их могли изменить при записи
+  let service = {
+    name: current.service,
+    durationMin: minutesOf(current),
+    bufferMin: current.bufferMin,
+  };
+  if (scheduleChanged) {
+    if (current.startAt <= now) throw notMovable('The visit has already started');
+    if (serviceChanged || dentistId !== current.dentistId) {
+      await assertDentistProvides(db, clinicId, dentistId, serviceId, !serviceChanged);
+    }
+    if (serviceChanged) {
+      const [row] = await db
+        .select({
+          name: services.name,
+          durationMin: services.durationMin,
+          bufferMin: services.bufferMin,
+        })
+        .from(services)
+        .where(and(eq(services.id, serviceId), eq(services.clinicId, clinicId)));
+      // Услуга этой клиники есть — это проверил assertDentistProvides
+      service = row!;
+    }
+  }
+  const durationMin = update.durationMin ?? service.durationMin;
+  const endAt = new Date(startAt.getTime() + durationMin * MINUTE_MS);
+  const until = blockedUntil(endAt, service.bufferMin);
+  if (scheduleChanged) {
+    const { timeZone } = await officeOf(db, clinicId, current.locationId);
+    await assertFree(db, {
+      clinicId,
+      locationId: current.locationId,
+      serviceId,
+      dentistId,
+      startAt,
+      durationMin,
+      timeZone,
+      now,
+      excludeAppointmentId: id,
+    });
+  }
+
   try {
     await db.transaction(async (tx) => {
-      await lockDentist(tx, dentistId);
-      await assertNotBlocked(tx, clinicId, dentistId, { start: startAt, end: until });
-      const moved = await tx
+      if (scheduleChanged) {
+        await lockDentist(tx, dentistId);
+        await assertNotBlocked(tx, clinicId, dentistId, { start: startAt, end: until });
+      }
+      // Под блокировкой строки: что было до правки — для истории и клиента
+      const [before] = await bookingOf(
+        tx,
+        and(where, inArray(appointments.status, [...statuses])),
+      ).for('update', { of: appointments });
+      if (!before) throw notMovable(refused);
+
+      const changes: AppointmentChanges = {};
+      if (scheduleChanged) {
+        if (startAt.getTime() !== before.startAt.getTime()) {
+          changes.startAt = { from: before.startAt.toISOString(), to: startAt.toISOString() };
+        }
+        if (dentistId !== before.dentistId) {
+          changes.dentist = { from: before.dentistId, to: dentistId };
+        }
+        if (serviceId !== before.serviceId) {
+          changes.service = { from: before.service, to: service.name };
+        }
+        if (durationMin !== minutesOf(before)) {
+          changes.durationMin = { from: minutesOf(before), to: durationMin };
+        }
+      }
+
+      const client = update.client;
+      const clientBefore =
+        before.fullName !== null ? { fullName: before.fullName, phone: before.phone } : null;
+      if (
+        client &&
+        (client.fullName !== clientBefore?.fullName || client.phone !== clientBefore?.phone)
+      ) {
+        changes.client = {
+          from: clientBefore,
+          to: { fullName: client.fullName, phone: client.phone },
+        };
+      }
+      // Email — в карточке клиента, не в записи: меняет клиента, в историю записи не попадает
+      const emailChanged = client?.email !== undefined && client.email !== before.email;
+      const patientId =
+        client && (changes.client || emailChanged)
+          ? await setBookingClient(tx, {
+              clinicId,
+              appointmentId: id,
+              patientId: before.patientId,
+              before: clientBefore,
+              client,
+            })
+          : before.patientId;
+      const notes = update.notes === undefined ? before.notes : update.notes || null;
+      if (notes !== before.notes) changes.notes = { from: before.notes, to: notes };
+
+      await tx
         .update(appointments)
-        .set({ startAt, endAt, blockedUntil: until, dentistId })
-        .where(
-          and(
-            eq(appointments.id, id),
-            eq(appointments.clinicId, clinicId),
-            own,
-            inArray(appointments.status, ['pending', 'confirmed']),
-          ),
-        )
-        .returning({ id: appointments.id });
-      if (moved.length === 0) throw notMovable('Only an upcoming booking can be moved');
-      const timeChanged = startAt.getTime() !== current.startAt.getTime();
-      if (!timeChanged && dentistId === current.dentistId) return;
+        .set({
+          ...(scheduleChanged
+            ? {
+                startAt,
+                endAt,
+                blockedUntil: until,
+                dentistId,
+                serviceId,
+                bufferMin: service.bufferMin,
+              }
+            : {}),
+          patientId,
+          notes,
+        })
+        .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)));
+      const changed = Object.keys(changes);
+      if (changed.length === 0) return;
       await recordEvent(tx, {
         clinicId,
         appointmentId: id,
-        type: 'moved',
+        type: changed.every((key) => key === 'startAt' || key === 'dentist') ? 'moved' : 'updated',
         actor,
-        changes: {
-          ...(timeChanged
-            ? { startAt: { from: current.startAt.toISOString(), to: startAt.toISOString() } }
-            : {}),
-          ...(dentistId !== current.dentistId
-            ? { dentist: { from: current.dentistId, to: dentistId } }
-            : {}),
-        },
+        changes,
       });
     });
   } catch (err) {
     if (isExclusionViolation(err)) throw slotTaken([]);
     throw err;
   }
+  if (!scheduleChanged) return;
   await deps.cache?.invalidateDentist(clinicId, current.dentistId);
   if (dentistId !== current.dentistId) await deps.cache?.invalidateDentist(clinicId, dentistId);
   await deps.notifier.appointmentRescheduled(

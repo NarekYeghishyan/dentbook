@@ -41,6 +41,8 @@ export function HistoryList({ appointmentId }: { appointmentId: string }) {
           ? t('history.for', { when: when(c.startAt.to) })
           : t('history.time', { from: when(c.startAt.from), to: when(c.startAt.to) })),
       c.dentist && t('history.dentist', c.dentist),
+      c.service && t('history.service', c.service),
+      c.durationMin && t('history.duration', c.durationMin),
       c.client && t('history.client', { from: client(c.client.from), to: client(c.client.to) }),
       c.notes && t('history.comment', { from: c.notes.from ?? '—', to: c.notes.to ?? '—' }),
     ].filter((line): line is string => Boolean(line));

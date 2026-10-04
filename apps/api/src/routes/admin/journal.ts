@@ -1,19 +1,19 @@
 /**
  * Журнал регистратуры, записи, клиенты и отчёты (Шаг 9, Q17). Всё — в области clinicScope:
- * clinicId только из сессии (§2.2). Записывать, переносить, подтверждать, отменять и
- * отмечать визиты и смотреть их историю может любой сотрудник, включая регистратуру;
- * выгрузка с телефонами клиентов — только владелец и администратор.
+ * clinicId только из сессии (§2.2). Записывать, переносить и править записи, подтверждать,
+ * отменять и отмечать визиты и смотреть их историю может любой сотрудник, включая
+ * регистратуру; выгрузка с телефонами клиентов — только владелец и администратор.
  */
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
 import { addDays } from '@dentbook/core';
 import type { Database } from '@dentbook/db';
 import {
+  appointmentUpdateSchema,
   clientSearchSchema,
   JOURNAL_MAX_DAYS,
   journalQuerySchema,
   REPORT_MAX_DAYS,
   reportQuerySchema,
-  rescheduleSchema,
   staffBookingSchema,
   updateClientSchema,
   visitOutcomeSchema,
@@ -28,8 +28,8 @@ import {
   confirmByStaff,
   createStaffBooking,
   loadJournal,
-  rescheduleAppointment,
   setVisitOutcome,
+  updateAppointment,
 } from '../../services/journal.js';
 import type { Notifier } from '../../services/notifier.js';
 import { exportAppointmentsCsv, loadDashboard } from '../../services/reports.js';
@@ -77,13 +77,13 @@ export const journalRoutes: FastifyPluginAsync<JournalRoutesOptions> = async (
     return reply.status(201).send(created);
   });
 
+  /** Перенос мышью и форма «Изменить»: что меняется — решает updateAppointment. */
   app.patch('/appointments/:id', async (request, reply) => {
-    const input = parse(rescheduleSchema, request.body);
-    await rescheduleAppointment(db, deps, {
+    const update = parse(appointmentUpdateSchema, request.body);
+    await updateAppointment(db, deps, {
       clinicId: authOf(request).clinicId,
       id: idOf(request),
-      startAt: input.startAt,
-      ...(input.dentistId ? { dentistId: input.dentistId } : {}),
+      update,
       actor: staff(request),
       now: new Date(),
     });

@@ -18,6 +18,10 @@ export interface AppointmentChanges {
   /** У created — на какое время записали (from = null). */
   startAt?: { from: string | null; to: string };
   dentist?: { from: string; to: string };
+  /** Услуга — названием на момент правки: в каталоге её могут переименовать. */
+  service?: { from: string; to: string };
+  /** Длительность записи, минуты. */
+  durationMin?: { from: number; to: number };
   client?: { from: ClientSnapshot | null; to: ClientSnapshot };
   notes?: { from: string | null; to: string | null };
 }

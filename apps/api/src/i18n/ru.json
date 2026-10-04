@@ -18,6 +18,7 @@
   "tg.cancelled": "Клиент отменил запись\n{when}\n{service} · {office}\nКлиент: {client}",
   "tg.cancelledByClinic": "Запись отменена клиникой\n{when}\n{service} · {office}\nКлиент: {client}",
   "tg.rescheduled": "Запись перенесена\n{when}\n{service} · {office}\nКлиент: {contact}",
+  "tg.changed": "Запись изменена\n{when}\n{service} · {office}\nКлиент: {contact}",
   "tg.movedAway": "Запись передана другому врачу\n{when}\n{service} · {office}\nКлиент: {client}",
   "tg.confirmed": "Подтверждено: {when}, {client}.",
   "tg.alreadyHandled": "Эта запись больше не ждёт подтверждения.",

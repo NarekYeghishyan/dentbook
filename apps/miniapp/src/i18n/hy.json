@@ -71,6 +71,8 @@
   "history.for": "Ժամը՝ {when}",
   "history.time": "Ժամը՝ {from} → {to}",
   "history.dentist": "Բժիշկը՝ {from} → {to}",
+  "history.service": "Ծառայությունը՝ {from} → {to}",
+  "history.duration": "Տևողությունը՝ {from} → {to} րոպե",
   "history.client": "Հաճախորդը՝ {from} → {to}",
   "history.comment": "Մեկնաբանությունը՝ {from} → {to}",
   "error.generic": "Ինչ-որ բան սխալ ընթացավ։ Փորձեք կրկին։",

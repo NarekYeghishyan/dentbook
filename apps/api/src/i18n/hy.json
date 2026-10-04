@@ -18,6 +18,7 @@
   "tg.cancelled": "Հաճախորդը չեղարկել է գրանցումը\n{when}\n{service} · {office}\nՀաճախորդ՝ {client}",
   "tg.cancelledByClinic": "Գրանցումը չեղարկվել է կլինիկայի կողմից\n{when}\n{service} · {office}\nՀաճախորդ՝ {client}",
   "tg.rescheduled": "Գրանցումը տեղափոխվել է\n{when}\n{service} · {office}\nՀաճախորդ՝ {contact}",
+  "tg.changed": "Գրանցումը փոխվել է\n{when}\n{service} · {office}\nՀաճախորդ՝ {contact}",
   "tg.movedAway": "Գրանցումը փոխանցվել է այլ բժշկի\n{when}\n{service} · {office}\nՀաճախորդ՝ {client}",
   "tg.confirmed": "Հաստատված է՝ {when}, {client}։",
   "tg.alreadyHandled": "Այս գրանցումն այլևս չի սպասում հաստատման։",

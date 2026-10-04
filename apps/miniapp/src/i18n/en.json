@@ -71,6 +71,8 @@
   "history.for": "For {when}",
   "history.time": "Time: {from} → {to}",
   "history.dentist": "Dentist: {from} → {to}",
+  "history.service": "Service: {from} → {to}",
+  "history.duration": "Duration: {from} → {to} min",
   "history.client": "Client: {from} → {to}",
   "history.comment": "Comment: {from} → {to}",
   "error.generic": "Something went wrong. Please try again.",

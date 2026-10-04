@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient, type QueryKey } from '@tanstack/
 import type {
   ApiKey,
   AppointmentHistory,
+  AppointmentUpdateInput,
   AvailabilityQuery,
   AvailabilityResponse,
   ClientCard,
@@ -25,7 +26,6 @@ import type {
   OperatorMe,
   PlatformHealth,
   RegisterClinicInput,
-  RescheduleInput,
   ScheduleExceptionItem,
   Service,
   StaffBookingInput,
@@ -314,9 +314,10 @@ export const useCreateBooking = () =>
     BOOKING_KEYS,
   );
 
-export const useMoveAppointment = () =>
+/** Перенос мышью и форма «Изменить» — один PATCH: сервер меняет то, что отличается. */
+export const useUpdateAppointment = () =>
   useSave(
-    ({ id, ...input }: RescheduleInput & { id: string }) =>
+    ({ id, ...input }: AppointmentUpdateInput & { id: string }) =>
       api<void>('PATCH', `/appointments/${id}`, input),
     BOOKING_KEYS,
   );

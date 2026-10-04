@@ -16,7 +16,6 @@ import {
   isExclusionViolation,
   locations,
   lockDentist,
-  notifications,
   patients,
   scheduleExceptions,
   services,
@@ -47,7 +46,8 @@ import { computeAvailability } from '../../services/availability.js';
 import { loadHistory, recordEvent } from '../../services/history.js';
 import type { Notifier } from '../../services/notifier.js';
 import { slotTaken } from '../../services/holds.js';
-import { cancelByClinic, rescheduleAppointment } from '../../services/journal.js';
+import { setBookingClient } from '../../services/clients.js';
+import { cancelByClinic, updateAppointment } from '../../services/journal.js';
 import {
   findConflictingAppointments,
   takesDentistTime,
@@ -567,11 +567,8 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
   });
 
   /**
-   * Врач правит свою запись: клиента и комментарий. Клиент в клинике определяется
-   * телефоном (Q9): новое имя меняет карточку клиента, новый телефон переводит запись на
-   * клиента с этим номером. Клиент без номера есть только у своей записи: его имя правится
-   * на месте, а убранный номер даёт записи нового клиента без номера — карточка клиента с
-   * этим номером не трогается. В историю пишется только то, что действительно изменилось.
+   * Врач правит свою запись: клиента и комментарий. Как меняется клиент — setBookingClient
+   * (Q9). В историю пишется только то, что действительно изменилось.
    */
   app.patch('/appointments/:id', async (request, reply) => {
     const { dentistId, clinicId } = dentistOf(request);
@@ -610,42 +607,19 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
       }
       if (notes !== current.notes) changes.notes = { from: current.notes, to: notes };
 
-      let patientId = current.patientId;
-      const client = changes.client?.to;
-      if (client && client.phone === null && before?.phone === null && patientId) {
-        await tx
-          .update(patients)
-          .set({ fullName: client.fullName })
-          .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)));
-      } else if (client) {
-        const [patient] = await tx
-          .insert(patients)
-          .values({ clinicId, ...client })
-          .onConflictDoUpdate({
-            target: [patients.clinicId, patients.phone],
-            set: { fullName: sql`excluded.full_name` },
+      const patientId = changes.client
+        ? await setBookingClient(tx, {
+            clinicId,
+            appointmentId: id,
+            patientId: current.patientId,
+            before,
+            client: changes.client.to,
           })
-          .returning({ id: patients.id });
-        patientId = patient!.id;
-      }
+        : current.patientId;
       await tx
         .update(appointments)
         .set({ patientId, notes })
         .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)));
-      if (patientId !== current.patientId) {
-        // Напоминание уходит на телефон клиента из notifications.patient_id — на новый номер
-        await tx
-          .update(notifications)
-          .set({ patientId })
-          .where(
-            and(
-              eq(notifications.clinicId, clinicId),
-              eq(notifications.appointmentId, id),
-              eq(notifications.channel, 'sms'),
-              eq(notifications.status, 'scheduled'),
-            ),
-          );
-      }
       if (changes.client || changes.notes) {
         await recordEvent(tx, {
           clinicId,
@@ -663,13 +637,13 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
   app.post('/appointments/:id/move', async (request, reply) => {
     const { dentistId, clinicId } = dentistOf(request);
     const { startAt } = parse(miniappMoveSchema, request.body);
-    await rescheduleAppointment(
+    await updateAppointment(
       db,
       { cache, notifier },
       {
         clinicId,
         id: idOf(request),
-        startAt,
+        update: { startAt },
         actor: { kind: 'dentist', dentistId },
         now: new Date(),
       },

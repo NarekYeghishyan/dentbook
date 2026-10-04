@@ -31,6 +31,7 @@ export interface JournalClient {
   fullName: string;
   /** null — клиента записали без номера (врач в Mini App или регистратура). */
   phone: string | null;
+  email: string | null;
 }
 
 export interface JournalAppointment {
@@ -71,6 +72,13 @@ export interface JournalResponse {
   appointments: JournalAppointment[];
 }
 
+const staffClientSchema = z.object({
+  fullName: nameSchema,
+  /** Необязательный, в любом виде: пусто → клиент без номера. */
+  phone: anyPhoneSchema,
+  email: emailSchema.optional(),
+});
+
 /** Регистратура записывает клиента: врач и время выбраны, запись сразу подтверждена. */
 export const staffBookingSchema = z.object({
   locationId: uuidSchema,
@@ -79,23 +87,33 @@ export const staffBookingSchema = z.object({
   startAt: instantSchema,
   /** Своя длительность этой записи; без неё — длительность услуги. */
   durationMin: bookingDurationSchema.optional(),
-  client: z.object({
-    fullName: nameSchema,
-    /** Необязательный, в любом виде: пусто → клиент без номера. */
-    phone: anyPhoneSchema,
-    email: emailSchema.optional(),
-  }),
+  client: staffClientSchema,
   notes: z.string().trim().max(1000).optional(),
 });
 export type StaffBookingInput = z.input<typeof staffBookingSchema>;
 export type StaffBooking = z.output<typeof staffBookingSchema>;
 
-/** Перенос: новое время и (в дневном виде) другой врач того же офиса. */
-export const rescheduleSchema = z.object({
-  startAt: instantSchema,
-  dentistId: uuidSchema.optional(),
-});
-export type RescheduleInput = z.input<typeof rescheduleSchema>;
+/**
+ * Правка записи регистратурой: перенос мышью (время и в дневном виде врач) или форма
+ * «Изменить» — врач, услуга, время, длительность, клиент, заметки. Поля нет — оно не
+ * меняется; что изменилось на самом деле, сервер решает сравнением с записью.
+ */
+export const appointmentUpdateSchema = z
+  .object({
+    startAt: instantSchema.optional(),
+    dentistId: uuidSchema.optional(),
+    serviceId: uuidSchema.optional(),
+    /** Длительность этой записи; новая услуга без неё — длительность услуги. */
+    durationMin: bookingDurationSchema.optional(),
+    client: staffClientSchema.optional(),
+    /** Пусто или null — убрать заметки. */
+    notes: z.string().trim().max(1000).nullable().optional(),
+  })
+  .refine((v) => Object.values(v).some((value) => value !== undefined), {
+    message: 'Nothing to change',
+  });
+export type AppointmentUpdateInput = z.input<typeof appointmentUpdateSchema>;
+export type AppointmentUpdate = z.output<typeof appointmentUpdateSchema>;
 
 /** Отметка после визита. */
 export const VISIT_OUTCOMES = ['completed', 'no_show'] as const;

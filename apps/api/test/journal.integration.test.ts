@@ -85,6 +85,8 @@ async function booked(date: string, time: string, options?: Parameters<typeof bo
 
 const move = (id: string, payload: object) =>
   as(app, owner, { method: 'PATCH', url: `/v1/admin/appointments/${id}`, payload });
+/** «Изменить» в карточке записи — тот же PATCH, что и перенос мышью. */
+const edit = move;
 const post = (url: string, payload?: object) =>
   as(app, owner, { method: 'POST', url, ...(payload ? { payload } : {}) });
 
@@ -246,7 +248,7 @@ describe('journal (Step 9)', () => {
     expect((await journal(day)).appointments).toContainEqual(
       expect.objectContaining({
         id: blank,
-        client: { id: first.id, fullName: 'No Phone', phone: null },
+        client: { id: first.id, fullName: 'No Phone', phone: null, email: null },
       }),
     );
     // Алерт врачу — с именем, без номера; SMS-напоминаниям некуда уйти, их снимет worker
@@ -644,5 +646,220 @@ describe('reports (Step 9)', () => {
       const res = await as(app, owner, { method: 'GET', url: `/v1/admin/dashboard?${range}` });
       expect(res.statusCode, range).toBe(400);
     }
+  });
+});
+
+describe('editing a booking (journal "Edit")', () => {
+  /** Вторая услуга — только у Dr. Anna: 60 минут и 15 минут буфера после визита. */
+  let cleaning: string;
+  const stored = async (id: string) =>
+    (
+      await database.db
+        .select({
+          bufferMin: appointments.bufferMin,
+          blockedUntil: appointments.blockedUntil,
+          patientId: appointments.patientId,
+          notes: appointments.notes,
+        })
+        .from(appointments)
+        .where(eq(appointments.id, id))
+    )[0]!;
+  const shown = async (day: string, id: string) =>
+    (await journal(day)).appointments.find((a) => a.id === id);
+  const changesOf = async (id: string) =>
+    (await historyOf(id)).events.map(({ type, changes }) => ({ type, changes }));
+
+  beforeAll(async () => {
+    cleaning = (
+      await call<{ id: string }>(
+        app,
+        owner,
+        {
+          method: 'POST',
+          url: '/v1/admin/services',
+          payload: { name: 'Cleaning', durationMin: 60, bufferMin: 15 },
+        },
+        201,
+      )
+    ).id;
+    await call(app, owner, {
+      method: 'PUT',
+      url: `/v1/admin/dentists/${data.dentistId}/services`,
+      payload: { serviceIds: [data.serviceId, cleaning] },
+    });
+  });
+
+  it('changes the service, duration and notes: the dentist is told, the client is not', async () => {
+    const day = addDays(upcoming(1), 28);
+    const id = await booked(day, '10:00');
+    const sms = smsOutbox.jobs.length;
+
+    // Новая услуга без своей длительности — длительность и буфер услуги
+    const res = await edit(id, { serviceId: cleaning, notes: 'Bring the X-ray' });
+    expect(res.statusCode, res.body).toBe(204);
+    expect(await shown(day, id)).toMatchObject({
+      serviceId: cleaning,
+      service: 'Cleaning',
+      startAt: at(day, '10:00'),
+      endAt: at(day, '11:00'),
+      notes: 'Bring the X-ray',
+    });
+    expect(await stored(id)).toMatchObject({
+      bufferMin: 15,
+      blockedUntil: new Date(at(day, '11:15')),
+    });
+    expect(lastMessageTo(ANNA_CHAT)).toMatch(/^Booking changed\n/);
+    // Время у клиента прежнее — SMS нет
+    expect(smsOutbox.jobs.length).toBe(sms);
+
+    // Своя длительность; буфер услуги защищает время после визита (§2.1, Q11)
+    expect((await edit(id, { durationMin: 45 })).statusCode).toBe(204);
+    expect(await shown(day, id)).toMatchObject({ endAt: at(day, '10:45') });
+    expect((await book(day, '10:45')).json().error.code).toBe('slot_taken');
+    expect((await book(day, '11:00')).statusCode).toBe(201);
+    // Не влезает до следующей записи — занято, рядом есть свободное время
+    const tooLong = await edit(id, { durationMin: 90 });
+    expect(tooLong.statusCode).toBe(409);
+    expect(tooLong.json().alternatives.length).toBeGreaterThan(0);
+
+    expect(await changesOf(id)).toEqual([
+      { type: 'created', changes: { startAt: { from: null, to: at(day, '10:00') } } },
+      {
+        type: 'updated',
+        changes: {
+          service: { from: 'Checkup', to: 'Cleaning' },
+          durationMin: { from: 30, to: 60 },
+          notes: { from: null, to: 'Bring the X-ray' },
+        },
+      },
+      { type: 'updated', changes: { durationMin: { from: 60, to: 45 } } },
+    ]);
+  });
+
+  it('moves a booking to another dentist and time in one edit, only to free time', async () => {
+    const day = addDays(upcoming(2), 28);
+    const id = await booked(day, '10:00');
+    await booked(day, '14:00', { dentistId: boris });
+
+    // Dr. Boris не оказывает Cleaning; на 14:00 у него запись
+    expect((await edit(id, { serviceId: cleaning, dentistId: boris })).statusCode).toBe(400);
+    const taken = await edit(id, { dentistId: boris, startAt: at(day, '14:00') });
+    expect(taken.statusCode).toBe(409);
+    expect(taken.json().error.code).toBe('slot_taken');
+
+    // Те же поля, что и сейчас, ничего не меняют
+    const unchanged = { dentistId: data.dentistId, serviceId: data.serviceId, durationMin: 30 };
+    expect((await edit(id, { ...unchanged, startAt: at(day, '10:00') })).statusCode).toBe(204);
+
+    const res = await edit(id, {
+      dentistId: boris,
+      startAt: at(day, '15:00'),
+      serviceId: data.serviceId,
+      durationMin: 30,
+      notes: '',
+    });
+    expect(res.statusCode, res.body).toBe(204);
+    expect(await shown(day, id)).toMatchObject({ dentistId: boris, startAt: at(day, '15:00') });
+    expect(await smsKinds(id)).toContain('appointment_rescheduled:scheduled');
+    expect(lastMessageTo(BORIS_CHAT)).toMatch(/^Booking moved\n/);
+    expect(lastMessageTo(ANNA_CHAT)).toMatch(/^Booking moved to another dentist\n/);
+    // Прежнее время свободно
+    expect((await book(day, '10:00')).statusCode).toBe(201);
+
+    expect((await changesOf(id)).slice(1)).toEqual([
+      {
+        type: 'moved',
+        changes: {
+          startAt: { from: at(day, '10:00'), to: at(day, '15:00') },
+          dentist: { from: 'Dr. Anna', to: 'Dr. Boris' },
+        },
+      },
+    ]);
+  });
+
+  it('changes the client: a new phone moves the booking and its reminders to that client', async () => {
+    const day = addDays(upcoming(3), 28);
+    const id = await booked(day, '10:00', { fullName: 'First Client' });
+    const other = await booked(day, '11:00', { fullName: 'Second Client' });
+    const target = await stored(other);
+    const phone = `+1202555${String(6000 + phoneCounter)}`;
+
+    const res = await edit(id, { client: { fullName: 'Second Client', phone } });
+    expect(res.statusCode, res.body).toBe(204);
+    expect((await stored(id)).patientId).toBe(target.patientId);
+    const reminders = await database.db
+      .select({ patientId: notifications.patientId })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.appointmentId, id),
+          eq(notifications.channel, 'sms'),
+          eq(notifications.status, 'scheduled'),
+        ),
+      );
+    expect(reminders).toHaveLength(2);
+    expect(reminders.every((r) => r.patientId === target.patientId)).toBe(true);
+
+    // Только email — в карточку клиента; в истории записи его нет
+    const email = await edit(id, {
+      client: { fullName: 'Second Client', phone, email: 'second@example.com' },
+    });
+    expect(email.statusCode).toBe(204);
+    const [client] = await database.db
+      .select({ email: patients.email })
+      .from(patients)
+      .where(eq(patients.id, target.patientId!));
+    expect(client!.email).toBe('second@example.com');
+    expect((await shown(day, id))?.client).toMatchObject({ email: 'second@example.com' });
+    expect((await changesOf(id)).map((e) => e.type)).toEqual(['created', 'updated']);
+  });
+
+  it('after the visit only the client and notes change; a cancelled booking does not', async () => {
+    const id = await booked(addDays(upcoming(4), 28), '10:00');
+    const startAt = new Date(Date.now() - 26 * 3_600_000);
+    const endAt = new Date(startAt.getTime() + 30 * 60_000);
+    const [past] = await database.db
+      .insert(appointments)
+      .values({
+        clinicId: owner.clinicId,
+        locationId: data.locationId,
+        dentistId: data.dentistId,
+        serviceId: data.serviceId,
+        patientId: (await stored(id)).patientId,
+        startAt,
+        endAt,
+        blockedUntil: blockedUntil(endAt, 0),
+        status: 'completed',
+        source: 'admin',
+      })
+      .returning({ id: appointments.id });
+
+    expect((await edit(past!.id, { durationMin: 45 })).statusCode).toBe(409);
+    const res = await edit(past!.id, {
+      client: { fullName: 'Walk-in', phone: '' },
+      notes: 'Paid at the desk',
+      // Те же время и длительность — не правка расписания
+      startAt: startAt.toISOString(),
+      durationMin: 30,
+    });
+    expect(res.statusCode, res.body).toBe(204);
+    expect(await stored(past!.id)).toMatchObject({ notes: 'Paid at the desk' });
+    expect((await stored(past!.id)).patientId).not.toBe((await stored(id)).patientId);
+    expect((await changesOf(past!.id)).at(-1)).toEqual({
+      type: 'updated',
+      changes: {
+        client: {
+          from: { fullName: 'Jane Client', phone: expect.any(String) },
+          to: { fullName: 'Walk-in', phone: null },
+        },
+        notes: { from: null, to: 'Paid at the desk' },
+      },
+    });
+
+    expect((await post(`/v1/admin/appointments/${id}/cancel`)).statusCode).toBe(204);
+    const cancelled = await edit(id, { notes: 'Too late' });
+    expect(cancelled.statusCode).toBe(409);
+    expect((await stored(id)).notes).toBeNull();
+    expect((await edit(id, {})).statusCode).toBe(400);
   });
 });

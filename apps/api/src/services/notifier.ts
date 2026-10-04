@@ -45,9 +45,9 @@ export interface Notifier {
     by?: 'client' | 'clinic' | 'dentist',
   ): Promise<void>;
   /**
-   * Регистратура перенесла запись (Шаг 9): алерт врачу (и прежнему, если врач сменился);
-   * если сменилось время — клиенту SMS и напоминания на новое время. alertDentist: false —
-   * перенёс сам врач в Mini App.
+   * Регистратура перенесла запись или изменила её услугу или длительность (Шаг 9): алерт
+   * врачу (и прежнему, если врач сменился); если сменилось время — клиенту SMS и напоминания
+   * на новое время. alertDentist: false — перенёс сам врач в Mini App.
    */
   appointmentRescheduled(
     clinicId: string,
@@ -278,13 +278,19 @@ export function createNotifier(deps: {
     },
     async appointmentRescheduled(clinicId, appointmentId, previous, options = {}) {
       await safely('telegram_rescheduled', appointmentId, async () => {
-        if (options.alertDentist !== false) {
-          await alert(clinicId, appointmentId, 'appointment_rescheduled', 'tg.rescheduled');
-        }
         const [row] = await db
-          .select({ dentistId: appointments.dentistId })
+          .select({ dentistId: appointments.dentistId, startAt: appointments.startAt })
           .from(appointments)
           .where(and(eq(appointments.id, appointmentId), eq(appointments.clinicId, clinicId)));
+        if (options.alertDentist !== false) {
+          // Время и врач прежние — изменились услуга или длительность
+          const moved =
+            !row ||
+            row.dentistId !== previous.dentistId ||
+            row.startAt.getTime() !== previous.startAt.getTime();
+          const key = moved ? 'tg.rescheduled' : 'tg.changed';
+          await alert(clinicId, appointmentId, 'appointment_rescheduled', key);
+        }
         if (row && row.dentistId !== previous.dentistId) {
           await alertPreviousDentist(clinicId, appointmentId, previous);
         }

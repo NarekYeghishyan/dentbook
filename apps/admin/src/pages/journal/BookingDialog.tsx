@@ -4,11 +4,15 @@
  * клиент, SMS ему не уходят). Длительность сначала — как у услуги, её можно
  * изменить для этой записи. Запись сразу подтверждена; занято — 409 и ближайшее свободное
  * время, которое можно выбрать одним нажатием.
+ *
+ * Та же форма правит готовую запись («Изменить»): открывается с её данными, сохраняет
+ * PATCH. Время, врача, услугу и длительность можно менять до начала визита, клиента и
+ * заметки — и после.
  */
 import { useState, type FormEvent } from 'react';
-import type { Dentist, Service } from '@dentbook/shared';
+import type { Dentist, JournalAppointment, Service } from '@dentbook/shared';
 import { BOOKING_DURATION_MAX, BOOKING_DURATION_MIN } from '@dentbook/shared/domain';
-import { useClients, useCreateBooking } from '../../api/hooks';
+import { useClients, useCreateBooking, useUpdateAppointment } from '../../api/hooks';
 import { Button, Field, Input, Modal, Select } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { atMinutes, dateIn, formatTime, minutesOfDay } from '../../lib/time';
@@ -19,7 +23,17 @@ export interface BookingDraft {
   /** Минуты от местной полуночи офиса. */
   minutes: number;
   dentistId: string;
+  /** Правка: запись, которую меняют; без неё — новая запись. */
+  appointment?: JournalAppointment;
 }
+
+/** Черновик формы с данными готовой записи — для «Изменить». */
+export const draftOf = (appointment: JournalAppointment, timeZone: string): BookingDraft => ({
+  date: dateIn(appointment.startAt, timeZone),
+  minutes: minutesOfDay(appointment.startAt, timeZone),
+  dentistId: appointment.dentistId,
+  appointment,
+});
 
 const hhmm = (minutes: number) =>
   `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
@@ -49,21 +63,52 @@ export function BookingDialog({
 }) {
   const { t, locale } = useI18n();
   const create = useCreateBooking();
+  const update = useUpdateAppointment();
   const errorText = useJournalError();
+  const editing = draft.appointment;
+  const save = editing ? update : create;
+  // Визит начался: время, врач, услуга и длительность уже не меняются (как и перенос мышью)
+  const locked =
+    editing !== undefined &&
+    !(
+      (editing.status === 'pending' || editing.status === 'confirmed') &&
+      Date.parse(editing.startAt) > Date.now()
+    );
   const [dentistId, setDentistId] = useState(draft.dentistId);
   const [date, setDate] = useState(draft.date);
   const [time, setTime] = useState(hhmm(draft.minutes));
   const [query, setQuery] = useState('');
-  const [client, setClient] = useState({ fullName: '', phone: '', email: '' });
-  const [notes, setNotes] = useState('');
+  const [client, setClient] = useState({
+    fullName: editing?.client?.fullName ?? '',
+    phone: editing?.client?.phone ?? '',
+    email: editing?.client?.email ?? '',
+  });
+  const [notes, setNotes] = useState(editing?.notes ?? '');
   const found = useClients(query.trim(), query.trim().length >= 2);
 
   const dentist = dentists.find((d) => d.id === dentistId);
-  const offered = services.filter((s) => s.isActive && dentist?.serviceIds.includes(s.id));
-  const [serviceId, setServiceId] = useState(offered[0]?.id ?? '');
+  const offered: Pick<Service, 'id' | 'name' | 'durationMin'>[] = services.filter(
+    (s) => s.isActive && dentist?.serviceIds.includes(s.id),
+  );
+  const bookedMin = editing
+    ? (Date.parse(editing.endAt) - Date.parse(editing.startAt)) / 60_000
+    : 0;
+  // Услуга записи остаётся в списке, даже если врач её больше не оказывает. Разовое «Другое»
+  // из Mini App (его нет в каталоге) — у любого врача: такая запись переносится к любому
+  if (
+    editing &&
+    !offered.some((s) => s.id === editing.serviceId) &&
+    (dentistId === editing.dentistId || !services.some((s) => s.id === editing.serviceId))
+  ) {
+    offered.unshift({ id: editing.serviceId, name: editing.service, durationMin: bookedMin });
+  }
+  const [serviceId, setServiceId] = useState(editing?.serviceId ?? offered[0]?.id ?? '');
   const service = offered.find((s) => s.id === serviceId) ?? offered[0];
-  // Своя длительность — у той услуги, для которой её ввели; другая услуга — её длительность
-  const [ownDuration, setOwnDuration] = useState<{ serviceId: string; value: string } | null>(null);
+  // Своя длительность — у той услуги, для которой её ввели; другая услуга — её длительность.
+  // У правки своя длительность сразу есть — длительность записи
+  const [ownDuration, setOwnDuration] = useState<{ serviceId: string; value: string } | null>(
+    editing ? { serviceId: editing.serviceId, value: String(bookedMin) } : null,
+  );
   const duration =
     ownDuration && ownDuration.serviceId === service?.id
       ? ownDuration.value
@@ -72,35 +117,48 @@ export function BookingDialog({
   function submit(event: FormEvent) {
     event.preventDefault();
     if (!service) return;
+    const schedule = {
+      serviceId: service.id,
+      dentistId,
+      startAt: atMinutes(date, toMinutes(time), timeZone),
+      durationMin: Number(duration),
+    };
+    const person = {
+      fullName: client.fullName.trim(),
+      // Номер в любом виде или пусто: к E.164 его приводит API, если он так читается
+      phone: client.phone.trim(),
+      ...(client.email.trim() ? { email: client.email.trim() } : {}),
+    };
+    if (editing) {
+      // Сервер сравнивает с записью и меняет только то, что отличается; пустые заметки — убрать
+      update.mutate(
+        { id: editing.id, ...(locked ? {} : schedule), client: person, notes: notes.trim() },
+        { onSuccess: onDone },
+      );
+      return;
+    }
     create.mutate(
       {
         locationId,
-        serviceId: service.id,
-        dentistId,
-        startAt: atMinutes(date, toMinutes(time), timeZone),
-        durationMin: Number(duration),
-        client: {
-          fullName: client.fullName.trim(),
-          // Номер в любом виде или пусто: к E.164 его приводит API, если он так читается
-          phone: client.phone.trim(),
-          ...(client.email.trim() ? { email: client.email.trim() } : {}),
-        },
+        ...schedule,
+        client: person,
         ...(notes.trim() ? { notes: notes.trim() } : {}),
       },
       { onSuccess: onDone },
     );
   }
 
-  const alternatives = alternativesOf(create.error);
+  const alternatives = alternativesOf(save.error);
 
   return (
-    <Modal title={t('booking.title')} onClose={onClose}>
+    <Modal title={t(editing ? 'booking.editTitle' : 'booking.title')} onClose={onClose}>
       <form className="space-y-4" onSubmit={submit}>
-        <div className="grid gap-3 sm:grid-cols-2">
+        {locked && <p className="text-sm text-slate-600">{t('booking.startedLocked')}</p>}
+        <fieldset disabled={locked} className="grid min-w-0 gap-3 sm:grid-cols-2">
           <Field label={t('field.dentist')}>
             <Select value={dentistId} onChange={(e) => setDentistId(e.target.value)}>
               {dentists
-                .filter((d) => d.isActive)
+                .filter((d) => d.isActive || d.id === draft.dentistId)
                 .map((d) => (
                   <option key={d.id} value={d.id}>
                     {d.fullName}
@@ -146,7 +204,7 @@ export function BookingDialog({
               }
             />
           </Field>
-        </div>
+        </fieldset>
         {offered.length === 0 && (
           <p className="text-sm text-amber-700">{t('booking.noServices')}</p>
         )}
@@ -183,7 +241,7 @@ export function BookingDialog({
               ))}
             </ul>
           )}
-          <p className="text-xs text-slate-500">{t('booking.newClient')}</p>
+          {!editing && <p className="text-xs text-slate-500">{t('booking.newClient')}</p>}
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label={t('field.fullName')}>
               <Input
@@ -214,12 +272,12 @@ export function BookingDialog({
           </Field>
         </fieldset>
 
-        {create.error !== null && (
+        {save.error !== null && (
           <div
             role="alert"
             className="space-y-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700"
           >
-            <p>{errorText(create.error)}</p>
+            <p>{errorText(save.error)}</p>
             {alternatives.length > 0 && (
               <div className="flex flex-wrap items-center gap-2">
                 <span>{t('booking.alternatives')}</span>
@@ -230,7 +288,7 @@ export function BookingDialog({
                     onClick={() => {
                       setDate(dateIn(alt, timeZone));
                       setTime(hhmm(minutesOfDay(alt, timeZone)));
-                      create.reset();
+                      save.reset();
                     }}
                   >
                     {formatTime(alt, timeZone, locale)}
@@ -245,8 +303,8 @@ export function BookingDialog({
           <Button variant="secondary" onClick={onClose}>
             {t('common.cancel')}
           </Button>
-          <Button type="submit" disabled={create.isPending || !service}>
-            {t('booking.submit')}
+          <Button type="submit" disabled={save.isPending || !service}>
+            {t(editing ? 'common.save' : 'booking.submit')}
           </Button>
         </div>
       </form>

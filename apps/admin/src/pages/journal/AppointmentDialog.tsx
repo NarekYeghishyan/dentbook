@@ -1,4 +1,7 @@
-/** Запись в журнале: данные, действия регистратуры (Q17) и история изменений. */
+/**
+ * Запись в журнале: данные, действия регистратуры (Q17) и история изменений. «Изменить» —
+ * у любой неотменённой записи: открывает форму записи с её данными (BookingDialog).
+ */
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { JournalAppointment } from '@dentbook/shared';
@@ -23,12 +26,15 @@ export function AppointmentDialog({
   timeZone,
   onClose,
   onDone,
+  onEdit,
 }: {
   appointment: JournalAppointment;
   dentistName: string;
   timeZone: string;
   onClose(): void;
   onDone(): void;
+  /** Открыть форму записи с её данными. */
+  onEdit(): void;
 }) {
   const { t, locale } = useI18n();
   const action = useAppointmentAction();
@@ -100,6 +106,11 @@ export function AppointmentDialog({
         )}
 
         <div className="flex flex-wrap gap-2">
+          {appointment.status !== 'cancelled' && (
+            <Button variant="secondary" disabled={action.isPending} onClick={onEdit}>
+              {t('common.edit')}
+            </Button>
+          )}
           {upcoming && appointment.status === 'pending' && (
             <Button disabled={action.isPending} onClick={() => run('confirm')}>
               {t('appointment.confirm')}

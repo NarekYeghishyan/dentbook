@@ -8,11 +8,18 @@ import {
   clinics,
   dentists,
   locations,
+  notifications,
   patients,
   services,
   type Database,
+  type Transaction,
 } from '@dentbook/db';
-import type { ClientCard, ClientSummary, UpdateClientInput } from '@dentbook/shared';
+import type {
+  ClientCard,
+  ClientSnapshot,
+  ClientSummary,
+  UpdateClientInput,
+} from '@dentbook/shared';
 import { notFound } from '../lib/errors.js';
 
 /** Записи, которые попадают в историю клиента: всё, кроме холдов. */
@@ -126,6 +133,65 @@ export async function loadClientCard(
       startAt: h.startAt.toISOString(),
     })),
   };
+}
+
+/**
+ * Клиент записи после правки врачом в Mini App или регистратурой в журнале. Клиент в клинике
+ * определяется телефоном (Q9): новое имя (и email) меняет карточку клиента, новый телефон
+ * переводит запись на клиента с этим номером. Клиент без номера есть только у своей записи:
+ * его имя правится на месте, а убранный номер даёт записи нового клиента без номера —
+ * карточка клиента с этим номером не трогается. Возвращает клиента записи; если он сменился,
+ * запланированные SMS уходят на его номер.
+ */
+export async function setBookingClient(
+  tx: Transaction,
+  params: {
+    clinicId: string;
+    appointmentId: string;
+    patientId: string | null;
+    before: ClientSnapshot | null;
+    client: { fullName: string; phone: string | null; email?: string | undefined };
+  },
+): Promise<string> {
+  const { clinicId, appointmentId, patientId, before, client } = params;
+  if (client.phone === null && before?.phone === null && patientId) {
+    await tx
+      .update(patients)
+      .set({ fullName: client.fullName, ...(client.email ? { email: client.email } : {}) })
+      .where(and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)));
+    return patientId;
+  }
+  const [patient] = await tx
+    .insert(patients)
+    .values({
+      clinicId,
+      fullName: client.fullName,
+      phone: client.phone,
+      email: client.email ?? null,
+    })
+    .onConflictDoUpdate({
+      target: [patients.clinicId, patients.phone],
+      set: {
+        fullName: sql`excluded.full_name`,
+        email: sql`coalesce(excluded.email, ${patients.email})`,
+      },
+    })
+    .returning({ id: patients.id });
+  if (patient!.id !== patientId) {
+    // Напоминание уходит на телефон клиента из notifications.patient_id — на новый номер
+    await tx
+      .update(notifications)
+      .set({ patientId: patient!.id })
+      .where(
+        and(
+          eq(notifications.clinicId, clinicId),
+          eq(notifications.appointmentId, appointmentId),
+          eq(notifications.channel, 'sms'),
+          eq(notifications.status, 'scheduled'),
+        ),
+      );
+  }
+  return patient!.id;
 }
 
 export async function updateClient(

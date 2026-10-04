@@ -482,11 +482,22 @@ const attacks: Record<string, () => Promise<void>> = {
       url: `/v1/admin/appointments/${aAppointmentId}`,
       payload: { startAt: '2030-01-07T16:00:00Z' },
     });
+    // «Изменить»: клиент и заметки чужой записи
+    await expectNotFound({
+      method: 'PATCH',
+      url: `/v1/admin/appointments/${aAppointmentId}`,
+      payload: { client: { fullName: 'Intruder', phone: '+12025557003' }, notes: 'Hacked' },
+    });
     const journal = await asSeenByA<{ appointments: { id: string; startAt: string }[] }>(
       `/v1/admin/journal?locationId=${aData.locationId}&from=2030-01-07&to=2030-01-07`,
     );
     expect(journal.appointments).toEqual([
-      expect.objectContaining({ id: aAppointmentId, startAt: new Date(A_VISIT).toISOString() }),
+      expect.objectContaining({
+        id: aAppointmentId,
+        startAt: new Date(A_VISIT).toISOString(),
+        notes: null,
+        client: expect.objectContaining({ fullName: 'Client of A', phone: A_CLIENT_PHONE }),
+      }),
     ]);
   },
 
