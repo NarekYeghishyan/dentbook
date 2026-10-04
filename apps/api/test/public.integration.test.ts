@@ -17,6 +17,7 @@ import {
 } from '@dentbook/db/testing';
 import type {
   ApiKey,
+  ClientCard,
   ConfirmedAppointment,
   Dentist,
   HoldResponse,
@@ -122,7 +123,14 @@ async function verify(phone: string, token = key): Promise<string> {
   return res.json<VerificationResponse>().verification_id;
 }
 
-function confirm(holdId: string, verificationId: string, phone: string, code: string, token = key) {
+function confirm(
+  holdId: string,
+  verificationId: string,
+  phone: string,
+  code: string,
+  token = key,
+  notes?: string,
+) {
   return pub(
     {
       method: 'POST',
@@ -132,6 +140,7 @@ function confirm(holdId: string, verificationId: string, phone: string, code: st
         verification_id: verificationId,
         code,
         client: { full_name: 'Jane Client', phone, email: 'jane@example.com' },
+        ...(notes ? { notes } : {}),
       },
     },
     token,
@@ -451,7 +460,14 @@ describe('verification and booking', () => {
       text: expect.stringMatching(/^\d{6} is your Smile Dental booking code/),
     });
 
-    const res = await confirm(held.hold_id, verificationId, phone, sms.lastCode(phone));
+    const res = await confirm(
+      held.hold_id,
+      verificationId,
+      phone,
+      sms.lastCode(phone),
+      key,
+      'First visit, a bit nervous',
+    );
     expect(res.statusCode, res.body).toBe(201);
     const appointment = res.json<ConfirmedAppointment>();
     expect(appointment).toMatchObject({
@@ -465,10 +481,27 @@ describe('verification and booking', () => {
     });
     expect(appointment.token).toMatch(/^[0-9a-f]{48}$/);
     const [client] = await database.db
-      .select({ fullName: patients.fullName, verifiedAt: patients.phoneVerifiedAt })
+      .select({
+        id: patients.id,
+        fullName: patients.fullName,
+        verifiedAt: patients.phoneVerifiedAt,
+      })
       .from(patients)
       .where(and(eq(patients.clinicId, owner.clinicId), eq(patients.phone, phone)));
     expect(client).toMatchObject({ fullName: 'Jane Client', verifiedAt: expect.any(Date) });
+    // Комментарий клиента — в истории заметок его карточки (Q19)
+    const card = await call<ClientCard>(app, owner, {
+      method: 'GET',
+      url: `/v1/admin/clients/${client!.id}`,
+    });
+    expect(card.notes).toEqual([
+      expect.objectContaining({
+        text: 'First visit, a bit nervous',
+        author: 'client',
+        authorName: null,
+        appointment: { id: held.hold_id, startAt: start, timeZone: ZONE },
+      }),
+    ]);
 
     // Один код — одна запись
     const next = (await hold(at(MON(), '15:00'))).json<HoldResponse>();

@@ -327,8 +327,7 @@ CREATE TABLE patients (
   phone              text,
   email              citext,
   phone_verified_at  timestamptz,
-  -- Заметки регистратуры для карточки клиента (Шаг 9)
-  notes              text,
+  -- Заметки о клиенте — история в patient_notes (Q19); одно поле notes было до неё
   created_at         timestamptz NOT NULL DEFAULT now(),
   updated_at         timestamptz NOT NULL DEFAULT now(),
 
@@ -461,6 +460,43 @@ CREATE TABLE appointment_events (
 );
 
 CREATE INDEX appointment_events_appointment_idx ON appointment_events (appointment_id, created_at);
+
+
+-- -----------------------------------------------------------------------------
+-- patient_notes — заметки о клиенте (Q19): история на его карточке. Регистратура
+-- пишет их в карточке; заметка к записи (регистратура в журнале, врач в Mini App,
+-- клиент на сайте) попадает сюда же со ссылкой на запись — при создании записи и
+-- при каждом новом тексте. Заметки не правятся: только добавляются, удалить может
+-- владелец или администратор. Текст — данные клиники, в логи не попадает (§2.6).
+-- -----------------------------------------------------------------------------
+CREATE TABLE patient_notes (
+  id              uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  clinic_id       uuid        NOT NULL REFERENCES clinics (id),
+  patient_id      uuid        NOT NULL,
+  -- Заметка к записи; NULL — написана в карточке клиента
+  appointment_id  uuid,
+  -- Как appointment_events.actor: client — на сайте, dentist — в Telegram, staff — в панели
+  author          text        NOT NULL,
+  -- Сотрудник; NULL — неизвестен (например, у заметок, перенесённых из patients.notes)
+  user_id         uuid        REFERENCES users (id),
+  dentist_id      uuid,
+  text            text        NOT NULL,
+  created_at      timestamptz NOT NULL DEFAULT now(),
+
+  CONSTRAINT patient_notes_author  CHECK (author IN ('client', 'dentist', 'staff', 'system')),
+  CONSTRAINT patient_notes_user_is_staff   CHECK (user_id IS NULL OR author = 'staff'),
+  CONSTRAINT patient_notes_dentist_writes  CHECK (dentist_id IS NULL OR author = 'dentist'),
+  CONSTRAINT patient_notes_text    CHECK (btrim(text) <> '' AND char_length(text) <= 2000),
+
+  CONSTRAINT patient_notes_patient_fk      FOREIGN KEY (clinic_id, patient_id)
+    REFERENCES patients (clinic_id, id),
+  CONSTRAINT patient_notes_appointment_fk  FOREIGN KEY (clinic_id, appointment_id)
+    REFERENCES appointments (clinic_id, id),
+  CONSTRAINT patient_notes_dentist_fk      FOREIGN KEY (clinic_id, dentist_id)
+    REFERENCES dentists (clinic_id, id)
+);
+
+CREATE INDEX patient_notes_patient_idx ON patient_notes (patient_id, created_at);
 
 
 -- -----------------------------------------------------------------------------

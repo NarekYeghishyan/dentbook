@@ -1,8 +1,10 @@
 /**
  * Журнал регистратуры (Шаг 9, Q17): запись сотрудником, перенос мышью, подтверждение,
- * отмена клиникой, отметки визитов, карточка клиента, CSV и дашборд. Критерий «Готово» —
- * перенос не создаёт пересечений: одновременные переносы на одно время дают ровно один.
+ * отмена клиникой, отметки визитов, карточка клиента и её заметки (Q19), CSV и дашборд.
+ * Критерий «Готово» — перенос не создаёт пересечений: одновременные переносы на одно время
+ * дают ровно один.
  */
+import { randomUUID } from 'node:crypto';
 import { and, eq, inArray } from 'drizzle-orm';
 import type { FastifyInstance, InjectOptions } from 'fastify';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -21,6 +23,7 @@ import type {
 import {
   TestOutbox,
   TestSmsOutbox,
+  addStaff,
   as,
   call,
   createClinicData,
@@ -59,7 +62,13 @@ let phoneCounter = 0;
 async function book(
   date: string,
   time: string,
-  options: { dentistId?: string; fullName?: string; phone?: string; durationMin?: number } = {},
+  options: {
+    dentistId?: string;
+    fullName?: string;
+    phone?: string;
+    durationMin?: number;
+    notes?: string;
+  } = {},
 ) {
   return as(app, owner, {
     method: 'POST',
@@ -70,6 +79,7 @@ async function book(
       dentistId: options.dentistId ?? data.dentistId,
       startAt: at(date, time),
       ...(options.durationMin ? { durationMin: options.durationMin } : {}),
+      ...(options.notes ? { notes: options.notes } : {}),
       client: {
         fullName: options.fullName ?? 'Jane Client',
         phone: options.phone ?? `+1202555${String(6000 + ++phoneCounter)}`,
@@ -559,9 +569,9 @@ describe('client card (Step 9)', () => {
     const updated = await call<ClientCard>(app, owner, {
       method: 'PATCH',
       url: `/v1/admin/clients/${clientId}`,
-      payload: { email: 'maria@example.com', notes: 'Prefers mornings' },
+      payload: { email: 'maria@example.com' },
     });
-    expect(updated).toMatchObject({ email: 'maria@example.com', notes: 'Prefers mornings' });
+    expect(updated).toMatchObject({ email: 'maria@example.com', notes: [] });
     const bad = await as(app, owner, {
       method: 'PATCH',
       url: `/v1/admin/clients/${clientId}`,
@@ -861,5 +871,78 @@ describe('editing a booking (journal "Edit")', () => {
     expect(cancelled.statusCode).toBe(409);
     expect((await stored(id)).notes).toBeNull();
     expect((await edit(id, {})).statusCode).toBe(400);
+  });
+});
+
+describe('client notes (Q19)', () => {
+  const cardOf = (clientId: string) =>
+    call<ClientCard>(app, owner, { method: 'GET', url: `/v1/admin/clients/${clientId}` });
+  const addNote = (session: Session, clientId: string, text: string) =>
+    as(app, session, {
+      method: 'POST',
+      url: `/v1/admin/clients/${clientId}/notes`,
+      payload: { text },
+    });
+  const clientOf = async (appointmentId: string) =>
+    (
+      await database.db
+        .select({ patientId: appointments.patientId })
+        .from(appointments)
+        .where(eq(appointments.id, appointmentId))
+    )[0]!.patientId!;
+
+  it('keeps every note as history: added on the card and written on bookings', async () => {
+    const day = addDays(upcoming(5), 28);
+    const id = await booked(day, '10:00', { notes: 'Allergic to latex' });
+    const clientId = await clientOf(id);
+    expect((await edit(id, { notes: 'Allergic to latex and penicillin' })).statusCode).toBe(204);
+    // Убранная заметка к записи — не новая заметка; прежние остаются в истории
+    expect((await edit(id, { notes: '' })).statusCode).toBe(204);
+    for (const text of ['Prefers mornings', '  Pays in cash  ']) {
+      expect((await addNote(owner, clientId, text)).statusCode).toBe(201);
+    }
+
+    const staff = { author: 'staff', authorName: 'Olivia Owner' };
+    const onBooking = { id, startAt: at(day, '10:00'), timeZone: ZONE };
+    const { notes } = await cardOf(clientId);
+    expect(
+      notes.map(({ text, author, authorName, appointment }) => ({
+        text,
+        author,
+        authorName,
+        appointment,
+      })),
+    ).toEqual([
+      { text: 'Pays in cash', ...staff, appointment: null },
+      { text: 'Prefers mornings', ...staff, appointment: null },
+      { text: 'Allergic to latex and penicillin', ...staff, appointment: onBooking },
+      { text: 'Allergic to latex', ...staff, appointment: onBooking },
+    ]);
+    const times = notes.map((n) => Date.parse(n.at));
+    expect(times).toEqual([...times].sort((a, b) => b - a));
+
+    expect((await addNote(owner, clientId, '   ')).statusCode).toBe(400);
+    expect((await addNote(owner, clientId, 'x'.repeat(2001))).statusCode).toBe(400);
+    expect((await addNote(owner, randomUUID(), 'Nobody')).statusCode).toBe(404);
+  });
+
+  it('lets the front desk add notes, and only the owner or an admin delete them', async () => {
+    const clientId = await clientOf(await booked(addDays(upcoming(1), 35), '10:00'));
+    const registrar = await addStaff(app, owner, 'registrar');
+    const added = await addNote(registrar, clientId, 'Called to confirm');
+    expect(added.statusCode, added.body).toBe(201);
+    const noteId = added.json<{ id: string }>().id;
+    expect((await cardOf(clientId)).notes).toEqual([
+      expect.objectContaining({ id: noteId, author: 'staff', authorName: 'Sam registrar' }),
+    ]);
+
+    const remove = (session: Session, id = noteId) =>
+      as(app, session, { method: 'DELETE', url: `/v1/admin/clients/${clientId}/notes/${id}` });
+    expect((await remove(registrar)).statusCode).toBe(403);
+    expect((await cardOf(clientId)).notes).toHaveLength(1);
+    expect((await remove(await addStaff(app, owner, 'admin'))).statusCode).toBe(204);
+    expect((await cardOf(clientId)).notes).toEqual([]);
+    expect((await remove(owner)).statusCode).toBe(404);
+    expect((await remove(owner, 'not-a-uuid')).statusCode).toBe(404);
   });
 });

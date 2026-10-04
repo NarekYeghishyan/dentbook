@@ -17,6 +17,7 @@ import {
 } from '@dentbook/db/testing';
 import type {
   AppointmentHistory,
+  ClientCard,
   ConfirmedAppointment,
   Dentist,
   HoldResponse,
@@ -579,6 +580,23 @@ describe('Mini App (§8)', () => {
     expect(await scheduleOf(upcoming(1))).toContainEqual(
       expect.objectContaining({ id: website!.id, notes: 'Call before the visit' }),
     );
+
+    // Комментарии врача — в истории заметок карточки клиента (Q19): первый остался у
+    // прежнего клиента записи, новый — у нового; убранный комментарий заметок не добавляет
+    const notesOf = async (phone: string) => {
+      const [client] = await database.db
+        .select({ id: patients.id })
+        .from(patients)
+        .where(and(eq(patients.clinicId, owner.clinicId), eq(patients.phone, phone)));
+      const card = await call<ClientCard>(app, owner, {
+        method: 'GET',
+        url: `/v1/admin/clients/${client!.id}`,
+      });
+      return card.notes.map(({ text, author, authorName }) => ({ text, author, authorName }));
+    };
+    const anna = { author: 'dentist', authorName: 'Dr. Anna' };
+    expect(await notesOf('+12025559000')).toEqual([{ text: 'Bring the X-ray', ...anna }]);
+    expect(await notesOf('+12025559002')).toEqual([{ text: 'Allergic to latex', ...anna }]);
   });
 
   it('moves and cancels an own booking without alerting the dentist', async () => {

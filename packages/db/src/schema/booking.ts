@@ -37,7 +37,6 @@ export const patients = pgTable(
     phone: text('phone'),
     email: citext('email'),
     phoneVerifiedAt: timestamptz('phone_verified_at'),
-    notes: text('notes'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
@@ -234,5 +233,63 @@ export const appointmentEvents = pgTable(
     check('appointment_events_user_is_staff', sql`user_id IS NULL OR actor = 'staff'`),
     check('appointment_events_dentist_acts', sql`dentist_id IS NULL OR actor = 'dentist'`),
     index('appointment_events_appointment_idx').on(t.appointmentId, t.createdAt),
+  ],
+);
+
+/**
+ * Заметки о клиенте (Q19) — история на его карточке. Регистратура пишет их в карточке, а
+ * заметка к записи (регистратура в журнале, врач в Mini App, клиент на сайте) попадает
+ * сюда же со ссылкой на запись. Заметки не правятся: только добавляются, удалить может
+ * владелец или администратор клиники. Текст — данные клиники, как patients: в логи и
+ * трекеры не попадает (§2.6).
+ */
+export const patientNotes = pgTable(
+  'patient_notes',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    clinicId: uuid('clinic_id').notNull(),
+    patientId: uuid('patient_id').notNull(),
+    /** Заметка к записи; NULL — написана в карточке клиента. */
+    appointmentId: uuid('appointment_id'),
+    /** Кто написал: те же, кто меняет запись (appointment_events.actor). */
+    author: text('author', { enum: APPOINTMENT_ACTORS }).notNull(),
+    /** Сотрудник (author = 'staff'); NULL — неизвестен, например у заметок до истории. */
+    userId: uuid('user_id'),
+    /** Врач (author = 'dentist'). */
+    dentistId: uuid('dentist_id'),
+    text: text('text').notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({
+      name: 'patient_notes_clinic_id_fkey',
+      columns: [t.clinicId],
+      foreignColumns: [clinics.id],
+    }),
+    foreignKey({
+      name: 'patient_notes_user_id_fkey',
+      columns: [t.userId],
+      foreignColumns: [users.id],
+    }),
+    foreignKey({
+      name: 'patient_notes_patient_fk',
+      columns: [t.clinicId, t.patientId],
+      foreignColumns: [patients.clinicId, patients.id],
+    }),
+    foreignKey({
+      name: 'patient_notes_appointment_fk',
+      columns: [t.clinicId, t.appointmentId],
+      foreignColumns: [appointments.clinicId, appointments.id],
+    }),
+    foreignKey({
+      name: 'patient_notes_dentist_fk',
+      columns: [t.clinicId, t.dentistId],
+      foreignColumns: [dentists.clinicId, dentists.id],
+    }),
+    check('patient_notes_author', oneOf('author', APPOINTMENT_ACTORS)),
+    check('patient_notes_user_is_staff', sql`user_id IS NULL OR author = 'staff'`),
+    check('patient_notes_dentist_writes', sql`dentist_id IS NULL OR author = 'dentist'`),
+    check('patient_notes_text', sql`btrim(text) <> '' AND char_length(text) <= 2000`),
+    index('patient_notes_patient_idx').on(t.patientId, t.createdAt),
   ],
 );

@@ -46,7 +46,7 @@ import { computeAvailability } from '../../services/availability.js';
 import { loadHistory, recordEvent } from '../../services/history.js';
 import type { Notifier } from '../../services/notifier.js';
 import { slotTaken } from '../../services/holds.js';
-import { setBookingClient } from '../../services/clients.js';
+import { addClientNote, setBookingClient } from '../../services/clients.js';
 import { cancelByClinic, updateAppointment } from '../../services/journal.js';
 import {
   findConflictingAppointments,
@@ -552,6 +552,14 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
           actor: { kind: 'dentist', dentistId: ctx.dentistId },
           changes: { startAt: { from: null, to: startIso } },
         });
+        // Комментарий врача — и в историю заметок клиента (Q19)
+        await addClientNote(tx, {
+          clinicId: ctx.clinicId,
+          patientId: patient!.id,
+          appointmentId: row!.id,
+          author: { kind: 'dentist', dentistId: ctx.dentistId },
+          text: input.notes,
+        });
         return row!.id;
       });
       await cache?.invalidateDentist(ctx.clinicId, ctx.dentistId);
@@ -620,6 +628,16 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
         .update(appointments)
         .set({ patientId, notes })
         .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)));
+      // Новый комментарий — и в историю заметок клиента (Q19)
+      if (changes.notes && patientId) {
+        await addClientNote(tx, {
+          clinicId,
+          patientId,
+          appointmentId: id,
+          author: { kind: 'dentist', dentistId },
+          text: notes,
+        });
+      }
       if (changes.client || changes.notes) {
         await recordEvent(tx, {
           clinicId,

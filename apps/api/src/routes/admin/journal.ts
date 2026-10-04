@@ -2,13 +2,16 @@
  * Журнал регистратуры, записи, клиенты и отчёты (Шаг 9, Q17). Всё — в области clinicScope:
  * clinicId только из сессии (§2.2). Записывать, переносить и править записи, подтверждать,
  * отменять и отмечать визиты и смотреть их историю может любой сотрудник, включая
- * регистратуру; выгрузка с телефонами клиентов — только владелец и администратор.
+ * регистратуру; выгрузка с телефонами клиентов и удаление заметок о клиенте — только
+ * владелец и администратор.
  */
 import type { FastifyPluginAsync, FastifyReply, FastifyRequest } from 'fastify';
+import { z } from 'zod';
 import { addDays } from '@dentbook/core';
 import type { Database } from '@dentbook/db';
 import {
   appointmentUpdateSchema,
+  clientNoteSchema,
   clientSearchSchema,
   JOURNAL_MAX_DAYS,
   journalQuerySchema,
@@ -16,12 +19,19 @@ import {
   reportQuerySchema,
   staffBookingSchema,
   updateClientSchema,
+  uuidSchema,
   visitOutcomeSchema,
 } from '@dentbook/shared';
-import { ApiError, parse } from '../../lib/errors.js';
+import { ApiError, notFound, parse } from '../../lib/errors.js';
 import { idOf } from '../../lib/params.js';
 import { authOf, MANAGERS } from '../../plugins/session.js';
-import { loadClientCard, searchClients, updateClient } from '../../services/clients.js';
+import {
+  createClientNote,
+  deleteClientNote,
+  loadClientCard,
+  searchClients,
+  updateClient,
+} from '../../services/clients.js';
 import { loadHistory } from '../../services/history.js';
 import {
   cancelByClinic,
@@ -49,6 +59,8 @@ function assertRange(range: { from: string; to: string }, maxDays: number) {
 }
 
 const noContent = (reply: FastifyReply) => reply.status(204).send();
+
+const noteParams = z.object({ id: uuidSchema, noteId: uuidSchema });
 
 export const journalRoutes: FastifyPluginAsync<JournalRoutesOptions> = async (
   app,
@@ -161,6 +173,29 @@ export const journalRoutes: FastifyPluginAsync<JournalRoutesOptions> = async (
       input,
       now: new Date(),
     });
+  });
+
+  /** Заметки о клиенте (Q19): добавить может любой сотрудник, удалить — руководитель. */
+  app.post('/clients/:id/notes', async (request, reply) => {
+    const { text } = parse(clientNoteSchema, request.body);
+    const created = await createClientNote(db, {
+      clinicId: authOf(request).clinicId,
+      patientId: idOf(request),
+      text,
+      userId: authOf(request).userId,
+    });
+    return reply.status(201).send(created);
+  });
+
+  app.delete('/clients/:id/notes/:noteId', { config: MANAGERS }, async (request, reply) => {
+    const params = noteParams.safeParse(request.params);
+    if (!params.success) throw notFound();
+    await deleteClientNote(db, {
+      clinicId: authOf(request).clinicId,
+      patientId: params.data.id,
+      noteId: params.data.noteId,
+    });
+    return noContent(reply);
   });
 
   // --- дашборд ---

@@ -47,7 +47,13 @@ const at = (date: string, time: string) => {
   return zonedTimeToUtc(date, h! * 60 + m!, ZONE).toISOString();
 };
 
-async function book(dentistId: string, time: string, fullName: string, phone: string) {
+async function book(
+  dentistId: string,
+  time: string,
+  fullName: string,
+  phone: string,
+  notes?: string,
+) {
   return (
     await call<{ id: string }>(
       app,
@@ -61,6 +67,7 @@ async function book(dentistId: string, time: string, fullName: string, phone: st
           dentistId,
           startAt: at(day, time),
           client: { fullName, phone },
+          ...(notes ? { notes } : {}),
         },
       },
       201,
@@ -287,6 +294,47 @@ describe('front desk journal (Step 9)', () => {
       .getByText(/^Client: Edit Client, \+12025558003 → Edited Client, \+12025558003$/)
       .waitFor();
     await shot(page, '6-edited');
+    await page.context().close();
+  });
+
+  it('keeps every note about the client as history on the client card', async () => {
+    await book(data.dentistId, '09:00', 'Notes Client', '+12025558004', 'Bring the X-ray');
+    const page = await openJournal();
+    // Подтверждение удаления заметки — «Да»
+    page.on('dialog', (dialog) => void dialog.accept());
+    await page.getByRole('button', { name: /^9:00\sAM Notes Client$/ }).click();
+    await page
+      .getByRole('dialog', { name: 'Booking' })
+      .getByRole('link', { name: 'Client card' })
+      .click();
+
+    // Заметка к записи уже в истории; новые добавляются сверху, сколько угодно раз
+    const notes = page.getByRole('list', { name: 'Notes' });
+    await notes.getByText('Bring the X-ray').waitFor();
+    for (const text of ['Prefers mornings', 'Pays in cash']) {
+      await page.getByLabel('New note about the client').fill(text);
+      await page.getByRole('button', { name: 'Add note' }).click();
+      await notes.getByText(text).waitFor();
+    }
+    const items = notes.getByRole('listitem');
+    expect((await items.allInnerTexts()).map((t) => t.split('\n')[0])).toEqual([
+      'Pays in cash',
+      'Prefers mornings',
+      'Bring the X-ray',
+    ]);
+    await items
+      .filter({ hasText: 'Bring the X-ray' })
+      .getByText(/^Booking on /)
+      .waitFor();
+    await shot(page, '7-notes');
+
+    // Владелец может удалить заметку
+    await items
+      .filter({ hasText: 'Prefers mornings' })
+      .getByRole('button', { name: 'Delete' })
+      .click();
+    await notes.getByText('Prefers mornings').waitFor({ state: 'detached' });
+    expect(await items.count()).toBe(2);
     await page.context().close();
   });
 });

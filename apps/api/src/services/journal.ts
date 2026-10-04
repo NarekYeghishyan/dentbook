@@ -41,7 +41,7 @@ import type {
 } from '@dentbook/shared';
 import { ApiError, notFound } from '../lib/errors.js';
 import { computeAvailability, loadSchedules } from './availability.js';
-import { setBookingClient } from './clients.js';
+import { addClientNote, setBookingClient } from './clients.js';
 import { recordEvent, type ClinicActor } from './history.js';
 import { slotTaken } from './holds.js';
 import type { Notifier } from './notifier.js';
@@ -386,6 +386,14 @@ export async function createStaffBooking(
         actor: { kind: 'staff', userId: params.userId },
         changes: { startAt: { from: null, to: input.startAt.toISOString() } },
       });
+      // Заметка к записи — и в историю заметок клиента (Q19)
+      await addClientNote(tx, {
+        clinicId,
+        patientId: patient!.id,
+        appointmentId: row!.id,
+        author: { kind: 'staff', userId: params.userId },
+        text: input.notes,
+      });
       return row!.id;
     });
   } catch (err) {
@@ -582,6 +590,16 @@ export async function updateAppointment(
           notes,
         })
         .where(and(eq(appointments.id, id), eq(appointments.clinicId, clinicId)));
+      // Новая заметка к записи — и в историю заметок клиента (Q19)
+      if (changes.notes && patientId) {
+        await addClientNote(tx, {
+          clinicId,
+          patientId,
+          appointmentId: id,
+          author: actor,
+          text: notes,
+        });
+      }
       const changed = Object.keys(changes);
       if (changed.length === 0) return;
       await recordEvent(tx, {

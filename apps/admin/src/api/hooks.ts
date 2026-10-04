@@ -7,6 +7,7 @@ import type {
   AvailabilityQuery,
   AvailabilityResponse,
   ClientCard,
+  ClientNoteInput,
   ClientSummary,
   ClinicSettings,
   CreateApiKeyInput,
@@ -358,6 +359,21 @@ export const useUpdateClient = () =>
     ({ id, ...input }: UpdateClientInput & { id: string }) =>
       api<ClientCard>('PATCH', `/clients/${id}`, input),
     [keys.clients, keys.journal],
+  );
+
+/** История заметок о клиенте (Q19): добавить — любой сотрудник, удалить — руководитель. */
+export const useAddClientNote = () =>
+  useSave(
+    ({ clientId, ...input }: ClientNoteInput & { clientId: string }) =>
+      api<{ id: string }>('POST', `/clients/${clientId}/notes`, input),
+    [keys.clients],
+  );
+
+export const useDeleteClientNote = () =>
+  useSave(
+    ({ clientId, noteId }: { clientId: string; noteId: string }) =>
+      api<void>('DELETE', `/clients/${clientId}/notes/${noteId}`),
+    [keys.clients],
   );
 
 export const useDashboard = (query: { from: string; to: string; locationId?: string }) =>

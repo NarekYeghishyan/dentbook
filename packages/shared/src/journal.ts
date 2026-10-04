@@ -3,7 +3,7 @@
  * как весь админский API, — camelCase.
  */
 import { z } from 'zod';
-import type { AppointmentSource, AppointmentStatus } from './domain.js';
+import type { AppointmentActor, AppointmentSource, AppointmentStatus } from './domain.js';
 import { instantSchema, localDateSchema } from './catalog.js';
 import {
   anyPhoneSchema,
@@ -149,24 +149,48 @@ export interface ClientAppointment {
   office: string;
 }
 
+/**
+ * Заметка о клиенте (Q19): написана в карточке клиента или к записи — регистратурой в
+ * журнале, врачом в Mini App, клиентом на сайте.
+ */
+export interface ClientNote {
+  id: string;
+  at: string;
+  text: string;
+  author: AppointmentActor;
+  /** Имя сотрудника или врача; null — клиент на сайте или сотрудник неизвестен. */
+  authorName: string | null;
+  /** Заметка к записи — к какому визиту; время показывать в поясе его офиса (§2.3). */
+  appointment: { id: string; startAt: string; timeZone: string } | null;
+}
+
 export interface ClientCard {
   id: string;
   fullName: string;
   /** null — клиента записали без номера (врач в Mini App или регистратура). */
   phone: string | null;
   email: string | null;
-  notes: string | null;
   createdAt: string;
   stats: { completed: number; noShow: number; cancelled: number; upcoming: number };
   appointments: ClientAppointment[];
+  /** История заметок, новые сверху. */
+  notes: ClientNote[];
 }
 
 export const updateClientSchema = z.object({
   fullName: nameSchema.optional(),
   email: emailSchema.nullable().optional(),
-  notes: z.string().trim().max(2000).nullable().optional(),
 });
 export type UpdateClientInput = z.input<typeof updateClientSchema>;
+
+/** Длина заметки о клиенте; заметка к записи — до 1000 символов, она в эту длину входит. */
+export const CLIENT_NOTE_MAX = 2000;
+
+/** Новая заметка в карточке клиента: заметки только добавляются (Q19). */
+export const clientNoteSchema = z.object({
+  text: z.string().trim().min(1).max(CLIENT_NOTE_MAX),
+});
+export type ClientNoteInput = z.input<typeof clientNoteSchema>;
 
 // --- отчёты ---
 

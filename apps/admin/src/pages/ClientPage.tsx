@@ -1,9 +1,12 @@
-/** Карточка клиента (Шаг 9): данные, заметки, счётчики визитов и история записей. */
+/**
+ * Карточка клиента (Шаг 9): данные, история заметок (Q19), счётчики визитов и история
+ * записей.
+ */
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type { ClientCard } from '@dentbook/shared';
-import { useClient, useUpdateClient } from '../api/hooks';
-import { useSession } from '../components/Layout';
+import { CLIENT_NOTE_MAX, type ClientCard, type ClientNote } from '@dentbook/shared';
+import { useAddClientNote, useClient, useDeleteClientNote, useUpdateClient } from '../api/hooks';
+import { useCanManage, useSession } from '../components/Layout';
 import {
   Badge,
   Button,
@@ -28,25 +31,12 @@ const STATUS_TONE = {
 function Details({ client }: { client: ClientCard }) {
   const { t } = useI18n();
   const update = useUpdateClient();
-  const [form, setForm] = useState({
-    fullName: client.fullName,
-    email: client.email ?? '',
-    notes: client.notes ?? '',
-  });
-  useEffect(
-    () =>
-      setForm({ fullName: client.fullName, email: client.email ?? '', notes: client.notes ?? '' }),
-    [client],
-  );
+  const [form, setForm] = useState({ fullName: client.fullName, email: client.email ?? '' });
+  useEffect(() => setForm({ fullName: client.fullName, email: client.email ?? '' }), [client]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    update.mutate({
-      id: client.id,
-      fullName: form.fullName,
-      email: form.email.trim() || null,
-      notes: form.notes.trim() || null,
-    });
+    update.mutate({ id: client.id, fullName: form.fullName, email: form.email.trim() || null });
   }
 
   return (
@@ -69,21 +59,107 @@ function Details({ client }: { client: ClientCard }) {
             onChange={(e) => setForm({ ...form, email: e.target.value })}
           />
         </Field>
-        <Field label={t('client.notes')}>
-          <textarea
-            className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-            rows={3}
-            maxLength={2000}
-            value={form.notes}
-            onChange={(e) => setForm({ ...form, notes: e.target.value })}
-          />
-        </Field>
         <ErrorText error={update.error} />
         {update.isSuccess && <p className="text-sm text-emerald-700">{t('common.saved')}</p>}
         <Button type="submit" disabled={update.isPending}>
           {t('common.save')}
         </Button>
       </form>
+    </Card>
+  );
+}
+
+/**
+ * История заметок (Q19): новая заметка — сверху. Сюда же приходят заметки к записям —
+ * регистратуры, врача из Telegram, клиента с сайта. Правки нет; удалить может владелец или
+ * администратор.
+ */
+function Notes({ client }: { client: ClientCard }) {
+  const { t, locale } = useI18n();
+  const { clinic } = useSession();
+  const canManage = useCanManage();
+  const add = useAddClientNote();
+  const remove = useDeleteClientNote();
+  const [text, setText] = useState('');
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    add.mutate({ clientId: client.id, text }, { onSuccess: () => setText('') });
+  }
+
+  const author = (note: ClientNote) => {
+    if (note.author === 'client') return t('history.byClient');
+    if (note.author === 'system') return t('history.bySystem');
+    if (note.author === 'dentist') {
+      return note.authorName
+        ? t('history.byDentistNamed', { name: note.authorName })
+        : t('history.byDentist');
+    }
+    return note.authorName
+      ? t('history.byStaffNamed', { name: note.authorName })
+      : t('history.byStaff');
+  };
+
+  return (
+    <Card title={t('client.notes')}>
+      <form className="space-y-2" onSubmit={submit}>
+        <textarea
+          aria-label={t('client.newNote')}
+          placeholder={t('client.newNote')}
+          className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+          rows={3}
+          required
+          maxLength={CLIENT_NOTE_MAX}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+        />
+        <ErrorText error={add.error ?? remove.error} />
+        <Button type="submit" disabled={add.isPending || text.trim() === ''}>
+          {t('client.addNote')}
+        </Button>
+      </form>
+      {client.notes.length === 0 ? (
+        <p className="mt-4 text-sm text-slate-500">{t('client.noNotes')}</p>
+      ) : (
+        <ol className="mt-4 space-y-2 text-sm" aria-label={t('client.notes')}>
+          {client.notes.map((note) => (
+            <li key={note.id} className="rounded-md border border-slate-200 px-3 py-2">
+              <p className="whitespace-pre-line text-slate-900">{note.text}</p>
+              <div className="mt-1 flex justify-between gap-3 text-xs text-slate-500">
+                <div>
+                  <p>
+                    {formatDateTime(note.at, clinic.timezone, locale)} · {author(note)}
+                  </p>
+                  {note.appointment && (
+                    <p>
+                      {t('client.noteOnBooking', {
+                        when: formatDateTime(
+                          note.appointment.startAt,
+                          note.appointment.timeZone,
+                          locale,
+                        ),
+                      })}
+                    </p>
+                  )}
+                </div>
+                {canManage && (
+                  <button
+                    type="button"
+                    className="self-start text-red-700 hover:underline disabled:opacity-50"
+                    disabled={remove.isPending}
+                    onClick={() => {
+                      if (!window.confirm(t('client.deleteNoteConfirm'))) return;
+                      remove.mutate({ clientId: client.id, noteId: note.id });
+                    }}
+                  >
+                    {t('client.deleteNote')}
+                  </button>
+                )}
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
     </Card>
   );
 }
@@ -122,28 +198,33 @@ export function ClientPage() {
           </div>
         ))}
       </dl>
-      <div className="grid gap-6 lg:grid-cols-[1fr_1.4fr]">
+      <div className="grid items-start gap-6 lg:grid-cols-[1fr_1.4fr]">
         <Details client={card} />
-        <Card title={t('client.history')}>
-          {card.appointments.length === 0 && (
-            <p className="text-sm text-slate-500">{t('client.noHistory')}</p>
-          )}
-          <ul className="divide-y divide-slate-100 text-sm">
-            {card.appointments.map((a) => (
-              <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
-                <div>
-                  <p className="font-medium text-slate-900">
-                    {formatDateTime(a.startAt, a.timeZone, locale)}
-                  </p>
-                  <p className="text-slate-500">
-                    {a.service} · {a.dentist} · {a.office}
-                  </p>
-                </div>
-                <Badge tone={STATUS_TONE[a.status]}>{t(`status.${a.status}` as MessageKey)}</Badge>
-              </li>
-            ))}
-          </ul>
-        </Card>
+        <div className="space-y-6">
+          <Notes client={card} />
+          <Card title={t('client.history')}>
+            {card.appointments.length === 0 && (
+              <p className="text-sm text-slate-500">{t('client.noHistory')}</p>
+            )}
+            <ul className="divide-y divide-slate-100 text-sm">
+              {card.appointments.map((a) => (
+                <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                  <div>
+                    <p className="font-medium text-slate-900">
+                      {formatDateTime(a.startAt, a.timeZone, locale)}
+                    </p>
+                    <p className="text-slate-500">
+                      {a.service} · {a.dentist} · {a.office}
+                    </p>
+                  </div>
+                  <Badge tone={STATUS_TONE[a.status]}>
+                    {t(`status.${a.status}` as MessageKey)}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </div>
       </div>
     </div>
   );

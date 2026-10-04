@@ -85,6 +85,27 @@
       "when": 1791057647780,
       "tag": "0011_other_service_gap",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791122202930,
+      "tag": "0012_patient_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791122210702,
+      "tag": "0013_patient_notes_backfill",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791122232558,
+      "tag": "0014_patients_drop_notes",
+      "breakpoints": true
     }
   ]
 }

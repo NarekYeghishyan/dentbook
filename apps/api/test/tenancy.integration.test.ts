@@ -43,6 +43,8 @@ let aKey: { id: string; token: string };
 /** Запись клиники A, сделанная регистратурой, и её клиент. */
 let aAppointmentId: string;
 let aClientId: string;
+/** Заметка в карточке клиента A (Q19). */
+let aNoteId: string;
 const A_CLIENT_PHONE = '+12025557001';
 /** Понедельник 10:00 по Нью-Йорку — рабочее время врача A. */
 const A_VISIT = '2030-01-07T15:00:00Z';
@@ -111,6 +113,18 @@ beforeAll(async () => {
   aClientId = (
     await call<{ id: string }[]>(app, a, { method: 'GET', url: '/v1/admin/clients' })
   )[0]!.id;
+  aNoteId = (
+    await call<{ id: string }>(
+      app,
+      a,
+      {
+        method: 'POST',
+        url: `/v1/admin/clients/${aClientId}/notes`,
+        payload: { text: 'Note of A' },
+      },
+      201,
+    )
+  ).id;
 }, 180_000);
 
 afterAll(async () => {
@@ -557,6 +571,25 @@ const attacks: Record<string, () => Promise<void>> = {
     });
     const card = await asSeenByA<{ fullName: string }>(`/v1/admin/clients/${aClientId}`);
     expect(card.fullName).toBe('Client of A');
+  },
+
+  'POST /v1/admin/clients/:id/notes': async () => {
+    await expectNotFound({
+      method: 'POST',
+      url: `/v1/admin/clients/${aClientId}/notes`,
+      payload: { text: 'Written by B' },
+    });
+    const card = await asSeenByA<{ notes: { text: string }[] }>(`/v1/admin/clients/${aClientId}`);
+    expect(card.notes.map((n) => n.text)).toEqual(['Note of A']);
+  },
+
+  'DELETE /v1/admin/clients/:id/notes/:noteId': async () => {
+    await expectNotFound({
+      method: 'DELETE',
+      url: `/v1/admin/clients/${aClientId}/notes/${aNoteId}`,
+    });
+    const card = await asSeenByA<{ notes: { id: string }[] }>(`/v1/admin/clients/${aClientId}`);
+    expect(card.notes.map((n) => n.id)).toEqual([aNoteId]);
   },
 
   'GET /v1/admin/dashboard': async () => {

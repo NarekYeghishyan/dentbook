@@ -1,6 +1,7 @@
 /**
  * Клиенты клиники (в БД — patients, в интерфейсе — client, §5): поиск для журнала и
- * карточка с историей визитов (Шаг 9). Клиент определяется телефоном (Q9).
+ * карточка с историей визитов (Шаг 9) и историей заметок (Q19). Клиент определяется
+ * телефоном (Q9).
  */
 import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
 import {
@@ -9,9 +10,12 @@ import {
   dentists,
   locations,
   notifications,
+  patientNotes,
   patients,
   services,
+  users,
   type Database,
+  type Executor,
   type Transaction,
 } from '@dentbook/db';
 import type {
@@ -21,6 +25,7 @@ import type {
   UpdateClientInput,
 } from '@dentbook/shared';
 import { notFound } from '../lib/errors.js';
+import type { Actor } from './history.js';
 
 /** Записи, которые попадают в историю клиента: всё, кроме холдов. */
 const HISTORY_STATUSES = ['pending', 'confirmed', 'completed', 'no_show', 'cancelled'] as const;
@@ -82,38 +87,60 @@ export async function loadClientCard(
       fullName: patients.fullName,
       phone: patients.phone,
       email: patients.email,
-      notes: patients.notes,
       createdAt: patients.createdAt,
     })
     .from(patients)
     .where(and(eq(patients.id, id), eq(patients.clinicId, clinicId)));
   if (!patient) throw notFound();
 
-  const history = await db
-    .select({
-      id: appointments.id,
-      status: appointments.status,
-      source: appointments.source,
-      startAt: appointments.startAt,
-      timeZone: sql<string>`coalesce(${locations.timezone}, ${clinics.timezone})`,
-      service: services.name,
-      dentist: dentists.fullName,
-      office: locations.name,
-    })
-    .from(appointments)
-    .innerJoin(clinics, eq(clinics.id, appointments.clinicId))
-    .innerJoin(services, eq(services.id, appointments.serviceId))
-    .innerJoin(dentists, eq(dentists.id, appointments.dentistId))
-    .innerJoin(locations, eq(locations.id, appointments.locationId))
-    .where(
-      and(
-        eq(appointments.clinicId, clinicId),
-        eq(appointments.patientId, id),
-        inArray(appointments.status, [...HISTORY_STATUSES]),
-      ),
-    )
-    .orderBy(desc(appointments.startAt))
-    .limit(HISTORY_LIMIT);
+  const zone = sql<string>`coalesce(${locations.timezone}, ${clinics.timezone})`;
+  const [history, notes] = await Promise.all([
+    db
+      .select({
+        id: appointments.id,
+        status: appointments.status,
+        source: appointments.source,
+        startAt: appointments.startAt,
+        timeZone: zone,
+        service: services.name,
+        dentist: dentists.fullName,
+        office: locations.name,
+      })
+      .from(appointments)
+      .innerJoin(clinics, eq(clinics.id, appointments.clinicId))
+      .innerJoin(services, eq(services.id, appointments.serviceId))
+      .innerJoin(dentists, eq(dentists.id, appointments.dentistId))
+      .innerJoin(locations, eq(locations.id, appointments.locationId))
+      .where(
+        and(
+          eq(appointments.clinicId, clinicId),
+          eq(appointments.patientId, id),
+          inArray(appointments.status, [...HISTORY_STATUSES]),
+        ),
+      )
+      .orderBy(desc(appointments.startAt))
+      .limit(HISTORY_LIMIT),
+    db
+      .select({
+        id: patientNotes.id,
+        at: patientNotes.createdAt,
+        text: patientNotes.text,
+        author: patientNotes.author,
+        userName: users.fullName,
+        dentistName: dentists.fullName,
+        appointmentId: appointments.id,
+        startAt: appointments.startAt,
+        timeZone: zone,
+      })
+      .from(patientNotes)
+      .innerJoin(clinics, eq(clinics.id, patientNotes.clinicId))
+      .leftJoin(users, eq(users.id, patientNotes.userId))
+      .leftJoin(dentists, eq(dentists.id, patientNotes.dentistId))
+      .leftJoin(appointments, eq(appointments.id, patientNotes.appointmentId))
+      .leftJoin(locations, eq(locations.id, appointments.locationId))
+      .where(and(eq(patientNotes.clinicId, clinicId), eq(patientNotes.patientId, id)))
+      .orderBy(desc(patientNotes.createdAt), desc(patientNotes.id)),
+  ]);
 
   const count = (test: (h: (typeof history)[number]) => boolean) => history.filter(test).length;
   return {
@@ -132,7 +159,89 @@ export async function loadClientCard(
       status: h.status as ClientCard['appointments'][number]['status'],
       startAt: h.startAt.toISOString(),
     })),
+    notes: notes.map((n) => ({
+      id: n.id,
+      at: n.at.toISOString(),
+      text: n.text,
+      author: n.author,
+      authorName: n.userName ?? n.dentistName ?? null,
+      appointment:
+        n.appointmentId && n.startAt
+          ? { id: n.appointmentId, startAt: n.startAt.toISOString(), timeZone: n.timeZone }
+          : null,
+    })),
   };
+}
+
+/**
+ * Заметка в историю клиента (Q19): из карточки или к записи — тогда со ссылкой на неё.
+ * Пустую не пишет: убранная заметка к записи — не новая заметка. Вызывается в транзакции
+ * того изменения, которое заметку принесло.
+ */
+export async function addClientNote(
+  db: Executor,
+  note: {
+    clinicId: string;
+    patientId: string;
+    appointmentId?: string;
+    author: Actor;
+    text: string | null | undefined;
+  },
+): Promise<string | null> {
+  const text = note.text?.trim();
+  if (!text) return null;
+  const { author } = note;
+  const [row] = await db
+    .insert(patientNotes)
+    .values({
+      clinicId: note.clinicId,
+      patientId: note.patientId,
+      appointmentId: note.appointmentId ?? null,
+      author: author.kind,
+      userId: author.kind === 'staff' ? author.userId : null,
+      dentistId: author.kind === 'dentist' ? author.dentistId : null,
+      text,
+    })
+    .returning({ id: patientNotes.id });
+  return row!.id;
+}
+
+/** Регистратура добавляет заметку в карточке клиента. Чужой клиент — 404 (§2.2). */
+export async function createClientNote(
+  db: Database,
+  params: { clinicId: string; patientId: string; text: string; userId: string },
+): Promise<{ id: string }> {
+  const { clinicId, patientId } = params;
+  const found = await db.$count(
+    patients,
+    and(eq(patients.id, patientId), eq(patients.clinicId, clinicId)),
+  );
+  if (found === 0) throw notFound();
+  const id = await addClientNote(db, {
+    clinicId,
+    patientId,
+    author: { kind: 'staff', userId: params.userId },
+    text: params.text,
+  });
+  return { id: id! };
+}
+
+/** Удаление заметки — владелец или администратор (Q19); правки заметок нет. */
+export async function deleteClientNote(
+  db: Database,
+  params: { clinicId: string; patientId: string; noteId: string },
+): Promise<void> {
+  const deleted = await db
+    .delete(patientNotes)
+    .where(
+      and(
+        eq(patientNotes.id, params.noteId),
+        eq(patientNotes.clinicId, params.clinicId),
+        eq(patientNotes.patientId, params.patientId),
+      ),
+    )
+    .returning({ id: patientNotes.id });
+  if (deleted.length === 0) throw notFound();
 }
 
 /**
@@ -200,7 +309,7 @@ export async function updateClient(
 ): Promise<ClientCard> {
   const { clinicId, id, input } = params;
   const patch = Object.fromEntries(
-    Object.entries({ fullName: input.fullName, email: input.email, notes: input.notes }).filter(
+    Object.entries({ fullName: input.fullName, email: input.email }).filter(
       ([, v]) => v !== undefined,
     ),
   );
