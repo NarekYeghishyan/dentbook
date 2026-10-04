@@ -579,6 +579,57 @@ describe('client card (Step 9)', () => {
     });
     expect(bad.statusCode).toBe(400);
   });
+
+  it('changes the phone on the card: in any form, never to another client’s number', async () => {
+    const day = addDays(upcoming(2), 35);
+    const id = await booked(day, '10:00', { fullName: 'Phone Change' });
+    await booked(day, '11:00', { fullName: 'Number Owner' });
+    const ownerPhone = `+1202555${String(6000 + phoneCounter)}`;
+    const [{ clientId }] = (await database.db
+      .select({ clientId: appointments.patientId })
+      .from(appointments)
+      .where(eq(appointments.id, id))) as [{ clientId: string }];
+    const stored = async () =>
+      (
+        await database.db
+          .select({ phone: patients.phone, verifiedAt: patients.phoneVerifiedAt })
+          .from(patients)
+          .where(eq(patients.id, clientId))
+      )[0];
+    const patch = (payload: object) =>
+      as(app, owner, { method: 'PATCH', url: `/v1/admin/clients/${clientId}`, payload });
+    // Как будто номер подтвердили кодом на сайте
+    await database.db
+      .update(patients)
+      .set({ phoneVerifiedAt: new Date() })
+      .where(eq(patients.id, clientId));
+
+    // Номер в любом виде: американский — в E.164; подтверждение было для прежнего номера
+    const res = await patch({ phone: '(202) 555-0188' });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json<ClientCard>().phone).toBe('+12025550188');
+    expect(await stored()).toEqual({ phone: '+12025550188', verifiedAt: null });
+    // Записи клиента — с новым номером; напоминания на месте: номер worker берёт из карточки
+    expect((await journal(day)).appointments.find((a) => a.id === id)?.client?.phone).toBe(
+      '+12025550188',
+    );
+    expect(await smsKinds(id)).toEqual(['reminder_24h:scheduled', 'reminder_2h:scheduled']);
+
+    // Номер другого клиента клиники — 409: чей он, карточки не сливаются
+    const taken = await patch({ phone: ownerPhone.replace('+1', '') });
+    expect(taken.statusCode).toBe(409);
+    expect(taken.json()).toMatchObject({
+      error: { code: 'validation_failed' },
+      client: { fullName: 'Number Owner' },
+    });
+    expect((await stored())?.phone).toBe('+12025550188');
+
+    // Без поля номер не меняется; пусто — клиент без номера
+    expect((await patch({ fullName: 'Phone Changed' })).json<ClientCard>().phone).toBe(
+      '+12025550188',
+    );
+    expect((await patch({ phone: '' })).json<ClientCard>().phone).toBeNull();
+  });
 });
 
 describe('reports (Step 9)', () => {

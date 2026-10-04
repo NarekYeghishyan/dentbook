@@ -5,6 +5,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { CLIENT_NOTE_MAX, type ClientCard } from '@dentbook/shared';
+import { ApiError } from '../api/client';
 import { useAddClientNote, useClient, useDeleteClientNote, useUpdateClient } from '../api/hooks';
 import { useCanManage, useSession } from '../components/Layout';
 import {
@@ -30,17 +31,42 @@ const STATUS_TONE = {
   cancelled: 'slate',
 } as const;
 
+/** Ответ 409 на новый номер: он у другого клиента клиники — с кем именно, если известно. */
+const phoneOwnerOf = (error: unknown): { id: string; fullName: string } | null | undefined => {
+  if (!(error instanceof ApiError) || error.status !== 409) return undefined;
+  const body = error.body as { client?: { id: string; fullName: string } } | null;
+  return body?.client ?? null;
+};
+
+const formOf = (c: ClientCard) => ({
+  fullName: c.fullName,
+  phone: c.phone ?? '',
+  email: c.email ?? '',
+});
+
+/**
+ * Данные клиента. Телефон правится в любом виде, как при записи; пусто — клиент без номера.
+ * Новый номер получают все записи клиента и их напоминания. Номер другого клиента клиники
+ * не принимается — карточки не сливаются, показывается чей он.
+ */
 function Details({ client }: { client: ClientCard }) {
   const { t } = useI18n();
   const update = useUpdateClient();
-  const [form, setForm] = useState({ fullName: client.fullName, email: client.email ?? '' });
-  useEffect(() => setForm({ fullName: client.fullName, email: client.email ?? '' }), [client]);
+  const [form, setForm] = useState(() => formOf(client));
+  useEffect(() => setForm(formOf(client)), [client]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    update.mutate({ id: client.id, fullName: form.fullName, email: form.email.trim() || null });
+    update.mutate({
+      id: client.id,
+      fullName: form.fullName,
+      // Номер в любом виде или пусто: к E.164 его приводит API, если он так читается
+      phone: form.phone.trim(),
+      email: form.email.trim() || null,
+    });
   }
 
+  const phoneOwner = phoneOwnerOf(update.error);
   return (
     <Card title={t('client.details')}>
       <form className="space-y-3" onSubmit={submit}>
@@ -51,8 +77,13 @@ function Details({ client }: { client: ClientCard }) {
             onChange={(e) => setForm({ ...form, fullName: e.target.value })}
           />
         </Field>
-        <Field label={t('field.phone')}>
-          <Input disabled value={client.phone ?? '—'} />
+        <Field label={t('booking.phoneOptional')} hint={t('client.phoneHint')}>
+          <Input
+            type="tel"
+            maxLength={50}
+            value={form.phone}
+            onChange={(e) => setForm({ ...form, phone: e.target.value })}
+          />
         </Field>
         <Field label={t('field.email')}>
           <Input
@@ -61,7 +92,20 @@ function Details({ client }: { client: ClientCard }) {
             onChange={(e) => setForm({ ...form, email: e.target.value })}
           />
         </Field>
-        <ErrorText error={update.error} />
+        {phoneOwner === undefined ? (
+          <ErrorText error={update.error} />
+        ) : (
+          <p role="alert" className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+            {phoneOwner
+              ? t('client.phoneTakenBy', { name: phoneOwner.fullName })
+              : t('client.phoneTaken')}{' '}
+            {phoneOwner && (
+              <Link to={`/clients/${phoneOwner.id}`} className="font-medium underline">
+                {t('client.openOther')}
+              </Link>
+            )}
+          </p>
+        )}
         {update.isSuccess && <p className="text-sm text-emerald-700">{t('common.saved')}</p>}
         <Button type="submit" disabled={update.isPending}>
           {t('common.save')}

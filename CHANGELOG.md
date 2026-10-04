@@ -15,6 +15,16 @@ produced them (CLAUDE.md §9).
 
 #### Changed
 
+- `feat(admin): let the front desk change the client phone on the client card` — телефон
+  в карточке клиента больше не заблокирован: «Телефон (необязательно)», в любом виде, как
+  при записи; пусто — клиент без номера. Новый номер сразу у всех записей клиента и у их
+  SMS-напоминаний. Номер, который уже у другого клиента клиники, не принимается: панель
+  пишет, чей он, и даёт ссылку на ту карточку — карточки не сливаются. Подтверждение номера
+  кодом с сайта сбрасывается.
+  - API: `phone` в `PATCH /v1/admin/clients/:id` (`updateClientSchema`); занятый номер —
+    409 `validation_failed` с `client: { id, fullName }`.
+  - ADR-0012, интеграционные тесты (в том числе изоляции: номер клиента A свободен для
+    клиники B и ответ ничего не выдаёт о клинике A) и e2e.
 - `feat: add the logo and favicon from dentalunivers.com` — знак с сайта заказчика
   (https://dentalunivers.com, `logo.svg` — тот же, что значок вкладки там, и
   `apple-touch-icon.png`) стал значком вкладки панели и Mini App и стоит рядом с

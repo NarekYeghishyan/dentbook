@@ -183,9 +183,15 @@ export interface ClientCard {
 
 export const updateClientSchema = z.object({
   fullName: nameSchema.optional(),
+  /**
+   * Номер в любом виде, как при записи: читается как E.164 — приводится к нему; пусто —
+   * клиент без номера. Без поля — номер не меняется. Номер другого клиента клиники — 409.
+   */
+  phone: anyPhoneSchema.optional(),
   email: emailSchema.nullable().optional(),
 });
 export type UpdateClientInput = z.input<typeof updateClientSchema>;
+export type UpdateClient = z.output<typeof updateClientSchema>;
 
 /** Длина заметки о клиенте; заметка к записи — до 1000 символов, она в эту длину входит. */
 export const CLIENT_NOTE_MAX = 2000;

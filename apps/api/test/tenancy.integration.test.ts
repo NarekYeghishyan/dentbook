@@ -567,10 +567,44 @@ const attacks: Record<string, () => Promise<void>> = {
     await expectNotFound({
       method: 'PATCH',
       url: `/v1/admin/clients/${aClientId}`,
-      payload: { fullName: 'Renamed by B' },
+      payload: { fullName: 'Renamed by B', phone: '+12025557009' },
     });
-    const card = await asSeenByA<{ fullName: string }>(`/v1/admin/clients/${aClientId}`);
-    expect(card.fullName).toBe('Client of A');
+    const card = await asSeenByA<{ fullName: string; phone: string }>(
+      `/v1/admin/clients/${aClientId}`,
+    );
+    expect(card).toMatchObject({ fullName: 'Client of A', phone: A_CLIENT_PHONE });
+
+    // Номер клиента A свободен для клиента B: номера уникальны в клинике, и ответ не
+    // выдаёт, что в клинике A такой номер есть
+    await call(
+      app,
+      b,
+      {
+        method: 'POST',
+        url: '/v1/admin/appointments',
+        payload: {
+          locationId: bData.locationId,
+          serviceId: bData.serviceId,
+          dentistId: bData.dentistId,
+          // Вторник 11:00 по Нью-Йорку, вне месяца, который проверяют отчёты выше
+          startAt: '2030-03-05T16:00:00Z',
+          client: { fullName: 'Client of B', phone: '+12025557010' },
+        },
+      },
+      201,
+    );
+    const [bClient] = await call<{ id: string }[]>(app, b, {
+      method: 'GET',
+      url: '/v1/admin/clients?q=Client%20of%20B',
+    });
+    const res = await as(app, b, {
+      method: 'PATCH',
+      url: `/v1/admin/clients/${bClient!.id}`,
+      payload: { phone: A_CLIENT_PHONE },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.body).not.toContain('Client of A');
+    expect(res.body).not.toContain(aClientId);
   },
 
   'POST /v1/admin/clients/:id/notes': async () => {

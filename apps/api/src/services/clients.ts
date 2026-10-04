@@ -3,7 +3,7 @@
  * карточка с историей визитов (Шаг 9) и историей заметок (Q19). Клиент определяется
  * телефоном (Q9).
  */
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
 import {
   appointments,
   clinics,
@@ -12,6 +12,8 @@ import {
   notifications,
   patientNotes,
   patients,
+  pgErrorCode,
+  PG_UNIQUE_VIOLATION,
   services,
   users,
   type Database,
@@ -23,9 +25,9 @@ import type {
   ClientNote,
   ClientSnapshot,
   ClientSummary,
-  UpdateClientInput,
+  UpdateClient,
 } from '@dentbook/shared';
-import { notFound } from '../lib/errors.js';
+import { ApiError, notFound } from '../lib/errors.js';
 import type { Actor } from './history.js';
 
 /** Записи, которые попадают в историю клиента: всё, кроме холдов. */
@@ -353,23 +355,54 @@ export async function setBookingClient(
   return patient!.id;
 }
 
+/**
+ * Номер уже у другого клиента клиники (Q9: клиент определяется телефоном). Карточки не
+ * сливаются — регистратура видит, чей это номер, и решает сама. other нет — номер заняли
+ * одновременно с правкой.
+ */
+const phoneTaken = (other?: { id: string; fullName: string }) =>
+  new ApiError(
+    409,
+    'validation_failed',
+    'This phone belongs to another client',
+    other ? { client: other } : undefined,
+  );
+
+/**
+ * Правка карточки: имя, email и телефон. Новый номер получают и записи клиента, и его
+ * запланированные SMS — worker берёт номер из карточки в момент отправки. Подтверждение
+ * номера кодом с сайта относилось к прежнему номеру и сбрасывается.
+ */
 export async function updateClient(
   db: Database,
-  params: { clinicId: string; id: string; input: UpdateClientInput; now: Date },
+  params: { clinicId: string; id: string; input: UpdateClient; now: Date },
 ): Promise<ClientCard> {
   const { clinicId, id, input } = params;
-  const patch = Object.fromEntries(
-    Object.entries({ fullName: input.fullName, email: input.email }).filter(
-      ([, v]) => v !== undefined,
-    ),
-  );
+  const where = and(eq(patients.id, id), eq(patients.clinicId, clinicId));
+  const [current] = await db.select({ phone: patients.phone }).from(patients).where(where);
+  if (!current) throw notFound();
+
+  const phone = input.phone;
+  const phoneChanged = phone !== undefined && phone !== current.phone;
+  if (phoneChanged && phone !== null) {
+    const [other] = await db
+      .select({ id: patients.id, fullName: patients.fullName })
+      .from(patients)
+      .where(and(eq(patients.clinicId, clinicId), eq(patients.phone, phone), ne(patients.id, id)));
+    if (other) throw phoneTaken(other);
+  }
+  const patch = {
+    ...(input.fullName !== undefined ? { fullName: input.fullName } : {}),
+    ...(input.email !== undefined ? { email: input.email } : {}),
+    ...(phoneChanged ? { phone, phoneVerifiedAt: null } : {}),
+  };
   if (Object.keys(patch).length > 0) {
-    const rows = await db
-      .update(patients)
-      .set(patch)
-      .where(and(eq(patients.id, id), eq(patients.clinicId, clinicId)))
-      .returning({ id: patients.id });
-    if (rows.length === 0) throw notFound();
+    try {
+      await db.update(patients).set(patch).where(where);
+    } catch (err) {
+      if (pgErrorCode(err) === PG_UNIQUE_VIOLATION) throw phoneTaken();
+      throw err;
+    }
   }
   return loadClientCard(db, params);
 }

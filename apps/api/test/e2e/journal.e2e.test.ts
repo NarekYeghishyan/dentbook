@@ -338,6 +338,19 @@ describe('front desk journal (Step 9)', () => {
       .click();
     await notes.getByText('Prefers mornings').waitFor({ state: 'detached' });
     expect(await items.count()).toBe(2);
+
+    // Телефон в карточке правится; номер другого клиента не принимается — видно, чей он
+    const phone = page.getByLabel('Phone (optional)');
+    await phone.fill('(202) 555-0123');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.getByText('Saved', { exact: true }).waitFor();
+    expect(await phone.inputValue()).toBe('+12025550123');
+    await phone.fill('+12025558001');
+    await page.getByRole('button', { name: 'Save', exact: true }).click();
+    const taken = page.getByRole('alert');
+    await taken.getByText('This number already belongs to another client: Jane Client.').waitFor();
+    await taken.getByRole('link', { name: 'Open their card' }).waitFor();
+    await shot(page, '8-phone-taken');
     await page.context().close();
   });
 });
