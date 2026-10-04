@@ -4,7 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { LOCALES, type Locale } from '@dentbook/shared/domain';
 import { useLogin, useRegister } from '../api/hooks';
 import { LanguageSelect } from '../components/Layout';
-import { Button, ErrorText, Field, Input, Select, TimeZoneOptions } from '../components/ui';
+import { Button, ErrorText, Field, Input, Logo, Select, TimeZoneOptions } from '../components/ui';
 import { LOCALE_NAMES, useI18n } from '../i18n';
 import { browserTimeZone } from '../lib/time';
 
@@ -13,8 +13,14 @@ function AuthCard({ title, children }: { title: string; children: ReactNode }) {
     <div className="flex min-h-screen items-start justify-center bg-slate-50 px-4 py-12">
       <div className="w-full max-w-md space-y-4">
         <div className="flex items-center justify-between">
-          <p className="text-lg font-semibold text-teal-700">DentBook</p>
-          <LanguageSelect />
+          <p className="flex items-center gap-2.5 text-lg font-semibold text-teal-700">
+            <Logo className="size-10" />
+            DentBook
+          </p>
+          {/* Обёртка — по ширине списка: сам он w-full, как все поля */}
+          <div>
+            <LanguageSelect />
+          </div>
         </div>
         <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           <h1 className="mb-5 text-xl font-semibold text-slate-900">{title}</h1>

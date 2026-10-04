@@ -15,6 +15,7 @@ beforeAll(async () => {
   mkdirSync(join(root, 'assets'));
   writeFileSync(join(root, 'index.html'), '<!doctype html><div id="root"></div>');
   writeFileSync(join(root, 'assets', 'index-abc123.js'), 'console.log(1)');
+  writeFileSync(join(root, 'logo.svg'), '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
   // Раздача статики к БД не обращается
   app = buildApp({
     env: testEnv({ ADMIN_DIST_DIR: root, MINIAPP_DIST_DIR: root }),
@@ -49,6 +50,15 @@ describe('admin static files', () => {
     const res = await app.inject({ method: 'GET', url: '/admin/assets/index-abc123.js' });
     expect(res.statusCode).toBe(200);
     expect(res.headers['cache-control']).toBe('public, max-age=31536000, immutable');
+  });
+
+  it('serves the logo and favicon from the build root as an image, not the app shell', async () => {
+    const res = await app.inject({ method: 'GET', url: '/admin/logo.svg' });
+    expect(res.statusCode).toBe(200);
+    expect(res.headers['content-type']).toMatch(/^image\/svg\+xml/);
+    expect(res.body).toContain('<svg');
+    // Имя без хеша: файл можно заменить, браузер перепроверит его
+    expect(res.headers['cache-control']).toBe('no-cache');
   });
 
   it('redirects /admin to /admin/', async () => {

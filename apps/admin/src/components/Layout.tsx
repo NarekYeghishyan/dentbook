@@ -4,7 +4,7 @@ import { LOCALES, type Locale } from '@dentbook/shared/domain';
 import { isUnauthorized } from '../api/client';
 import { useLogout, useMe } from '../api/hooks';
 import { LOCALE_NAMES, useI18n, type MessageKey } from '../i18n';
-import { Button, ErrorText, Loading, Select } from './ui';
+import { Button, ErrorText, Loading, Logo, Select } from './ui';
 
 const NAV: { to: string; label: MessageKey; managersOnly?: boolean }[] = [
   { to: '/journal', label: 'nav.journal' },
@@ -66,9 +66,12 @@ export function Layout() {
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
-          <div>
-            <p className="text-sm font-semibold text-teal-700">DentBook</p>
-            <p className="text-xs text-slate-500">{clinic.name}</p>
+          <div className="flex items-center gap-2.5">
+            <Logo className="size-9" />
+            <div>
+              <p className="text-sm font-semibold text-teal-700">DentBook</p>
+              <p className="text-xs text-slate-500">{clinic.name}</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <span className="hidden whitespace-nowrap text-sm text-slate-600 md:inline">

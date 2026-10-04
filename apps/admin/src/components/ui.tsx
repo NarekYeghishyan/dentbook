@@ -62,6 +62,21 @@ export function Textarea({
   return <textarea rows={rows} className={cx(control, 'resize-y', className)} {...props} />;
 }
 
+/**
+ * Знак платформы рядом с названием (тот же, что значок вкладки): файл из public/, путь — с
+ * base Vite (/admin/). Подпись рядом есть, поэтому для экранных дикторов он декоративный.
+ */
+export function Logo({ className }: { className?: string }) {
+  return (
+    <img
+      src={`${import.meta.env.BASE_URL}logo.svg`}
+      alt=""
+      aria-hidden="true"
+      className={cx('shrink-0', className)}
+    />
+  );
+}
+
 /** Все часовые пояса со смещением от UTC — для <Select>. Список считается один раз. */
 export function TimeZoneOptions() {
   const zones = useMemo(() => timeZones().map((zone) => [zone, timeZoneLabel(zone)]), []);
