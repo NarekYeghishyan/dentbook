@@ -65,7 +65,7 @@ export function Layout() {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div className="flex items-center gap-2.5">
             <Logo className="size-9" />
             <div>
@@ -86,7 +86,7 @@ export function Layout() {
             </Button>
           </div>
         </div>
-        <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4">
+        <nav className="flex gap-1 overflow-x-auto px-4">
           {NAV.filter((item) => isManager || !item.managersOnly).map((item) => (
             <NavLink
               key={item.to}
@@ -104,7 +104,7 @@ export function Layout() {
           ))}
         </nav>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6">
+      <main className="px-4 py-6">
         <Outlet context={me.data} />
       </main>
     </div>

@@ -206,7 +206,7 @@ export function OperatorPage() {
   return (
     <div className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
           <div>
             <p className="text-sm font-semibold text-teal-700">DentBook</p>
             <p className="text-xs text-slate-500">{t('operator.title')}</p>
@@ -223,7 +223,7 @@ export function OperatorPage() {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl space-y-6 px-4 py-6">
+      <main className="space-y-6 px-4 py-6">
         <Health />
         <Clinics />
       </main>
