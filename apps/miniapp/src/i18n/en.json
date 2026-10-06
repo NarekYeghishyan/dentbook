@@ -46,8 +46,8 @@
   "edit.back": "‹ Back",
   "edit.save": "Save",
   "edit.saved": "Changes saved.",
-  "edit.move": "Move to another time",
-  "edit.moveSubmit": "Move",
+  "edit.move": "Service and time",
+  "edit.moveSubmit": "Save service and time",
   "edit.moved": "Moved to {when}.",
   "edit.cancel": "Cancel booking",
   "edit.cancelConfirm": "Cancel this booking? The time will be free again.",
@@ -83,5 +83,6 @@
   "error.generic": "Something went wrong. Please try again.",
   "error.slot_taken": "This time is already taken.",
   "error.forbidden": "This Telegram account is not connected to a dentist.",
-  "error.unauthorized": "The session has expired. Close and reopen the schedule."
+  "error.unauthorized": "The session has expired. Close and reopen the schedule.",
+  "edit.serviceChanged": "Service changed."
 }

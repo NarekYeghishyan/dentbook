@@ -15,6 +15,11 @@ produced them (CLAUDE.md §9).
 
 #### Changed
 
+- `feat(miniapp): let the dentist change the service of a booking` — в «Услуга и время»
+  на странице записи врач выбирает другую услугу из своего списка; сетка и проверка —
+  по длительности новой услуги, `POST /v1/miniapp/appointments/:id/move` принимает
+  `serviceId`. Проверки, история и SMS клиенту — как в журнале.
+
 - `feat: mask the phone field in the admin panel and the Mini App` — поля телефона в журнале,
   карточке клиента, филиале и Mini App форматируются при вводе (`maskPhone` в
   `packages/shared`): без «+» — номер США `(202) 555-0123`, с «+» — по шаблону страны.

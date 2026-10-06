@@ -81,8 +81,14 @@ export const miniappAppointmentUpdateSchema = z
   });
 export type MiniappAppointmentUpdateInput = z.input<typeof miniappAppointmentUpdateSchema>;
 
-/** Перенос своей записи на другое свободное время — врач тот же. */
-export const miniappMoveSchema = z.object({ startAt: instantSchema });
+/**
+ * Перенос своей записи на другое свободное время и/или смена услуги — врач тот же.
+ * Новая услуга — с её длительностью и буфером.
+ */
+export const miniappMoveSchema = z.object({
+  startAt: instantSchema,
+  serviceId: uuidSchema.optional(),
+});
 export type MiniappMoveInput = z.input<typeof miniappMoveSchema>;
 
 /** Врач сам выбирает язык бота и Mini App (§8, §9): PATCH /v1/miniapp/me. */

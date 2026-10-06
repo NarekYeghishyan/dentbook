@@ -3,6 +3,7 @@
  * кнопками, Mini App с проверкой initData и изоляцией врачей. Исходящие сообщения —
  * задачи очереди: здесь они складываются в TestOutbox, отправку проверяет тест worker'а.
  */
+import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import type { FastifyInstance, HTTPMethods, InjectOptions } from 'fastify';
 import { Redis } from 'ioredis';
@@ -1057,6 +1058,56 @@ describe('Mini App (§8)', () => {
       url: `/v1/miniapp/appointments/${id}/cancel`,
     });
     expect(cancelled.statusCode, cancelled.body).toBe(204);
+  });
+
+  it('changes the service of an own booking, with the new service duration', async () => {
+    const day = upcoming(4);
+    const booked = await mini(ANNA_CHAT, {
+      method: 'POST',
+      url: '/v1/miniapp/appointments',
+      payload: {
+        locationId: data.locationId,
+        startAt: at(day, '12:00'),
+        customService: { durationMin: 50 },
+        client: { fullName: 'Switch Client', phone: '+12025559400' },
+      },
+    });
+    expect(booked.statusCode, booked.body).toBe(201);
+    const id = booked.json().id as string;
+    const otherId = (
+      await mini(ANNA_CHAT, { method: 'GET', url: `/v1/miniapp/appointments/${id}` })
+    ).json().serviceId as string;
+
+    // Сетка для другой услуги — по её длительности (30 мин), а не 50 минут записи
+    const grid = await mini(ANNA_CHAT, {
+      method: 'GET',
+      url: `/v1/miniapp/slots?locationId=${data.locationId}&date=${day}&appointmentId=${id}&serviceId=${data.serviceId}`,
+    });
+    expect(grid.statusCode, grid.body).toBe(200);
+    expect(grid.json().slots).toContain(at(day, '16:15'));
+
+    const change = (serviceId: string) =>
+      mini(ANNA_CHAT, {
+        method: 'POST',
+        url: `/v1/miniapp/appointments/${id}/move`,
+        payload: { startAt: at(day, '12:00'), serviceId },
+      });
+    // Услугу, которую врач не оказывает, поставить нельзя
+    expect((await change(randomUUID())).statusCode).toBe(400);
+    const res = await change(data.serviceId);
+    expect(res.statusCode, res.body).toBe(204);
+    const opened = await mini(ANNA_CHAT, { method: 'GET', url: `/v1/miniapp/appointments/${id}` });
+    expect(opened.json()).toMatchObject({
+      serviceId: data.serviceId,
+      service: 'Checkup',
+      startAt: at(day, '12:00'),
+      endAt: at(day, '12:30'),
+    });
+    expect(otherId).not.toBe(data.serviceId);
+    const history = await historyOf(ANNA_CHAT, id);
+    expect(JSON.stringify(history)).toContain('Checkup');
+
+    await mini(ANNA_CHAT, { method: 'POST', url: `/v1/miniapp/appointments/${id}/cancel` });
   });
 
   it('books "Other" with its own duration once, and it never shows up in a list', async () => {

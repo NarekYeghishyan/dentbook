@@ -1,6 +1,6 @@
 /**
  * Запись из расписания врача. Клиента и комментарий можно поправить всегда; предстоящую
- * запись — ещё перенести на другое свободное время или отменить. Клиенту о переносе и
+ * запись — ещё сменить ей услугу, перенести на другое свободное время или отменить. Клиенту о переносе и
  * отмене уходит SMS, как при действиях регистратуры. «История» — кто и что менял.
  * Ниже — заметки о клиенте из его карточки (Q19), только для чтения.
  * Отменённая запись — только для просмотра: кто отменил, и история открыта сразу.
@@ -13,7 +13,7 @@ import { errorText, useSession } from '../context';
 import { SlotPicker } from '../SlotPicker';
 import { confirmAction } from '../telegram';
 import { dateIn, formatDateTime } from '../time';
-import { Button, Field, Input, Notice, PhoneInput, Textarea } from '../ui';
+import { Button, Field, Input, Notice, PhoneInput, Select, Textarea } from '../ui';
 import { ClientNotes } from './ClientNotes';
 import { HistoryList } from './HistoryList';
 import { cancelledLabel } from './SchedulePage';
@@ -32,7 +32,7 @@ export function AppointmentPage({
   /** Красная клетка в сетке переноса: открыть ту запись. */
   onOpen(appointment: MiniappAppointment): void;
 }) {
-  const { locale, t } = useSession();
+  const { me, locale, t } = useSession();
   const client = useQueryClient();
   const date = dateIn(a.startAt, a.timeZone);
   const [fullName, setFullName] = useState(a.client?.fullName ?? '');
@@ -42,6 +42,9 @@ export function AppointmentPage({
   /** Время в сетке переноса: сначала — текущее время записи, оно выделено синим. */
   const [moveTo, setMoveTo] = useState<string | null>(a.startAt);
   const currentOn = (d: string) => (d === date ? a.startAt : null);
+  /** Услуга записи; «Другое» и услуги не из списка врача остаются в списке как есть. */
+  const [serviceId, setServiceId] = useState(a.serviceId);
+  const serviceChanged = serviceId !== a.serviceId;
   const cancelled = a.status === 'cancelled';
   const [showHistory, setShowHistory] = useState(cancelled);
   /** Ошибка показывается у той части страницы, где её вызвали. */
@@ -69,11 +72,17 @@ export function AppointmentPage({
     onError: failed('details'),
   });
   const move = useMutation({
-    mutationFn: (startAt: string) => api('POST', `/appointments/${a.id}/move`, { startAt }),
+    mutationFn: (startAt: string) =>
+      api('POST', `/appointments/${a.id}/move`, {
+        startAt,
+        ...(serviceChanged ? { serviceId } : {}),
+      }),
     onSuccess: (_, startAt) =>
       finish(
         dateIn(startAt, a.timeZone),
-        t('edit.moved', { when: formatDateTime(startAt, a.timeZone, locale) }),
+        startAt === a.startAt
+          ? t('edit.serviceChanged')
+          : t('edit.moved', { when: formatDateTime(startAt, a.timeZone, locale) }),
       ),
     onError: (err) => {
       failed('move')(err);
@@ -154,6 +163,25 @@ export function AppointmentPage({
       {upcoming && (
         <section className="space-y-3">
           <h2 className="font-medium">{t('edit.move')}</h2>
+          <Field label={t('book.service')}>
+            <Select
+              value={serviceId}
+              onChange={(e) => {
+                setServiceId(e.target.value);
+                // Новая длительность — время записи может уже не подойти: выбрать заново
+                setMoveTo(e.target.value === a.serviceId ? currentOn(day) : null);
+              }}
+            >
+              {!me.services.some((s) => s.id === a.serviceId) && (
+                <option value={a.serviceId}>{a.service}</option>
+              )}
+              {me.services.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} · {t('book.duration', { min: s.durationMin })}
+                </option>
+              ))}
+            </Select>
+          </Field>
           <Field label={t('book.date')}>
             <Input
               type="date"
@@ -166,7 +194,7 @@ export function AppointmentPage({
             />
           </Field>
           <SlotPicker
-            service={{ serviceId: a.serviceId }}
+            service={{ serviceId }}
             locationId={a.locationId}
             date={day}
             appointmentId={a.id}
@@ -177,7 +205,7 @@ export function AppointmentPage({
           {errorAt('move')}
           <Button
             className="w-full"
-            disabled={!moveTo || moveTo === a.startAt || busy}
+            disabled={!moveTo || (moveTo === a.startAt && !serviceChanged) || busy}
             onClick={() => moveTo && move.mutate(moveTo)}
           >
             {t('edit.moveSubmit')}

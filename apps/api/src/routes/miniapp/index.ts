@@ -415,10 +415,17 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
       .map((b) => ({ ...b, startAt: b.startAt.toISOString() }));
   }
 
-  /** Длительность своей записи в минутах — её могли изменить при записи. */
-  async function ownDuration(ctx: DentistContext, appointmentId: string) {
+  /**
+   * Длительность своей записи в минутах — её могли изменить при записи. Для другой услуги
+   * (врач меняет услугу записи) — undefined: тогда считается длительность услуги.
+   */
+  async function ownDuration(ctx: DentistContext, appointmentId: string, serviceId?: string) {
     const [row] = await db
-      .select({ startAt: appointments.startAt, endAt: appointments.endAt })
+      .select({
+        startAt: appointments.startAt,
+        endAt: appointments.endAt,
+        serviceId: appointments.serviceId,
+      })
       .from(appointments)
       .where(
         and(
@@ -427,7 +434,8 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
           eq(appointments.dentistId, ctx.dentistId),
         ),
       );
-    return row ? (row.endAt.getTime() - row.startAt.getTime()) / 60_000 : undefined;
+    if (!row || (serviceId !== undefined && serviceId !== row.serviceId)) return undefined;
+    return (row.endAt.getTime() - row.startAt.getTime()) / 60_000;
   }
 
   app.get('/slots', async (request): Promise<MiniappSlots> => {
@@ -435,7 +443,8 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
     const query = parse(miniappSlotsQuerySchema, request.query);
     // Перенос — по длительности самой записи, а не услуги
     const durationMin =
-      (query.appointmentId && (await ownDuration(ctx, query.appointmentId))) || query.durationMin;
+      (query.appointmentId && (await ownDuration(ctx, query.appointmentId, query.serviceId))) ||
+      query.durationMin;
     const free = await freeSlots(
       ctx,
       { id: query.serviceId ?? null, durationMin },
@@ -660,17 +669,20 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
     return reply.status(204).send();
   });
 
-  /** Перенос своей записи на другое свободное время: проверки и SMS клиенту — как в журнале. */
+  /**
+   * Перенос своей записи на другое свободное время и/или смена услуги: проверки и SMS
+   * клиенту — как в журнале (врач должен оказывать новую услугу, время — вместить её).
+   */
   app.post('/appointments/:id/move', async (request, reply) => {
     const { dentistId, clinicId } = dentistOf(request);
-    const { startAt } = parse(miniappMoveSchema, request.body);
+    const { startAt, serviceId } = parse(miniappMoveSchema, request.body);
     await updateAppointment(
       db,
       { cache, notifier },
       {
         clinicId,
         id: idOf(request),
-        update: { startAt },
+        update: { startAt, ...(serviceId ? { serviceId } : {}) },
         actor: { kind: 'dentist', dentistId },
         now: new Date(),
       },
