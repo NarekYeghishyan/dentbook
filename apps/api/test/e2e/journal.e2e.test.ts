@@ -265,7 +265,7 @@ describe('front desk journal (Step 9)', () => {
     await dialog.getByLabel('Duration, min').fill('45');
     await dialog.getByLabel('Full name', { exact: true }).fill('Edited Client');
     // Заметки — многострочное поле: перенос строки сохраняется
-    const notesField = dialog.getByLabel('Notes (optional)');
+    const notesField = dialog.getByLabel('Comments (optional)');
     expect(await notesField.evaluate((el) => el.tagName)).toBe('TEXTAREA');
     await notesField.fill('Wheelchair access\nCall before the visit');
     await shot(page, '5-edit');
@@ -312,11 +312,11 @@ describe('front desk journal (Step 9)', () => {
       .click();
 
     // Заметка к записи уже в истории; новые добавляются сверху, сколько угодно раз
-    const notes = page.getByRole('list', { name: 'Notes' });
+    const notes = page.getByRole('list', { name: 'Comments' });
     await notes.getByText('Bring the X-ray').waitFor();
     for (const text of ['Prefers mornings', 'Pays in cash']) {
-      await page.getByLabel('New note about the client').fill(text);
-      await page.getByRole('button', { name: 'Add note' }).click();
+      await page.getByLabel('New comment about the client').fill(text);
+      await page.getByRole('button', { name: 'Add comment' }).click();
       await notes.getByText(text).waitFor();
     }
     const items = notes.getByRole('listitem');
