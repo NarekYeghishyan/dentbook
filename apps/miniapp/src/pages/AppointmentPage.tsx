@@ -166,11 +166,8 @@ export function AppointmentPage({
           <Field label={t('book.service')}>
             <Select
               value={serviceId}
-              onChange={(e) => {
-                setServiceId(e.target.value);
-                // Новая длительность — время записи может уже не подойти: выбрать заново
-                setMoveTo(e.target.value === a.serviceId ? currentOn(day) : null);
-              }}
+              // Выбранное время остаётся: не влезет новая услуга — сервер скажет при сохранении
+              onChange={(e) => setServiceId(e.target.value)}
             >
               {!me.services.some((s) => s.id === a.serviceId) && (
                 <option value={a.serviceId}>{a.service}</option>
