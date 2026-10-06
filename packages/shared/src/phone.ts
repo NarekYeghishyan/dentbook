@@ -1,4 +1,6 @@
-import { NUMBER_FORMATS } from './countries.js';
+import { DIAL_CODES, NUMBER_FORMATS } from './countries.js';
+
+const KNOWN_DIALS = new Set<string>(Object.values(DIAL_CODES));
 
 /** Номер уже в E.164 — только на такой провайдер отправит SMS. */
 export const isE164 = (phone: string): boolean => /^\+[1-9]\d{6,14}$/.test(phone);
@@ -73,4 +75,21 @@ export function maskNational(dialCode: string, input: string): string | null {
     taken += 1;
   }
   return prefix + out + rest.slice(taken);
+}
+
+/**
+ * Маска свободного поля телефона (журнал, карточка клиента, Mini App). Ввод с «+» —
+ * международный: код страны отделяется пробелом, остаток — по шаблону этой страны.
+ * Без «+» — номер США (так его читает toE164, Q5). Результат toE164 разбирает так же,
+ * как исходный ввод: меняются только разделители. Текст с буквами не трогаем.
+ */
+export function maskPhone(input: string): string {
+  if (/[^\d\s()+\-.]/.test(input)) return input;
+  const digits = input.replace(/\D/g, '');
+  if (!input.trim().startsWith('+')) return maskNational('1', digits) ?? digits;
+  // Коды стран префиксные: короткий не бывает началом длинного
+  const dial = [1, 2, 3].map((n) => digits.slice(0, n)).find((d) => KNOWN_DIALS.has(d));
+  if (dial === undefined || digits.length === dial.length) return `+${digits}`;
+  const national = digits.slice(dial.length);
+  return `+${dial} ${maskNational(dial, national) ?? national}`;
 }

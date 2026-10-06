@@ -13,7 +13,7 @@ import { errorText, useSession } from '../context';
 import { SlotPicker } from '../SlotPicker';
 import { confirmAction } from '../telegram';
 import { dateIn, formatDateTime } from '../time';
-import { Button, Field, Input, Notice, Textarea } from '../ui';
+import { Button, Field, Input, Notice, PhoneInput, Textarea } from '../ui';
 import { ClientNotes } from './ClientNotes';
 import { HistoryList } from './HistoryList';
 import { cancelledLabel } from './SchedulePage';
@@ -133,13 +133,7 @@ export function AppointmentPage({
             />
           </Field>
           <Field label={t('book.phone')}>
-            <Input
-              type="tel"
-              maxLength={50}
-              autoComplete="off"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
+            <PhoneInput autoComplete="off" value={phone} onValueChange={setPhone} />
           </Field>
           <Field label={t('book.comment')}>
             <Textarea

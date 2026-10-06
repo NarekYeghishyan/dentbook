@@ -14,7 +14,7 @@ import { api, ApiError } from '../api';
 import { errorText, useSession } from '../context';
 import { SlotPicker } from '../SlotPicker';
 import { dateIn, formatDateTime } from '../time';
-import { Button, Field, Input, Notice, Select, Textarea } from '../ui';
+import { Button, Field, Input, Notice, PhoneInput, Select, Textarea } from '../ui';
 
 /** Значение пункта «Другое» в списке услуг. */
 const CUSTOM = 'custom';
@@ -184,13 +184,7 @@ export function BookPage({
             />
           </Field>
           <Field label={t('book.phone')}>
-            <Input
-              type="tel"
-              maxLength={50}
-              autoComplete="off"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-            />
+            <PhoneInput autoComplete="off" value={phone} onValueChange={setPhone} />
           </Field>
           <Field label={t('book.comment')}>
             <Textarea

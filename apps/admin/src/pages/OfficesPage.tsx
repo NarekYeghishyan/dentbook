@@ -13,6 +13,7 @@ import {
   Input,
   Loading,
   PageHeader,
+  PhoneInput,
   Select,
   TimeZoneOptions,
 } from '../components/ui';
@@ -66,7 +67,7 @@ function OfficeForm({
           <Input value={draft.address} onChange={(e) => set({ address: e.target.value })} />
         </Field>
         <Field label={t('field.phone')}>
-          <Input type="tel" value={draft.phone} onChange={(e) => set({ phone: e.target.value })} />
+          <PhoneInput value={draft.phone} onValueChange={(phone) => set({ phone })} />
         </Field>
       </div>
       <Checkbox

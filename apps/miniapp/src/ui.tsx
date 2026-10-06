@@ -5,6 +5,7 @@ import type {
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react';
+import { maskPhone } from '@dentbook/shared/phone';
 
 export function Button({
   variant = 'primary',
@@ -39,6 +40,43 @@ const control = 'w-full rounded-lg border border-hint/30 bg-bg px-3 py-2 text-fg
 export const Input = (props: InputHTMLAttributes<HTMLInputElement>) => (
   <input className={control} {...props} />
 );
+
+/**
+ * Поле телефона с маской: «2025550123» → «(202) 555-0123», «+7916…» → «+7 916 …».
+ * Каретка остаётся после той же по счёту цифры, что и до форматирования.
+ */
+export function PhoneInput({
+  value,
+  onValueChange,
+  ...props
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type'> & {
+  value: string;
+  onValueChange: (value: string) => void;
+}) {
+  return (
+    <Input
+      type="tel"
+      inputMode="tel"
+      maxLength={50}
+      {...props}
+      value={maskPhone(value)}
+      onChange={(e) => {
+        const input = e.currentTarget;
+        const text = maskPhone(input.value);
+        const caret = input.selectionStart ?? input.value.length;
+        const typed = input.value.slice(0, caret).replace(/\D/g, '').length;
+        let at = 0;
+        for (let seen = 0; at < text.length && seen < typed; at += 1) {
+          if (/\d/.test(text[at]!)) seen += 1;
+        }
+        if (typed === 0) at = Math.min(caret, text.length);
+        input.value = text;
+        input.setSelectionRange(at, at);
+        onValueChange(text);
+      }}
+    />
+  );
+}
 
 export const Select = (props: SelectHTMLAttributes<HTMLSelectElement>) => (
   <select className={control} {...props} />

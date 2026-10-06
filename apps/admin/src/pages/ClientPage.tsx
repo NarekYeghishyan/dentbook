@@ -17,6 +17,7 @@ import {
   Input,
   Loading,
   PageHeader,
+  PhoneInput,
   Textarea,
 } from '../components/ui';
 import { useI18n, type MessageKey } from '../i18n';
@@ -78,12 +79,7 @@ function Details({ client }: { client: ClientCard }) {
           />
         </Field>
         <Field label={t('booking.phoneOptional')} hint={t('client.phoneHint')}>
-          <Input
-            type="tel"
-            maxLength={50}
-            value={form.phone}
-            onChange={(e) => setForm({ ...form, phone: e.target.value })}
-          />
+          <PhoneInput value={form.phone} onValueChange={(phone) => setForm({ ...form, phone })} />
         </Field>
         <Field label={t('field.email')}>
           <Input

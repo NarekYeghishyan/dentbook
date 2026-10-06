@@ -8,6 +8,7 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
+import { maskPhone } from '@dentbook/shared/phone';
 import { ApiError } from '../api/client';
 import { useI18n, type MessageKey } from '../i18n';
 import { timeZoneLabel, timeZones } from '../lib/time';
@@ -47,6 +48,43 @@ const control =
 
 export function Input({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cx(control, className)} {...props} />;
+}
+
+/**
+ * Поле телефона с маской: «2025550123» → «(202) 555-0123», «+7916…» → «+7 916 …».
+ * Каретка остаётся после той же по счёту цифры, что и до форматирования.
+ */
+export function PhoneInput({
+  value,
+  onValueChange,
+  ...props
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type'> & {
+  value: string;
+  onValueChange: (value: string) => void;
+}) {
+  return (
+    <Input
+      type="tel"
+      inputMode="tel"
+      maxLength={50}
+      {...props}
+      value={maskPhone(value)}
+      onChange={(e) => {
+        const input = e.currentTarget;
+        const text = maskPhone(input.value);
+        const caret = input.selectionStart ?? input.value.length;
+        const typed = input.value.slice(0, caret).replace(/\D/g, '').length;
+        let at = 0;
+        for (let seen = 0; at < text.length && seen < typed; at += 1) {
+          if (/\d/.test(text[at]!)) seen += 1;
+        }
+        if (typed === 0) at = Math.min(caret, text.length);
+        input.value = text;
+        input.setSelectionRange(at, at);
+        onValueChange(text);
+      }}
+    />
+  );
 }
 
 export function Select({ className, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {

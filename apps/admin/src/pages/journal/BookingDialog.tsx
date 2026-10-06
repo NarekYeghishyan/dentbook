@@ -13,7 +13,7 @@ import { useState, type FormEvent } from 'react';
 import type { Dentist, JournalAppointment, Service } from '@dentbook/shared';
 import { BOOKING_DURATION_MAX, BOOKING_DURATION_MIN } from '@dentbook/shared/domain';
 import { useClients, useCreateBooking, useUpdateAppointment } from '../../api/hooks';
-import { Button, Field, Input, Modal, Select, Textarea } from '../../components/ui';
+import { Button, Field, Input, Modal, PhoneInput, Select, Textarea } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { atMinutes, dateIn, formatTime, minutesOfDay } from '../../lib/time';
 import { alternativesOf, useJournalError } from './errors';
@@ -252,11 +252,9 @@ export function BookingDialog({
               />
             </Field>
             <Field label={t('booking.phoneOptional')}>
-              <Input
-                type="tel"
-                maxLength={50}
+              <PhoneInput
                 value={client.phone}
-                onChange={(e) => setClient({ ...client, phone: e.target.value })}
+                onValueChange={(phone) => setClient({ ...client, phone })}
               />
             </Field>
           </div>

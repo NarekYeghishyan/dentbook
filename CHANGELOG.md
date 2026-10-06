@@ -15,6 +15,11 @@ produced them (CLAUDE.md §9).
 
 #### Changed
 
+- `feat: mask the phone field in the admin panel and the Mini App` — поля телефона в журнале,
+  карточке клиента, филиале и Mini App форматируются при вводе (`maskPhone` в
+  `packages/shared`): без «+» — номер США `(202) 555-0123`, с «+» — по шаблону страны.
+  Меняются только разделители, сервер читает номер как раньше.
+
 - `feat(admin): let the front desk change the client phone on the client card` — телефон
   в карточке клиента больше не заблокирован: «Телефон (необязательно)», в любом виде, как
   при записи; пусто — клиент без номера. Новый номер сразу у всех записей клиента и у их

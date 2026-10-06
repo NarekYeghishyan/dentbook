@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isE164, maskNational, toE164, toE164In } from './phone.js';
+import { isE164, maskNational, maskPhone, toE164, toE164In } from './phone.js';
 import { anyPhoneSchema } from './validators.js';
 
 describe('toE164', () => {
@@ -105,5 +105,28 @@ describe('maskNational', () => {
   it('keeps every digit, so the number still converts to E.164', () => {
     const masked = maskNational('374', '91234567')!;
     expect(toE164In('374', masked)).toBe('+37491234567');
+  });
+});
+
+describe('maskPhone', () => {
+  it.each([
+    ['', ''],
+    ['202', '(202'],
+    ['2025550123', '(202) 555-0123'],
+    ['(202) 555-0123', '(202) 555-0123'],
+    ['+', '+'],
+    ['+1', '+1'],
+    ['+12025550123', '+1 (202) 555-0123'],
+    ['+37491123456', '+374 91 123456'],
+    ['+79161234567', '+7 916 123-45-67'],
+    ['call 555', 'call 555'],
+  ])('%s → %s', (input, expected) => {
+    expect(maskPhone(input)).toBe(expected);
+  });
+
+  it('keeps what toE164 reads', () => {
+    for (const input of ['2025550123', '+12025550123', '+79161234567', '+37491123456']) {
+      expect(toE164(maskPhone(input))).toBe(toE164(input));
+    }
   });
 });
