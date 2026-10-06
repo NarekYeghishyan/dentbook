@@ -214,7 +214,7 @@
   "appointment.cancelConfirm": "Cancel this booking? The client will get an SMS.",
   "appointment.came": "Came",
   "appointment.noShow": "No-show",
-  "appointment.openClient": "Client card",
+  "appointment.openClient": "Client History",
   "appointment.close": "Close",
   "appointment.history": "History",
   "appointment.hideHistory": "Hide history",

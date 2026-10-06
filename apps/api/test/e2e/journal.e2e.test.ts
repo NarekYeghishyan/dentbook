@@ -308,7 +308,7 @@ describe('front desk journal (Step 9)', () => {
     await page.getByRole('button', { name: /^9:00\sAM Notes Client$/ }).click();
     await page
       .getByRole('dialog', { name: 'Booking' })
-      .getByRole('link', { name: 'Client card' })
+      .getByRole('link', { name: 'Client History' })
       .click();
 
     // Заметка к записи уже в истории; новые добавляются сверху, сколько угодно раз
