@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type {
   ButtonHTMLAttributes,
   InputHTMLAttributes,
@@ -82,9 +83,51 @@ export const Select = (props: SelectHTMLAttributes<HTMLSelectElement>) => (
   <select className={control} {...props} />
 );
 
-export const Textarea = (props: TextareaHTMLAttributes<HTMLTextAreaElement>) => (
-  <textarea className={control} {...props} />
-);
+/**
+ * Поле комментария. На iPhone диктовка с клавиатуры вставляет текст как «временный»
+ * (marked text) и правит его по ходу речи; управляемое поле, которому React на каждом
+ * вводе переписывает value, или нативный maxLength эту правку обрывают, и диктовка
+ * молча перестаёт работать. Поэтому DOM-значением владеет само поле (defaultValue),
+ * а из props оно подтягивается только когда не в фокусе; лимит режется при потере
+ * фокуса и в обработчике, но не посреди ввода.
+ */
+export function Textarea({
+  value,
+  maxLength,
+  onChange,
+  onBlur,
+  ...props
+}: Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'defaultValue'>) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const text = typeof value === 'string' ? value : '';
+  useEffect(() => {
+    const el = ref.current;
+    if (el && document.activeElement !== el && el.value !== text) el.value = text;
+  }, [text]);
+  const clip = (el: HTMLTextAreaElement) => {
+    if (maxLength !== undefined && el.value.length > maxLength)
+      el.value = el.value.slice(0, maxLength);
+  };
+  return (
+    <textarea
+      ref={ref}
+      className={control}
+      defaultValue={text}
+      {...props}
+      onChange={(e) => {
+        // Пока идёт диктовка или IME, текст не трогаем: обрежем на blur
+        if (!(e.nativeEvent as InputEvent).isComposing) clip(e.currentTarget);
+        onChange?.(e);
+      }}
+      onBlur={(e) => {
+        const before = e.currentTarget.value;
+        clip(e.currentTarget);
+        if (e.currentTarget.value !== before) onChange?.(e as never);
+        onBlur?.(e);
+      }}
+    />
+  );
+}
 
 export function Notice({ tone, children }: { tone: 'error' | 'success'; children: ReactNode }) {
   const look = tone === 'error' ? 'text-danger' : 'text-fg';
