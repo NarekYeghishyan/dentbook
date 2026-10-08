@@ -141,7 +141,7 @@ function Main() {
   };
 
   return (
-    <div className="mx-auto max-w-lg space-y-4 p-4">
+    <div className="mx-auto max-w-lg space-y-4 p-4 pb-[calc(3rem+env(safe-area-inset-bottom))]">
       <header className="flex items-start justify-between gap-3">
         <div>
           <div className="font-semibold">{me.dentist.fullName}</div>
