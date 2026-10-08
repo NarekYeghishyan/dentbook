@@ -61,7 +61,7 @@ export function BlockPage({
       <Field label={t('block.date')}>
         <Input type="date" required value={form.date} onChange={set('date')} />
       </Field>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
         <Field label={t('block.from')}>
           <Input type="time" required value={form.from} onChange={set('from')} />
         </Field>

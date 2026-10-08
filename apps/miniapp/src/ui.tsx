@@ -29,7 +29,7 @@ export function Button({
 
 export function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block space-y-1">
+    <label className="block min-w-0 space-y-1">
       <span className="text-sm text-hint">{label}</span>
       {children}
     </label>

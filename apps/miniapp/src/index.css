@@ -14,4 +14,28 @@
 
 body {
   @apply bg-bg text-fg antialiased;
+  overflow-x: hidden;
+}
+
+/*
+ * iOS Safari рисует date/time-поля нативно: у них своя минимальная ширина (из-за неё
+ * страница уезжает вбок), а рамка и фон из классов не применяются, поэтому соседние
+ * поля «С»/«По» сливаются. Сбрасываем нативный вид и задаём размеры сами.
+ */
+input[type='date'],
+input[type='time'] {
+  -webkit-appearance: none;
+  appearance: none;
+  display: block;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 2.5rem;
+  background-color: var(--color-bg);
+}
+
+input[type='date']::-webkit-date-and-time-value,
+input[type='time']::-webkit-date-and-time-value {
+  min-width: 0;
+  text-align: left;
 }
