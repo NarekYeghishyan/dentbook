@@ -15,7 +15,8 @@
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
     "studio": "drizzle-kit studio",
-    "seed": "tsx src/seed/index.ts"
+    "seed": "tsx src/seed/index.ts",
+    "import:fees": "tsx src/seed/import-fee-schedule-cli.ts"
   },
   "dependencies": {
     "@dentbook/shared": "workspace:*",

@@ -159,7 +159,12 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
       .where(and(eq(locations.clinicId, clinicId), eq(locations.isActive, true)))
       .orderBy(asc(locations.sortOrder), asc(locations.name));
     const own = await db
-      .select({ id: services.id, name: services.name, durationMin: services.durationMin })
+      .select({
+        id: services.id,
+        name: services.name,
+        category: services.category,
+        durationMin: services.durationMin,
+      })
       .from(services)
       .innerJoin(
         dentistServices,

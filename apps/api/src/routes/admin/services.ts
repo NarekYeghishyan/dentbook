@@ -15,6 +15,7 @@ const columns = {
   id: services.id,
   name: services.name,
   description: services.description,
+  category: services.category,
   durationMin: services.durationMin,
   bufferMin: services.bufferMin,
   price: services.price,

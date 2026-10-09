@@ -328,6 +328,7 @@ describe('config, services, availability', () => {
         id: data.serviceId,
         name: 'Checkup',
         description: null,
+        category: null,
         duration_min: 30,
         price: '80.00',
         currency: 'USD',

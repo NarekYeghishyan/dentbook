@@ -127,6 +127,13 @@
       "when": 1791124895345,
       "tag": "0017_patient_notes_appointment_key",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791544862550,
+      "tag": "0018_service_category",
+      "breakpoints": true
     }
   ]
 }

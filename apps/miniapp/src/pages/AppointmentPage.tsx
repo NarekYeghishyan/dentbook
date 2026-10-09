@@ -10,10 +10,11 @@ import { useState, type FormEvent } from 'react';
 import type { MiniappAppointment } from '@dentbook/shared';
 import { api, ApiError } from '../api';
 import { errorText, useSession } from '../context';
+import { ServicePicker } from '../ServicePicker';
 import { SlotPicker } from '../SlotPicker';
 import { confirmAction } from '../telegram';
 import { dateIn, formatDateTime } from '../time';
-import { Button, Field, Input, Notice, PhoneInput, Select, Textarea } from '../ui';
+import { Button, Field, Input, Notice, PhoneInput, Textarea } from '../ui';
 import { ClientNotes } from './ClientNotes';
 import { HistoryList } from './HistoryList';
 import { cancelledLabel } from './SchedulePage';
@@ -163,22 +164,20 @@ export function AppointmentPage({
       {upcoming && (
         <section className="space-y-3">
           <h2 className="font-medium">{t('edit.move')}</h2>
-          <Field label={t('book.service')}>
-            <Select
-              value={serviceId}
+          {/* не <label>: клик по варианту в списке переключал бы кнопку выбора */}
+          <div className="space-y-1">
+            <span className="text-sm text-hint">{t('book.service')}</span>
+            <ServicePicker
               // Выбранное время остаётся: не влезет новая услуга — сервер скажет при сохранении
-              onChange={(e) => setServiceId(e.target.value)}
-            >
-              {!me.services.some((s) => s.id === a.serviceId) && (
-                <option value={a.serviceId}>{a.service}</option>
-              )}
-              {me.services.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name} · {t('book.duration', { min: s.durationMin })}
-                </option>
-              ))}
-            </Select>
-          </Field>
+              services={
+                me.services.some((s) => s.id === a.serviceId)
+                  ? me.services
+                  : [{ id: a.serviceId, name: a.service, category: null }, ...me.services]
+              }
+              value={serviceId}
+              onChange={setServiceId}
+            />
+          </div>
           <Field label={t('book.date')}>
             <Input
               type="date"

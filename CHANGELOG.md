@@ -13,6 +13,21 @@ produced them (CLAUDE.md §9).
 
 ### После сдачи
 
+#### Added
+
+- `feat: service categories and a searchable service picker` — у услуги появилась
+  необязательная категория (`services.category`, миграция `0018`); она приходит в
+  админском, публичном (`category`) и Mini App API. Выбор услуги в журнале, Mini App
+  (запись и перенос) и виджете — со строкой поиска и группами по категориям: слова
+  ищутся в названии и категории (`@dentbook/shared/service-search`). В админке поиск и
+  группы есть также в «Services» и в списке услуг врача; категорию задаёт поле в форме
+  услуги. В виджете поиск показывается, когда услуг больше пяти.
+- `feat(db): import the fee schedule` — `pnpm --filter @dentbook/db import:fees --clinic <uuid>
+[--public]` загружает 82 услуги в 9 категориях из `Dental_Pricing_2026.pdf` (стр. 1–3,
+  прайс лаборатории не входит). Цена — нижняя граница Cash / Self-Pay, длительность 30 мин
+  у всех (в PDF её нет), услуги скрыты из виджета без `--public`. Запуск повторяемый:
+  существующие по названию не меняются. Врачам услуги не назначаются.
+
 #### Changed
 
 - `feat(miniapp): let the dentist change the service of a booking` — в «Услуга и время»

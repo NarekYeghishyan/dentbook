@@ -2,6 +2,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { groupServices } from '@dentbook/shared/service-search';
 import type {
   ConflictingAppointment,
   Dentist,
@@ -88,6 +89,7 @@ function Services({ dentist }: { dentist: Dentist }) {
   const services = useServices();
   const save = useSetDentistServices();
   const [selected, setSelected] = useState(new Set(dentist.serviceIds));
+  const [query, setQuery] = useState('');
 
   useEffect(() => setSelected(new Set(dentist.serviceIds)), [dentist.serviceIds]);
 
@@ -98,6 +100,7 @@ function Services({ dentist }: { dentist: Dentist }) {
       else next.delete(id);
       return next;
     });
+  const groups = groupServices(services.data ?? [], query);
   const changed =
     selected.size !== dentist.serviceIds.length ||
     dentist.serviceIds.some((id) => !selected.has(id));
@@ -112,15 +115,41 @@ function Services({ dentist }: { dentist: Dentist }) {
           </Link>
         </p>
       )}
-      <div className="grid gap-2 sm:grid-cols-2">
-        {services.data?.map((service) => (
-          <Checkbox
-            key={service.id}
-            label={service.isActive ? service.name : `${service.name} (${t('common.inactive')})`}
-            checked={selected.has(service.id)}
-            disabled={!canManage}
-            onChange={(on) => toggle(service.id, on)}
-          />
+      {(services.data?.length ?? 0) > 0 && (
+        <Input
+          type="search"
+          className="mb-3"
+          aria-label={t('services.search')}
+          placeholder={t('services.search')}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      )}
+      {services.data && services.data.length > 0 && groups.length === 0 && (
+        <p className="text-sm text-slate-500">{t('services.noMatch')}</p>
+      )}
+      <div className="max-h-96 space-y-3 overflow-y-auto">
+        {groups.map((group) => (
+          <section key={group.category ?? ''}>
+            {(group.category !== null || groups.length > 1) && (
+              <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                {group.category ?? t('services.noCategory')}
+              </h3>
+            )}
+            <div className="grid gap-2 sm:grid-cols-2">
+              {group.items.map((service) => (
+                <Checkbox
+                  key={service.id}
+                  label={
+                    service.isActive ? service.name : `${service.name} (${t('common.inactive')})`
+                  }
+                  checked={selected.has(service.id)}
+                  disabled={!canManage}
+                  onChange={(on) => toggle(service.id, on)}
+                />
+              ))}
+            </div>
+          </section>
         ))}
       </div>
       <div className="mt-4 space-y-3">

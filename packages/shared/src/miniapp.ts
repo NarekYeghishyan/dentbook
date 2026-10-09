@@ -100,7 +100,7 @@ export interface MiniappMe {
   dentist: { id: string; fullName: string; locale: Locale | null };
   clinic: { name: string; locale: Locale; timezone: string };
   locations: { id: string; name: string; timeZone: string }[];
-  services: { id: string; name: string; durationMin: number }[];
+  services: { id: string; name: string; category: string | null; durationMin: number }[];
 }
 
 export interface MiniappAppointment {

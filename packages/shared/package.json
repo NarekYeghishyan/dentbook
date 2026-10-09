@@ -11,6 +11,7 @@
     "./errors": "./src/errors.ts",
     "./phone": "./src/phone.ts",
     "./queues": "./src/queues.ts",
+    "./service-search": "./src/service-search.ts",
     "./sms": "./src/sms.ts"
   },
   "scripts": {

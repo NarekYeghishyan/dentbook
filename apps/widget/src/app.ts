@@ -20,6 +20,7 @@ import {
 } from '@dentbook/shared/countries';
 import type { Locale } from '@dentbook/shared/domain';
 import { maskNational, toE164In } from '@dentbook/shared/phone';
+import { groupServices } from '@dentbook/shared/service-search';
 import { createApi, WidgetApiError } from './api';
 import { renderCaptcha, type Captcha } from './captcha';
 import { addDays, formatDateOf, formatDay, formatTime, todayIn } from './dates';
@@ -90,6 +91,9 @@ const ERROR_TEXT: Partial<Record<string, MessageKey>> = {
   invalid_key: 'error.unavailable',
   origin_not_allowed: 'error.unavailable',
 };
+
+/** С какого числа услуг в списке появляется поиск: в коротком списке он только мешает. */
+const SEARCH_FROM = 5;
 
 export function mountWidget(host: HTMLElement, options: WidgetOptions): Widget {
   const shadow = host.shadowRoot ?? host.attachShadow({ mode: 'open' });
@@ -612,28 +616,53 @@ export function mountWidget(host: HTMLElement, options: WidgetOptions): Widget {
       case 'unavailable':
         return [h('p', {}, t('error.unavailable'))];
 
-      case 'service':
+      case 'service': {
+        const list = h('div', { class: 'list' });
+        const none = h('p', { class: 'muted', hidden: true }, t('service.none'));
+        const draw = (query: string) => {
+          const groups = groupServices(s.services, query);
+          list.replaceChildren(
+            ...groups.flatMap((group) => [
+              ...(group.category !== null || groups.length > 1
+                ? [h('h3', { class: 'group' }, group.category ?? t('service.noCategory'))]
+                : []),
+              ...group.items.map((service) =>
+                h(
+                  'button',
+                  { type: 'button', class: 'item', onclick: () => chooseService(service) },
+                  h(
+                    'span',
+                    {},
+                    service.name,
+                    h('small', {}, t('service.minutes', { min: service.duration_min })),
+                  ),
+                  h('span', {}, price(service)),
+                ),
+              ),
+            ]),
+          );
+          none.hidden = groups.length > 0;
+        };
+        const search = h('input', {
+          type: 'search',
+          class: 'search',
+          autocomplete: 'off',
+          spellcheck: false,
+          placeholder: t('service.search'),
+          'aria-label': t('service.search'),
+          oninput: () => draw(search.value),
+          // Enter в поиске не отправляет форму и не перезагружает страницу клиники
+          onkeydown: (e: KeyboardEvent) => e.key === 'Enter' && e.preventDefault(),
+        });
+        draw('');
         return [
           h('h2', {}, t('service.title')),
           error,
-          h(
-            'div',
-            { class: 'list' },
-            ...s.services.map((service) =>
-              h(
-                'button',
-                { type: 'button', class: 'item', onclick: () => chooseService(service) },
-                h(
-                  'span',
-                  {},
-                  service.name,
-                  h('small', {}, t('service.minutes', { min: service.duration_min })),
-                ),
-                h('span', {}, price(service)),
-              ),
-            ),
-          ),
+          s.services.length > SEARCH_FROM && search,
+          list,
+          none,
         ];
+      }
 
       case 'office':
         return [

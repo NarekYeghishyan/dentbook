@@ -99,6 +99,7 @@ export const publicRoutes: FastifyPluginAsync<PublicRoutesOptions> = async (app,
         id: services.id,
         name: services.name,
         description: services.description,
+        category: services.category,
         duration_min: services.durationMin,
         price: services.price,
       })

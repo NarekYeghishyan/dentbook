@@ -58,6 +58,11 @@ export const services = pgTable(
     clinicId: uuid('clinic_id').notNull(),
     name: text('name').notNull(),
     description: text('description'),
+    /**
+     * Группа в списках выбора («Restorative»). Текстом, без отдельной таблицы:
+     * TODO: справочник категорий, если понадобится переименование одним действием.
+     */
+    category: text('category'),
     durationMin: integer('duration_min').notNull(),
     bufferMin: integer('buffer_min').notNull().default(0),
     /** numeric → string: деньги без float (§9). NULL — цена не показывается. */

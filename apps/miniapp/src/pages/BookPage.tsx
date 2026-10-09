@@ -12,6 +12,7 @@ import type { MiniappAppointment } from '@dentbook/shared';
 import { BOOKING_DURATION_MAX, BOOKING_DURATION_MIN } from '@dentbook/shared/domain';
 import { api, ApiError } from '../api';
 import { errorText, useSession } from '../context';
+import { ServicePicker } from '../ServicePicker';
 import { SlotPicker } from '../SlotPicker';
 import { dateIn, formatDateTime } from '../time';
 import { Button, Field, Input, Notice, PhoneInput, Select, Textarea } from '../ui';
@@ -101,23 +102,19 @@ export function BookPage({
 
   return (
     <form className="space-y-3" onSubmit={submit}>
-      <Field label={t('book.service')}>
-        <Select
+      {/* не <label>: клик по варианту в списке переключал бы кнопку выбора */}
+      <div className="space-y-1">
+        <span className="text-sm text-hint">{t('book.service')}</span>
+        <ServicePicker
+          services={[...me.services, { id: CUSTOM, name: t('book.custom'), category: null }]}
           value={serviceId}
-          onChange={(e) => {
-            setServiceId(e.target.value);
-            setDuration(defaultDuration(e.target.value));
+          onChange={(id) => {
+            setServiceId(id);
+            setDuration(defaultDuration(id));
             resetTime();
           }}
-        >
-          {me.services.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name} · {t('book.duration', { min: s.durationMin })}
-            </option>
-          ))}
-          <option value={CUSTOM}>{t('book.custom')}</option>
-        </Select>
-      </Field>
+        />
+      </div>
       <Field
         label={t('book.durationField', { min: BOOKING_DURATION_MIN, max: BOOKING_DURATION_MAX })}
       >

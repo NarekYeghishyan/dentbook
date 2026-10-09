@@ -13,6 +13,7 @@ import { useState, type FormEvent } from 'react';
 import type { Dentist, JournalAppointment, Service } from '@dentbook/shared';
 import { BOOKING_DURATION_MAX, BOOKING_DURATION_MIN } from '@dentbook/shared/domain';
 import { useClients, useCreateBooking, useUpdateAppointment } from '../../api/hooks';
+import { ServicePicker } from '../../components/ServicePicker';
 import { Button, Field, Input, Modal, PhoneInput, Select, Textarea } from '../../components/ui';
 import { useI18n } from '../../i18n';
 import { atMinutes, dateIn, formatTime, minutesOfDay } from '../../lib/time';
@@ -87,7 +88,7 @@ export function BookingDialog({
   const found = useClients(query.trim(), query.trim().length >= 2);
 
   const dentist = dentists.find((d) => d.id === dentistId);
-  const offered: Pick<Service, 'id' | 'name' | 'durationMin'>[] = services.filter(
+  const offered: Pick<Service, 'id' | 'name' | 'category' | 'durationMin'>[] = services.filter(
     (s) => s.isActive && dentist?.serviceIds.includes(s.id),
   );
   const bookedMin = editing
@@ -100,7 +101,12 @@ export function BookingDialog({
     !offered.some((s) => s.id === editing.serviceId) &&
     (dentistId === editing.dentistId || !services.some((s) => s.id === editing.serviceId))
   ) {
-    offered.unshift({ id: editing.serviceId, name: editing.service, durationMin: bookedMin });
+    offered.unshift({
+      id: editing.serviceId,
+      name: editing.service,
+      category: null,
+      durationMin: bookedMin,
+    });
   }
   const [serviceId, setServiceId] = useState(editing?.serviceId ?? offered[0]?.id ?? '');
   const service = offered.find((s) => s.id === serviceId) ?? offered[0];
@@ -166,19 +172,15 @@ export function BookingDialog({
                 ))}
             </Select>
           </Field>
-          <Field label={t('field.service')}>
-            <Select
-              required
+          <div className="space-y-1">
+            <span className="text-sm font-medium text-slate-700">{t('field.service')}</span>
+            <ServicePicker
+              services={offered}
               value={service?.id ?? ''}
-              onChange={(e) => setServiceId(e.target.value)}
-            >
-              {offered.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
+              onChange={setServiceId}
+              disabled={locked}
+            />
+          </div>
           <Field label={t('booking.date')}>
             <Input type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>

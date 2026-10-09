@@ -58,6 +58,8 @@ export interface Location {
 export const createServiceSchema = z.object({
   name: nameSchema,
   description: optionalText(2000).optional(),
+  /** Группа в списках выбора; пусто или null — без категории. */
+  category: optionalText(100).optional(),
   durationMin: z
     .number()
     .int()
@@ -83,6 +85,7 @@ export interface Service {
   id: string;
   name: string;
   description: string | null;
+  category: string | null;
   durationMin: number;
   bufferMin: number;
   /** Строка numeric(12,2) или null — цена не показывается. */

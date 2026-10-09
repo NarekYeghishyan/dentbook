@@ -108,6 +108,32 @@ describe('services', () => {
     expect(hidden).toMatchObject({ price: null, isPublic: false });
   });
 
+  it('stores a category, trims it and clears it with an empty value', async () => {
+    const owner = await registerClinic(app);
+    const service = await call<{ id: string }>(
+      app,
+      owner,
+      {
+        method: 'POST',
+        url: '/v1/admin/services',
+        payload: { name: 'Crown – zirconia', durationMin: 60, category: '  Restorative ' },
+      },
+      201,
+    );
+    expect(service).toMatchObject({ category: 'Restorative' });
+    const plain = await call(app, owner, {
+      method: 'PATCH',
+      url: `/v1/admin/services/${service.id}`,
+      payload: { category: '' },
+    });
+    expect(plain).toMatchObject({ category: null });
+    expect(
+      await status(owner, 'PATCH', `/v1/admin/services/${service.id}`, {
+        category: 'x'.repeat(101),
+      }),
+    ).toBe(400);
+  });
+
   it.each([
     ['a float price', { price: 12.5 }],
     ['three decimals', { price: '1.005' }],

@@ -179,6 +179,8 @@ CREATE TABLE services (
   clinic_id     uuid          NOT NULL REFERENCES clinics (id),
   name          text          NOT NULL,
   description   text,
+  -- Группа в списках выбора услуги (например, «Restorative»); NULL — без категории
+  category      text,
   duration_min  integer       NOT NULL,
   buffer_min    integer       NOT NULL DEFAULT 0,
   -- NULL — цена в виджете не показывается. Валюта — clinics.currency.

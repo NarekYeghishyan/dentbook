@@ -35,6 +35,9 @@ export const css = `
   color: inherit; font: inherit; cursor: pointer;
 }
 .item:hover, .item:focus-visible { border-color: var(--db-primary); outline: none; }
+.group { margin: 6px 0 0; font-size: 12px; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; color: var(--db-muted); }
+.group:first-child { margin-top: 0; }
+.search { margin-bottom: 10px; }
 .item small { display: block; color: var(--db-muted); font-size: 13px; }
 .days { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 6px; margin-bottom: 10px; }
 .day {

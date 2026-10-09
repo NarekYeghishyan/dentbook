@@ -75,6 +75,7 @@ export interface PublicService {
   id: string;
   name: string;
   description: string | null;
+  category: string | null;
   duration_min: number;
   /** Строка numeric или null — цену не показывать. */
   price: string | null;
