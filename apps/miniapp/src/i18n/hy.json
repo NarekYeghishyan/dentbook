@@ -33,6 +33,8 @@
   "book.serviceSearch": "Որոնել ծառայություն",
   "book.serviceNone": "Ծառայություններ չեն գտնվել",
   "book.noCategory": "Առանց կատեգորիայի",
+  "book.cash": "Կանխիկ",
+  "book.insurance": "Ապահովագր.",
   "book.durationField": "Տևողությունը, րոպե ({min}–{max})",
   "book.duration": "{min} րոպե",
   "book.office": "Գրասենյակ",

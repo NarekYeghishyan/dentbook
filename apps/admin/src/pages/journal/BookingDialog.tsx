@@ -88,9 +88,10 @@ export function BookingDialog({
   const found = useClients(query.trim(), query.trim().length >= 2);
 
   const dentist = dentists.find((d) => d.id === dentistId);
-  const offered: Pick<Service, 'id' | 'name' | 'category' | 'durationMin'>[] = services.filter(
-    (s) => s.isActive && dentist?.serviceIds.includes(s.id),
-  );
+  const offered: Pick<
+    Service,
+    'id' | 'name' | 'category' | 'durationMin' | 'price' | 'insurancePrice'
+  >[] = services.filter((s) => s.isActive && dentist?.serviceIds.includes(s.id));
   const bookedMin = editing
     ? (Date.parse(editing.endAt) - Date.parse(editing.startAt)) / 60_000
     : 0;
@@ -105,6 +106,8 @@ export function BookingDialog({
       id: editing.serviceId,
       name: editing.service,
       category: null,
+      price: null,
+      insurancePrice: null,
       durationMin: bookedMin,
     });
   }

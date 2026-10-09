@@ -98,9 +98,17 @@ export type MiniappLocaleInput = z.input<typeof miniappLocaleSchema>;
 export interface MiniappMe {
   /** locale — выбранный врачом язык; null — не выбирал, язык берётся из Telegram или клиники. */
   dentist: { id: string; fullName: string; locale: Locale | null };
-  clinic: { name: string; locale: Locale; timezone: string };
+  clinic: { name: string; locale: Locale; timezone: string; currency: string };
   locations: { id: string; name: string; timeZone: string }[];
-  services: { id: string; name: string; category: string | null; durationMin: number }[];
+  services: {
+    id: string;
+    name: string;
+    category: string | null;
+    durationMin: number;
+    /** Cash / Self-Pay и Insurance Fee, numeric-строки; null — не задана. Врач видит обе. */
+    price: string | null;
+    insurancePrice: string | null;
+  }[];
 }
 
 export interface MiniappAppointment {

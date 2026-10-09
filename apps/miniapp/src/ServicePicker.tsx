@@ -5,7 +5,7 @@
  * Размер шрифта поиска — 16 px: на iPhone меньший заставляет страницу приближаться.
  */
 import { useId, useRef, useState } from 'react';
-import { groupServices } from '@dentbook/shared/service-search';
+import { formatPrice, groupServices } from '@dentbook/shared/service-search';
 import { useSession } from './context';
 
 export interface PickerService {
@@ -13,6 +13,8 @@ export interface PickerService {
   name: string;
   category: string | null;
   durationMin?: number;
+  price?: string | null;
+  insurancePrice?: string | null;
 }
 
 export function ServicePicker({
@@ -24,7 +26,7 @@ export function ServicePicker({
   value: string;
   onChange(id: string): void;
 }) {
-  const { t } = useSession();
+  const { t, me, locale } = useSession();
   const listId = useId();
   const box = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
@@ -37,6 +39,17 @@ export function ServicePicker({
   const selected = services.find((s) => s.id === value);
   const minutes = (s: PickerService) =>
     s.durationMin === undefined ? '' : t('book.duration', { min: s.durationMin });
+
+  /** «Cash $120 · Insurance $200»; пусто, если цен нет. */
+  const prices = (s: PickerService | undefined) =>
+    [
+      s?.price ? `${t('book.cash')} ${formatPrice(s.price, me.clinic.currency, locale)}` : '',
+      s?.insurancePrice
+        ? `${t('book.insurance')} ${formatPrice(s.insurancePrice, me.clinic.currency, locale)}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
 
   function pick(id: string) {
     onChange(id);
@@ -66,6 +79,7 @@ export function ServicePicker({
           ▾
         </span>
       </button>
+      {!open && prices(selected) && <p className="text-sm text-hint">{prices(selected)}</p>}
       {open && (
         <div className="rounded-lg border border-hint/30 bg-bg">
           <input
@@ -110,7 +124,10 @@ export function ServicePicker({
                       s.id === value ? 'font-semibold' : ''
                     }`}
                   >
-                    <span>{s.name}</span>
+                    <span className="min-w-0">
+                      <span className="block">{s.name}</span>
+                      {prices(s) && <span className="block text-sm text-hint">{prices(s)}</span>}
+                    </span>
                     <span className="shrink-0 text-sm text-hint">{minutes(s)}</span>
                   </div>
                 ))}

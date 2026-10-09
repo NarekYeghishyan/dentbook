@@ -39,3 +39,13 @@ export function groupServices<T extends { name: string; category: string | null 
     ...(rest ? [{ category: null, items: rest }] : []),
   ];
 }
+
+/** Цена услуги для показа: '120.00' → '$120' (без копеек, если их нет). */
+export function formatPrice(value: string, currency: string, locale: string): string {
+  const amount = Number(value);
+  return new Intl.NumberFormat(locale, {
+    style: 'currency',
+    currency,
+    maximumFractionDigits: Number.isInteger(amount) ? 0 : 2,
+  }).format(amount);
+}

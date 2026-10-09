@@ -4,13 +4,16 @@
  * (ARIA), список доступен с клавиатуры: ↑ ↓ Enter Esc.
  */
 import { useId, useRef, useState } from 'react';
-import { groupServices } from '@dentbook/shared/service-search';
+import { formatPrice, groupServices } from '@dentbook/shared/service-search';
+import { useSession } from './Layout';
 import { useI18n } from '../i18n';
 
 export interface PickerService {
   id: string;
   name: string;
   category: string | null;
+  price?: string | null;
+  insurancePrice?: string | null;
 }
 
 export function ServicePicker({
@@ -24,7 +27,8 @@ export function ServicePicker({
   onChange(id: string): void;
   disabled?: boolean;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
+  const { clinic } = useSession();
   const listId = useId();
   const box = useRef<HTMLDivElement>(null);
   const search = useRef<HTMLInputElement>(null);
@@ -36,6 +40,16 @@ export function ServicePicker({
   const groups = groupServices(services, query);
   const shown = groups.flatMap((g) => g.items);
   const selected = services.find((s) => s.id === value);
+  /** «Cash $120 · Insurance $200»; пусто, если цен нет. */
+  const prices = (s: PickerService | undefined) =>
+    [
+      s?.price ? `${t('services.cash')} ${formatPrice(s.price, clinic.currency, locale)}` : '',
+      s?.insurancePrice
+        ? `${t('services.insurance')} ${formatPrice(s.insurancePrice, clinic.currency, locale)}`
+        : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
 
   function show() {
     setQuery('');
@@ -97,6 +111,9 @@ export function ServicePicker({
           ▾
         </span>
       </button>
+      {!open && prices(selected) && (
+        <p className="mt-1 text-xs text-slate-600">{prices(selected)}</p>
+      )}
       {open && (
         <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg">
           <input
@@ -146,7 +163,8 @@ export function ServicePicker({
                         at === active ? 'bg-teal-50' : ''
                       } ${s.id === value ? 'font-semibold' : ''}`}
                     >
-                      {s.name}
+                      <div>{s.name}</div>
+                      {prices(s) && <div className="text-xs text-slate-500">{prices(s)}</div>}
                     </div>
                   );
                 })}

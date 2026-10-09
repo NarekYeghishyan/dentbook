@@ -33,6 +33,8 @@
   "book.serviceSearch": "Search services",
   "book.serviceNone": "No services found",
   "book.noCategory": "No category",
+  "book.cash": "Cash",
+  "book.insurance": "Insurance",
   "book.durationField": "Duration, minutes ({min}–{max})",
   "book.duration": "{min} min",
   "book.office": "Office",

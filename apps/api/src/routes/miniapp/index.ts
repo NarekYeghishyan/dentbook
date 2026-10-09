@@ -148,6 +148,7 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
         clinicName: clinics.name,
         locale: clinics.locale,
         timezone: clinics.timezone,
+        currency: clinics.currency,
       })
       .from(dentists)
       .innerJoin(clinics, eq(clinics.id, dentists.clinicId))
@@ -164,6 +165,8 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
         name: services.name,
         category: services.category,
         durationMin: services.durationMin,
+        price: services.price,
+        insurancePrice: services.insurancePrice,
       })
       .from(services)
       .innerJoin(
@@ -174,7 +177,12 @@ export const miniappRoutes: FastifyPluginAsync<MiniappRoutesOptions> = async (
       .orderBy(asc(services.sortOrder), asc(services.name));
     return {
       dentist: { id: me!.id, fullName: me!.fullName, locale: me!.dentistLocale ?? null },
-      clinic: { name: me!.clinicName, locale: me!.locale as Locale, timezone: me!.timezone },
+      clinic: {
+        name: me!.clinicName,
+        locale: me!.locale as Locale,
+        timezone: me!.timezone,
+        currency: me!.currency,
+      },
       locations: offices,
       services: own,
     };

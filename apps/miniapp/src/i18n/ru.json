@@ -33,6 +33,8 @@
   "book.serviceSearch": "Поиск услуги",
   "book.serviceNone": "Услуги не найдены",
   "book.noCategory": "Без категории",
+  "book.cash": "Нал.",
+  "book.insurance": "Страх.",
   "book.durationField": "Длительность, мин ({min}–{max})",
   "book.duration": "{min} мин",
   "book.office": "Офис",

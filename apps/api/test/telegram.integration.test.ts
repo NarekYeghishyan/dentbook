@@ -427,8 +427,16 @@ describe('Mini App (§8)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({
       dentist: { id: data.dentistId, fullName: 'Dr. Anna' },
-      clinic: { name: 'Smile Dental', timezone: ZONE },
-      services: [{ id: data.serviceId, name: 'Checkup', durationMin: 30 }],
+      clinic: { name: 'Smile Dental', timezone: ZONE, currency: 'USD' },
+      services: [
+        {
+          id: data.serviceId,
+          name: 'Checkup',
+          durationMin: 30,
+          price: '80.00',
+          insurancePrice: null,
+        },
+      ],
     });
   });
 
