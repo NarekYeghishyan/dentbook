@@ -510,6 +510,7 @@ export function JournalPage() {
         <AppointmentDialog
           appointment={selected}
           dentistName={data?.dentists.find((d) => d.id === selected.dentistId)?.fullName ?? ''}
+          service={services.data?.find((s) => s.id === selected.serviceId)}
           timeZone={timeZone}
           onClose={() => setSelectedId(null)}
           onDone={() => setSelectedId(null)}

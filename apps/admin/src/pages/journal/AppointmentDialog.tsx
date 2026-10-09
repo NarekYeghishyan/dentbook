@@ -4,9 +4,11 @@
  */
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { JournalAppointment } from '@dentbook/shared';
+import type { JournalAppointment, Service } from '@dentbook/shared';
+import { formatPrice } from '@dentbook/shared/service-search';
 import { useAppointmentAction } from '../../api/hooks';
 import { Badge, Button, Modal } from '../../components/ui';
+import { useSession } from '../../components/Layout';
 import { useI18n, type MessageKey } from '../../i18n';
 import { formatDateTime, formatTime } from '../../lib/time';
 import { AppointmentHistory } from './AppointmentHistory';
@@ -23,6 +25,7 @@ const STATUS_TONE = {
 export function AppointmentDialog({
   appointment,
   dentistName,
+  service,
   timeZone,
   onClose,
   onDone,
@@ -30,6 +33,8 @@ export function AppointmentDialog({
 }: {
   appointment: JournalAppointment;
   dentistName: string;
+  /** Услуга из каталога — её цены; нет у разовой услуги из Mini App. */
+  service?: Pick<Service, 'price' | 'insurancePrice'> | undefined;
   timeZone: string;
   onClose(): void;
   onDone(): void;
@@ -37,6 +42,7 @@ export function AppointmentDialog({
   onEdit(): void;
 }) {
   const { t, locale } = useI18n();
+  const { clinic } = useSession();
   const action = useAppointmentAction();
   const errorText = useJournalError();
   const [showHistory, setShowHistory] = useState(false);
@@ -63,6 +69,22 @@ export function AppointmentDialog({
     ],
     ['field.dentist', dentistName],
     ['field.service', appointment.service],
+    ...(service?.price
+      ? [
+          ['services.cash', formatPrice(service.price, clinic.currency, locale)] as [
+            MessageKey,
+            string,
+          ],
+        ]
+      : []),
+    ...(service?.insurancePrice
+      ? [
+          ['services.insurance', formatPrice(service.insurancePrice, clinic.currency, locale)] as [
+            MessageKey,
+            string,
+          ],
+        ]
+      : []),
     ['appointment.source', t(`source.${appointment.source}` as MessageKey)],
   ];
 

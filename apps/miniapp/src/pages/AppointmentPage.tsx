@@ -8,6 +8,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import type { MiniappAppointment } from '@dentbook/shared';
+import { formatPrice } from '@dentbook/shared/service-search';
 import { api, ApiError } from '../api';
 import { errorText, useSession } from '../context';
 import { ServicePicker } from '../ServicePicker';
@@ -50,6 +51,15 @@ export function AppointmentPage({
   const [showHistory, setShowHistory] = useState(cancelled);
   /** Ошибка показывается у той части страницы, где её вызвали. */
   const [error, setError] = useState<{ part: Part; text: string } | null>(null);
+
+  const own = me.services.find((s) => s.id === a.serviceId);
+  const prices = [
+    own?.price && `${t('book.cash')} ${formatPrice(own.price, me.clinic.currency, locale)}`,
+    own?.insurancePrice &&
+      `${t('book.insurance')} ${formatPrice(own.insurancePrice, me.clinic.currency, locale)}`,
+  ]
+    .filter(Boolean)
+    .join(' · ');
 
   const upcoming =
     (a.status === 'pending' || a.status === 'confirmed') && Date.parse(a.startAt) > Date.now();
@@ -125,6 +135,7 @@ export function AppointmentPage({
       <div className="space-y-1 rounded-lg bg-card p-3">
         <div className="font-medium">{formatDateTime(a.startAt, a.timeZone, locale)}</div>
         <div>{a.service}</div>
+        {prices && <div className="text-sm text-hint">{prices}</div>}
         <div className="text-sm text-hint">{a.office}</div>
         {cancelled && <div className="text-sm text-danger">{t(cancelledLabel(a.cancelledBy))}</div>}
       </div>
