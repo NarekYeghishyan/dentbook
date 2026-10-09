@@ -44,6 +44,7 @@ describe('importFeeSchedule', () => {
     expect(rows[0]).toMatchObject({
       category: 'Restorative',
       price: '950.00',
+      insurancePrice: '1500.00',
       durationMin: 30,
       isPublic: false,
       oneTime: false,
@@ -67,8 +68,17 @@ describe('importFeeSchedule', () => {
       .update(services)
       .set({ durationMin: 75, isPublic: true })
       .where(and(eq(services.clinicId, clinicId), eq(services.name, 'Core buildup')));
+    await testDb.db
+      .update(services)
+      .set({ price: '999.00', insurancePrice: '1.00' })
+      .where(and(eq(services.clinicId, clinicId), eq(services.name, 'Periodic exam')));
     const result = await importFeeSchedule(testDb.db, clinicId);
     expect(result).toEqual({ created: 0, existing: TOTAL });
+    const [exam] = await testDb.db
+      .select()
+      .from(services)
+      .where(and(eq(services.clinicId, clinicId), eq(services.name, 'Periodic exam')));
+    expect(exam).toMatchObject({ price: '999.00', insurancePrice: '1.00' });
     const [row] = await testDb.db
       .select()
       .from(services)
@@ -76,16 +86,16 @@ describe('importFeeSchedule', () => {
     expect(row).toMatchObject({ durationMin: 75, isPublic: true });
   });
 
-  it('gives an existing uncategorised service with the same name its category', async () => {
+  it('fills an empty category and Insurance Fee of a same-named service', async () => {
     await testDb.db
       .update(services)
-      .set({ category: null })
+      .set({ category: null, insurancePrice: null })
       .where(and(eq(services.clinicId, clinicId), eq(services.name, 'Pulpotomy')));
     await importFeeSchedule(testDb.db, clinicId);
     const [row] = await testDb.db
       .select()
       .from(services)
       .where(and(eq(services.clinicId, clinicId), eq(services.name, 'Pulpotomy')));
-    expect(row!.category).toBe('Endodontics (Root Canals)');
+    expect(row).toMatchObject({ category: 'Endodontics (Root Canals)', insurancePrice: '200.00' });
   });
 });

@@ -134,6 +134,13 @@
       "when": 1791544862550,
       "tag": "0018_service_category",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791552354989,
+      "tag": "0019_service_insurance_price",
+      "breakpoints": true
     }
   ]
 }

@@ -19,6 +19,7 @@ const columns = {
   durationMin: services.durationMin,
   bufferMin: services.bufferMin,
   price: services.price,
+  insurancePrice: services.insurancePrice,
   isPublic: services.isPublic,
   isActive: services.isActive,
   sortOrder: services.sortOrder,

@@ -106,6 +106,12 @@ describe('services', () => {
       payload: { price: null, isPublic: false },
     });
     expect(hidden).toMatchObject({ price: null, isPublic: false });
+    const both = await call(app, owner, {
+      method: 'PATCH',
+      url: `/v1/admin/services/${service.id}`,
+      payload: { price: '120', insurancePrice: '150.5' },
+    });
+    expect(both).toMatchObject({ price: '120.00', insurancePrice: '150.50' });
   });
 
   it('stores a category, trims it and clears it with an empty value', async () => {
@@ -137,6 +143,7 @@ describe('services', () => {
   it.each([
     ['a float price', { price: 12.5 }],
     ['three decimals', { price: '1.005' }],
+    ['a float insurance price', { insurancePrice: 12.5 }],
     ['zero duration', { durationMin: 0 }],
     ['a negative buffer', { bufferMin: -5 }],
   ])('rejects %s', async (_case, override) => {

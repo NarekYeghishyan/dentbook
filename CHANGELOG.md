@@ -15,6 +15,12 @@ produced them (CLAUDE.md §9).
 
 #### Added
 
+- `feat(admin): Cash / Self-Pay and Insurance Fee prices on the Services page` — у услуги
+  два редактируемых поля: «Cash / Self-Pay» (прежняя `price`, её видит пациент в форме
+  записи) и «Insurance Fee» (`services.insurance_price`, миграция `0019`, только для
+  клиники). Оба показываются в списке услуг. `import:fees` кладёт и вторую цену, а при
+  повторном запуске заполняет Insurance Fee у уже существующих услуг, если он пуст.
+
 - `feat: service categories and a searchable service picker` — у услуги появилась
   необязательная категория (`services.category`, миграция `0018`); она приходит в
   админском, публичном (`category`) и Mini App API. Выбор услуги в журнале, Mini App

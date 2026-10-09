@@ -1,0 +1,2 @@
+ALTER TABLE "services" ADD COLUMN "insurance_price" numeric(12, 2);--> statement-breakpoint
+ALTER TABLE "services" ADD CONSTRAINT "services_insurance_price" CHECK (insurance_price IS NULL OR insurance_price >= 0);

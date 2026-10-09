@@ -71,7 +71,10 @@ export const createServiceSchema = z.object({
     .min(0)
     .max(4 * 60)
     .optional(),
+  /** Cash / Self-Pay: эту цену видит пациент в форме записи. */
   price: priceSchema.nullable().optional(),
+  /** Insurance Fee: только для клиники. */
+  insurancePrice: priceSchema.nullable().optional(),
   isPublic: z.boolean().optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().int().min(0).max(10_000).optional(),
@@ -90,6 +93,8 @@ export interface Service {
   bufferMin: number;
   /** Строка numeric(12,2) или null — цена не показывается. */
   price: string | null;
+  /** Insurance Fee, строка numeric(12,2) или null. */
+  insurancePrice: string | null;
   isPublic: boolean;
   isActive: boolean;
   sortOrder: number;

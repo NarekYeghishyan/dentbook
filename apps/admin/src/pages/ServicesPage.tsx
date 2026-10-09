@@ -24,6 +24,7 @@ type Draft = {
   durationMin: string;
   bufferMin: string;
   price: string;
+  insurancePrice: string;
   isPublic: boolean;
   isActive: boolean;
 };
@@ -35,6 +36,7 @@ const toDraft = (s?: Service): Draft => ({
   durationMin: String(s?.durationMin ?? 30),
   bufferMin: String(s?.bufferMin ?? 0),
   price: s?.price ?? '',
+  insurancePrice: s?.insurancePrice ?? '',
   isPublic: s?.isPublic ?? true,
   isActive: s?.isActive ?? true,
 });
@@ -46,6 +48,7 @@ const toInput = (d: Draft): CreateServiceInput => ({
   durationMin: Number(d.durationMin),
   bufferMin: Number(d.bufferMin),
   price: d.price.trim() === '' ? null : d.price.trim(),
+  insurancePrice: d.insurancePrice.trim() === '' ? null : d.insurancePrice.trim(),
   isPublic: d.isPublic,
   isActive: d.isActive,
 });
@@ -101,6 +104,17 @@ function ServiceForm({
             pattern="\d{1,10}(\.\d{1,2})?"
             value={draft.price}
             onChange={(e) => set({ price: e.target.value })}
+          />
+        </Field>
+        <Field
+          label={t('field.insurancePrice', { currency: clinic.currency })}
+          hint={t('hint.insurancePrice')}
+        >
+          <Input
+            inputMode="decimal"
+            pattern="\d{1,10}(\.\d{1,2})?"
+            value={draft.insurancePrice}
+            onChange={(e) => set({ insurancePrice: e.target.value })}
           />
         </Field>
         <Field label={t('field.durationMin')}>
@@ -242,7 +256,11 @@ export function ServicesPage() {
                             duration: service.durationMin,
                             buffer: service.bufferMin,
                           })}
-                          {service.price !== null && ` · ${service.price} ${clinic.currency}`}
+                          {service.price !== null && ` · ${t('services.cash')} ${service.price}`}
+                          {service.insurancePrice !== null &&
+                            ` · ${t('services.insurance')} ${service.insurancePrice}`}
+                          {(service.price !== null || service.insurancePrice !== null) &&
+                            ` ${clinic.currency}`}
                         </p>
                       </div>
                       {!service.isPublic && <Badge>{t('services.hidden')}</Badge>}

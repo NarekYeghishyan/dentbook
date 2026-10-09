@@ -185,6 +185,8 @@ CREATE TABLE services (
   buffer_min    integer       NOT NULL DEFAULT 0,
   -- NULL — цена в виджете не показывается. Валюта — clinics.currency.
   price         numeric(12,2),
+  -- Insurance Fee: для пациентов со страховкой, в виджете не показывается
+  insurance_price numeric(12,2),
   -- Попадает в GET /v1/public/services (§7)
   is_public     boolean       NOT NULL DEFAULT true,
   is_active     boolean       NOT NULL DEFAULT true,
@@ -199,6 +201,7 @@ CREATE TABLE services (
   CONSTRAINT services_duration_min     CHECK (duration_min > 0),
   CONSTRAINT services_buffer_min       CHECK (buffer_min >= 0),
   CONSTRAINT services_price            CHECK (price IS NULL OR price >= 0),
+  CONSTRAINT services_insurance_price  CHECK (insurance_price IS NULL OR insurance_price >= 0),
   CONSTRAINT services_one_time_hidden  CHECK (NOT one_time OR NOT is_public)
 );
 

@@ -67,6 +67,8 @@ export const services = pgTable(
     bufferMin: integer('buffer_min').notNull().default(0),
     /** numeric → string: деньги без float (§9). NULL — цена не показывается. */
     price: numeric('price', { precision: 12, scale: 2 }),
+    /** Цена для пациентов со страховкой (Insurance Fee); публично не показывается. NULL — не задана. */
+    insurancePrice: numeric('insurance_price', { precision: 12, scale: 2 }),
     isPublic: boolean('is_public').notNull().default(true),
     isActive: boolean('is_active').notNull().default(true),
     sortOrder: integer('sort_order').notNull().default(0),
@@ -88,6 +90,7 @@ export const services = pgTable(
     check('services_duration_min', sql`duration_min > 0`),
     check('services_buffer_min', sql`buffer_min >= 0`),
     check('services_price', sql`price IS NULL OR price >= 0`),
+    check('services_insurance_price', sql`insurance_price IS NULL OR insurance_price >= 0`),
     // Разовая услуга не уходит в публичный API (§2.5) — даже если код ошибётся
     check('services_one_time_hidden', sql`NOT one_time OR NOT is_public`),
   ],
