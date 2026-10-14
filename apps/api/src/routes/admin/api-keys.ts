@@ -18,6 +18,7 @@ const columns = {
   token: apiKeys.token,
   allowedOrigins: apiKeys.allowedOrigins,
   embedMode: apiKeys.embedMode,
+  showPrices: apiKeys.showPrices,
   lastUsedAt: apiKeys.lastUsedAt,
   revokedAt: apiKeys.revokedAt,
   createdAt: apiKeys.createdAt,
@@ -58,6 +59,7 @@ export const apiKeyRoutes: FastifyPluginAsync<{ db: Database }> = async (app, { 
         name: input.name,
         allowedOrigins: [...new Set(input.allowedOrigins)],
         embedMode: input.embedMode,
+        showPrices: input.showPrices,
         token: newPublishableKey(),
         createdBy: userId,
       })
@@ -72,6 +74,7 @@ export const apiKeyRoutes: FastifyPluginAsync<{ db: Database }> = async (app, { 
       ...(input.name !== undefined ? { name: input.name } : {}),
       ...(input.allowedOrigins ? { allowedOrigins: [...new Set(input.allowedOrigins)] } : {}),
       ...(input.embedMode !== undefined ? { embedMode: input.embedMode } : {}),
+      ...(input.showPrices !== undefined ? { showPrices: input.showPrices } : {}),
     };
     const where = scoped(clinicId, idOf(request));
     const [row] =

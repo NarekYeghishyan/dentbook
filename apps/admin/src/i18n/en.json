@@ -184,6 +184,8 @@
   "website.mode.inlineHint": "The form sits right where you paste the code.",
   "website.mode.popup": "In a popup, on a button click",
   "website.mode.popupHint": "Buttons and links on your site with a special class open the form over the page.",
+  "website.showPrices": "Show prices in the booking form",
+  "website.showPricesHint": "Turn off to hide service prices from visitors of your website. Prices are then not sent to the form at all.",
   "website.popupSnippetHint": "Paste it once into your site's footer or just before </body>, so it is on every page with booking buttons.",
   "website.popupClass": "Then add this class to any button or link on your site. A click on it opens the form:",
   "nav.journal": "Journal",

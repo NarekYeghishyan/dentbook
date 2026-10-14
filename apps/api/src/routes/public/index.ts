@@ -89,7 +89,7 @@ export const publicRoutes: FastifyPluginAsync<PublicRoutesOptions> = async (app,
   });
 
   app.get('/services', async (request): Promise<PublicService[]> => {
-    const { clinicId } = publicOf(request);
+    const { clinicId, showPrices } = publicOf(request);
     const [clinic] = await db
       .select({ currency: clinics.currency })
       .from(clinics)
@@ -112,7 +112,12 @@ export const publicRoutes: FastifyPluginAsync<PublicRoutesOptions> = async (app,
         ),
       )
       .orderBy(asc(services.sortOrder), asc(services.name));
-    return rows.map((row) => ({ ...row, currency: clinic!.currency }));
+    // Цены выключены у ключа — не отдаём их вовсе, а не прячем в форме
+    return rows.map((row) => ({
+      ...row,
+      price: showPrices ? row.price : null,
+      currency: clinic!.currency,
+    }));
   });
 
   app.get('/availability', async (request): Promise<PublicAvailability> => {

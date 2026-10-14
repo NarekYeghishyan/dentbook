@@ -129,6 +129,7 @@ export const createApiKeySchema = z.object({
   // Без default: в updateApiKeySchema (partial) zod подставил бы его и в PATCH без поля,
   // и правка сайтов сбрасывала бы окно обратно в форму на странице. По умолчанию — БД.
   embedMode: z.enum(EMBED_MODES).optional(),
+  showPrices: z.boolean().optional(),
 });
 export type CreateApiKeyInput = z.input<typeof createApiKeySchema>;
 
@@ -143,6 +144,8 @@ export interface ApiKey {
   allowedOrigins: string[];
   /** Какой код встраивания показывает панель; сама форма берёт режим из кода (data-mode). */
   embedMode: EmbedMode;
+  /** Форма с этим ключом показывает цены услуг; выключено — API не отдаёт их вовсе. */
+  showPrices: boolean;
   lastUsedAt: string | null;
   revokedAt: string | null;
   createdAt: string;

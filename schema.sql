@@ -127,7 +127,9 @@ CREATE TABLE api_keys (
   -- клику на кнопки сайта. По нему панель показывает нужный код встраивания; сама
   -- форма режим берёт из кода (data-mode), поэтому смена здесь сайт не меняет.
   embed_mode       text        NOT NULL DEFAULT 'inline',
-  last_used_at     timestamptz,
+  -- Показывать ли цены услуг в форме на сайте; выключено — публичный API отдаёт price: null
+  show_prices      boolean     NOT NULL DEFAULT true,
+  last_used_at    timestamptz,
   revoked_at       timestamptz,
   created_by       uuid        REFERENCES users (id),
   created_at       timestamptz NOT NULL DEFAULT now(),

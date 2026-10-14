@@ -1,0 +1,1 @@
+ALTER TABLE "api_keys" ADD COLUMN "show_prices" boolean DEFAULT true NOT NULL;

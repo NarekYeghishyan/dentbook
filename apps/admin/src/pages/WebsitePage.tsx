@@ -75,6 +75,34 @@ function EmbedModeChoice({
   );
 }
 
+/** Показывать ли цены услуг в форме на сайте. */
+function ShowPricesChoice({
+  checked,
+  onChange,
+  disabled,
+}: {
+  checked: boolean;
+  onChange(checked: boolean): void;
+  disabled?: boolean;
+}) {
+  const { t } = useI18n();
+  return (
+    <label className="flex items-start gap-2 text-sm">
+      <input
+        type="checkbox"
+        className="mt-0.5 size-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+        checked={checked}
+        disabled={disabled}
+        onChange={(e) => onChange(e.target.checked)}
+      />
+      <span>
+        <span className="block text-slate-900">{t('website.showPrices')}</span>
+        <span className="block text-xs text-slate-500">{t('website.showPricesHint')}</span>
+      </span>
+    </label>
+  );
+}
+
 function KeyRow({ apiKey }: { apiKey: ApiKey }) {
   const { t, locale } = useI18n();
   const { clinic } = useSession();
@@ -83,6 +111,7 @@ function KeyRow({ apiKey }: { apiKey: ApiKey }) {
   const [origins, setOrigins] = useState(apiKey.allowedOrigins.join('\n'));
   // Код на экране меняется сразу; не сохранилось — возвращаем прежний режим
   const [mode, setMode] = useState(apiKey.embedMode);
+  const [showPrices, setShowPrices] = useState(apiKey.showPrices);
   const [copied, setCopied] = useState<'key' | 'code' | 'class' | null>(null);
   const revoked = apiKey.revokedAt !== null;
 
@@ -100,6 +129,14 @@ function KeyRow({ apiKey }: { apiKey: ApiKey }) {
   function changeMode(next: EmbedMode) {
     setMode(next);
     update.mutate({ id: apiKey.id, embedMode: next }, { onError: () => setMode(apiKey.embedMode) });
+  }
+
+  function changeShowPrices(next: boolean) {
+    setShowPrices(next);
+    update.mutate(
+      { id: apiKey.id, showPrices: next },
+      { onError: () => setShowPrices(apiKey.showPrices) },
+    );
   }
 
   return (
@@ -133,6 +170,13 @@ function KeyRow({ apiKey }: { apiKey: ApiKey }) {
           name={`embed-mode-${apiKey.id}`}
           value={mode}
           onChange={changeMode}
+          disabled={update.isPending}
+        />
+      )}
+      {!revoked && (
+        <ShowPricesChoice
+          checked={showPrices}
+          onChange={changeShowPrices}
           disabled={update.isPending}
         />
       )}
@@ -209,16 +253,18 @@ export function WebsitePage() {
   const [name, setName] = useState('');
   const [origins, setOrigins] = useState('');
   const [mode, setMode] = useState<EmbedMode>('inline');
+  const [showPrices, setShowPrices] = useState(true);
 
   function submit(e: FormEvent) {
     e.preventDefault();
     create.mutate(
-      { name, allowedOrigins: parseOrigins(origins), embedMode: mode },
+      { name, allowedOrigins: parseOrigins(origins), embedMode: mode, showPrices },
       {
         onSuccess: () => {
           setName('');
           setOrigins('');
           setMode('inline');
+          setShowPrices(true);
         },
       },
     );
@@ -260,6 +306,7 @@ export function WebsitePage() {
             />
           </Field>
           <EmbedModeChoice name="embed-mode-new" value={mode} onChange={setMode} />
+          <ShowPricesChoice checked={showPrices} onChange={setShowPrices} />
           <ErrorText error={create.error} />
           <Button type="submit" disabled={create.isPending}>
             {t('website.create')}

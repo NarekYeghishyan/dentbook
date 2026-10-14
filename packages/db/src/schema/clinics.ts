@@ -116,6 +116,8 @@ export const apiKeys = pgTable(
       .default(sql`'{}'`),
     /** Форма на странице или во всплывающем окне — какой код встраивания показать. */
     embedMode: text('embed_mode', { enum: EMBED_MODES }).notNull().default('inline'),
+    /** Показывать ли цены услуг в форме на сайте; выключено — GET /services отдаёт price: null. */
+    showPrices: boolean('show_prices').notNull().default(true),
     lastUsedAt: timestamptz('last_used_at'),
     revokedAt: timestamptz('revoked_at'),
     createdBy: uuid('created_by'),

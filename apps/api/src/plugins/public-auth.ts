@@ -14,6 +14,7 @@ import { ApiError } from '../lib/errors.js';
 export interface PublicContext {
   keyId: string;
   clinicId: string;
+  showPrices: boolean;
 }
 
 declare module 'fastify' {
@@ -63,6 +64,7 @@ export function registerPublicAuth(
         id: apiKeys.id,
         clinicId: apiKeys.clinicId,
         allowedOrigins: apiKeys.allowedOrigins,
+        showPrices: apiKeys.showPrices,
         lastUsedAt: apiKeys.lastUsedAt,
         clinicStatus: clinics.status,
       })
@@ -94,7 +96,7 @@ export function registerPublicAuth(
           request.log.warn({ err: err.message }, 'last_used_at update failed'),
         );
     }
-    request.publicKey = { keyId: key.id, clinicId: key.clinicId };
+    request.publicKey = { keyId: key.id, clinicId: key.clinicId, showPrices: key.showPrices };
   });
 
   // Preflight: Authorization в запросе браузера → OPTIONS без ключа. Сам запрос проверяется

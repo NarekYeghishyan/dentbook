@@ -336,6 +336,31 @@ describe('config, services, availability', () => {
     ]);
   });
 
+  it('hides prices from the form when the key has them switched off', async () => {
+    const quiet = await call<ApiKey>(
+      app,
+      owner,
+      {
+        method: 'POST',
+        url: '/v1/admin/api-keys',
+        payload: { name: 'No prices', allowedOrigins: [ORIGIN], showPrices: false },
+      },
+      201,
+    );
+    expect(quiet.showPrices).toBe(false);
+    const hidden = await pub({ method: 'GET', url: '/v1/public/services' }, quiet.token);
+    expect(hidden.json()).toEqual([expect.objectContaining({ name: 'Checkup', price: null })]);
+
+    // Включаем обратно — цена снова в ответе; другой ключ клиники не затронут
+    await call<ApiKey>(app, owner, {
+      method: 'PATCH',
+      url: `/v1/admin/api-keys/${quiet.id}`,
+      payload: { showPrices: true },
+    });
+    const shown = await pub({ method: 'GET', url: '/v1/public/services' }, quiet.token);
+    expect(shown.json()[0].price).toBe('80.00');
+  });
+
   it('shows free start times of any dentist, without dentists', async () => {
     const slots = await slotsOf(MON());
     expect(slots).toHaveLength(31);
