@@ -112,6 +112,7 @@ function KeyRow({ apiKey }: { apiKey: ApiKey }) {
   // Код на экране меняется сразу; не сохранилось — возвращаем прежний режим
   const [mode, setMode] = useState(apiKey.embedMode);
   const [showPrices, setShowPrices] = useState(apiKey.showPrices);
+  const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState<'key' | 'code' | 'class' | null>(null);
   const revoked = apiKey.revokedAt !== null;
 
@@ -140,9 +141,14 @@ function KeyRow({ apiKey }: { apiKey: ApiKey }) {
   }
 
   return (
-    <li className="space-y-3 py-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="flex-1 font-medium text-slate-900">{apiKey.name}</p>
+    <li className="rounded-lg border border-slate-200 bg-white shadow-sm">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className="flex w-full flex-wrap items-center gap-2 rounded-lg px-4 py-3 text-left transition-colors hover:bg-slate-50"
+      >
+        <span className="flex-1 font-medium text-slate-900">{apiKey.name}</span>
         {revoked ? (
           <Badge tone="red">{t('website.revoked')}</Badge>
         ) : (
@@ -154,93 +160,103 @@ function KeyRow({ apiKey }: { apiKey: ApiKey }) {
             </span>
           )
         )}
-      </div>
-      <div className="flex flex-wrap gap-2">
-        <code className="flex-1 break-all rounded bg-slate-100 px-2 py-1.5 text-xs text-slate-700">
-          {apiKey.token}
-        </code>
-        {!revoked && (
-          <Button variant="secondary" onClick={() => void copy('key')}>
-            {copied === 'key' ? t('website.copied') : t('website.copy')}
-          </Button>
-        )}
-      </div>
-      {!revoked && (
-        <EmbedModeChoice
-          name={`embed-mode-${apiKey.id}`}
-          value={mode}
-          onChange={changeMode}
-          disabled={update.isPending}
-        />
-      )}
-      {!revoked && (
-        <ShowPricesChoice
-          checked={showPrices}
-          onChange={changeShowPrices}
-          disabled={update.isPending}
-        />
-      )}
-      {!revoked && (
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-slate-700">{t('website.snippet')}</p>
-          <pre className="overflow-x-auto rounded bg-slate-900 px-3 py-2 text-xs text-slate-100">
-            {embedCode(apiKey.token, mode)}
-          </pre>
-          <div className="flex flex-wrap items-center gap-3">
-            <Button variant="secondary" onClick={() => void copy('code')}>
-              {copied === 'code' ? t('website.copied') : t('website.copyCode')}
-            </Button>
-            <span className="text-xs text-slate-500">
-              {t(mode === 'popup' ? 'website.popupSnippetHint' : 'website.snippetHint')}
-            </span>
+        <span
+          aria-hidden
+          className={`text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`}
+        >
+          ▾
+        </span>
+      </button>
+      {open && (
+        <div className="space-y-3 border-t border-slate-100 px-4 py-4">
+          <div className="flex flex-wrap gap-2">
+            <code className="flex-1 break-all rounded bg-slate-100 px-2 py-1.5 text-xs text-slate-700">
+              {apiKey.token}
+            </code>
+            {!revoked && (
+              <Button variant="secondary" onClick={() => void copy('key')}>
+                {copied === 'key' ? t('website.copied') : t('website.copy')}
+              </Button>
+            )}
           </div>
-          {mode === 'popup' && (
-            <div className="space-y-1 pt-2">
-              <p className="text-sm text-slate-700">{t('website.popupClass')}</p>
-              <div className="flex flex-wrap items-center gap-2">
-                <code className="rounded bg-slate-100 px-2 py-1.5 text-xs text-slate-700">
-                  {POPUP_TRIGGER_CLASS}
-                </code>
-                <Button variant="secondary" onClick={() => void copy('class')}>
-                  {copied === 'class' ? t('website.copied') : t('website.copy')}
+          {!revoked && (
+            <EmbedModeChoice
+              name={`embed-mode-${apiKey.id}`}
+              value={mode}
+              onChange={changeMode}
+              disabled={update.isPending}
+            />
+          )}
+          {!revoked && (
+            <ShowPricesChoice
+              checked={showPrices}
+              onChange={changeShowPrices}
+              disabled={update.isPending}
+            />
+          )}
+          {!revoked && (
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-slate-700">{t('website.snippet')}</p>
+              <pre className="overflow-x-auto rounded bg-slate-900 px-3 py-2 text-xs text-slate-100">
+                {embedCode(apiKey.token, mode)}
+              </pre>
+              <div className="flex flex-wrap items-center gap-3">
+                <Button variant="secondary" onClick={() => void copy('code')}>
+                  {copied === 'code' ? t('website.copied') : t('website.copyCode')}
                 </Button>
+                <span className="text-xs text-slate-500">
+                  {t(mode === 'popup' ? 'website.popupSnippetHint' : 'website.snippetHint')}
+                </span>
               </div>
+              {mode === 'popup' && (
+                <div className="space-y-1 pt-2">
+                  <p className="text-sm text-slate-700">{t('website.popupClass')}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <code className="rounded bg-slate-100 px-2 py-1.5 text-xs text-slate-700">
+                      {POPUP_TRIGGER_CLASS}
+                    </code>
+                    <Button variant="secondary" onClick={() => void copy('class')}>
+                      {copied === 'class' ? t('website.copied') : t('website.copy')}
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
-      {!revoked && (
-        <form
-          className="space-y-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            update.mutate({ id: apiKey.id, allowedOrigins: parseOrigins(origins) });
-          }}
-        >
-          <Field label={t('website.origins')} hint={t('website.originsHint')}>
-            <textarea
-              rows={2}
-              className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 font-mono text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-              value={origins}
-              onChange={(e) => setOrigins(e.target.value)}
-            />
-          </Field>
-          <ErrorText error={update.error ?? revoke.error} />
-          <div className="flex flex-wrap gap-2">
-            <Button type="submit" variant="secondary" disabled={update.isPending}>
-              {t('common.save')}
-            </Button>
-            <Button
-              variant="danger"
-              disabled={revoke.isPending}
-              onClick={() => {
-                if (window.confirm(t('website.revokeConfirm'))) revoke.mutate(apiKey.id);
+          {!revoked && (
+            <form
+              className="space-y-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                update.mutate({ id: apiKey.id, allowedOrigins: parseOrigins(origins) });
               }}
             >
-              {t('website.revoke')}
-            </Button>
-          </div>
-        </form>
+              <Field label={t('website.origins')} hint={t('website.originsHint')}>
+                <textarea
+                  rows={2}
+                  className="w-full rounded-md border border-slate-300 px-2.5 py-1.5 font-mono text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                  value={origins}
+                  onChange={(e) => setOrigins(e.target.value)}
+                />
+              </Field>
+              <ErrorText error={update.error ?? revoke.error} />
+              <div className="flex flex-wrap gap-2">
+                <Button type="submit" variant="secondary" disabled={update.isPending}>
+                  {t('common.save')}
+                </Button>
+                <Button
+                  variant="danger"
+                  disabled={revoke.isPending}
+                  onClick={() => {
+                    if (window.confirm(t('website.revokeConfirm'))) revoke.mutate(apiKey.id);
+                  }}
+                >
+                  {t('website.revoke')}
+                </Button>
+              </div>
+            </form>
+          )}
+        </div>
       )}
     </li>
   );
@@ -279,7 +295,7 @@ export function WebsitePage() {
         <p className="mb-2 text-sm text-slate-600">{t('website.intro')}</p>
         <ErrorText error={keys.error} />
         {keys.data?.length === 0 && <p className="text-sm text-slate-500">{t('website.empty')}</p>}
-        <ul className="divide-y divide-slate-100">
+        <ul className="space-y-3">
           {keys.data?.map((apiKey) => (
             <KeyRow key={apiKey.id} apiKey={apiKey} />
           ))}

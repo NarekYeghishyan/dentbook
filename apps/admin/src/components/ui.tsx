@@ -18,10 +18,12 @@ const cx = (...classes: (string | false | undefined)[]) => classes.filter(Boolea
 type Variant = 'primary' | 'secondary' | 'danger';
 
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-teal-600 text-white hover:bg-teal-700 disabled:bg-teal-300',
+  primary:
+    'bg-teal-600 text-white hover:bg-teal-700 active:bg-teal-800 disabled:bg-teal-300 disabled:hover:bg-teal-300',
   secondary:
-    'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 disabled:text-slate-400',
-  danger: 'border border-red-200 bg-white text-red-700 hover:bg-red-50 disabled:text-red-300',
+    'border border-slate-300 bg-white text-slate-700 hover:border-slate-400 hover:bg-slate-100 active:bg-slate-200 disabled:text-slate-400 disabled:hover:border-slate-300 disabled:hover:bg-white',
+  danger:
+    'border border-red-200 bg-white text-red-700 hover:border-red-600 hover:bg-red-600 hover:text-white active:bg-red-700 disabled:text-red-300 disabled:hover:border-red-200 disabled:hover:bg-white disabled:hover:text-red-300',
 };
 
 export function Button({
