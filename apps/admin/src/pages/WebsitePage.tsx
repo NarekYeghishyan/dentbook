@@ -146,7 +146,7 @@ function KeyRow({ apiKey }: { apiKey: ApiKey }) {
         type="button"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className="flex w-full flex-wrap items-center gap-2 rounded-lg px-4 py-3 text-left transition-colors hover:bg-slate-50"
+        className="flex w-full cursor-pointer flex-wrap items-center gap-2 rounded-lg px-4 py-3 text-left transition-colors hover:bg-slate-50"
       >
         <span className="flex-1 font-medium text-slate-900">{apiKey.name}</span>
         {revoked ? (
